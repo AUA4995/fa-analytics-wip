@@ -618,3 +618,29 @@ export async function countConversations(query: string): Promise<number> {
   const body = await frontFetch<{ _total?: number; _results?: unknown[] }>(`/conversations/search/${enc(query)}?limit=1`, { headers: headers() });
   return typeof body._total === "number" ? body._total : (body._results?.length ?? 0);
 }
+
+export interface Attachment {
+  name: string;
+  type: string;
+  bytes: Buffer;
+}
+
+/**
+ * Report email with a PDF attached (multipart/form-data): sent, or saved as a shared draft for review.
+ * The only Front writes this app makes are report emails and their drafts (brief §3 rule 4).
+ */
+export async function sendWithAttachment(input: SendEmailInput & { attachment: Attachment; draft?: boolean }): Promise<{ id: string | null }> {
+  if (!input.to.length) throw new Error("No recipients");
+  const fd = new FormData();
+  for (const t of input.to) fd.append("to[]", t);
+  fd.append("subject", input.subject);
+  fd.append("body", input.html);
+  if (input.text) fd.append("text", input.text);
+  if (input.senderName && !input.draft) fd.append("sender_name", input.senderName);
+  if (input.draft) fd.append("mode", "shared");
+  else fd.append("options[archive]", "true");
+  fd.append("attachments[]", new Blob([new Uint8Array(input.attachment.bytes)], { type: input.attachment.type }), input.attachment.name);
+  const path = `/channels/${enc(input.channelId)}/${input.draft ? "drafts" : "messages"}`;
+  const body = await frontFetch<{ id?: string; message_uid?: string }>(path, { method: "POST", headers: headers(), body: fd });
+  return { id: body.id ?? body.message_uid ?? null };
+}

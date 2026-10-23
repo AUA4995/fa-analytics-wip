@@ -853,3 +853,77 @@ model Notification {
 
   @@index([state])
 }
+
+// =====================================================================================
+// Chunk 6 — contacts & recipients, reports, improvements, finance extras
+// =====================================================================================
+
+enum RecipientList {
+  INTERNAL
+  CLIENT
+  LENDER
+}
+
+/// Settings → Contacts & recipients. Reports can be sent only to addresses on these lists (brief §10, §14).
+model Recipient {
+  id        String        @id @default(cuid())
+  list      RecipientList
+  name      String
+  email     String
+  /// CLIENT list: whose contact this is (Client-safe reports about that client only)
+  clientId  String?
+  /// LENDER list: bank, accountant, auditor, broker
+  role      String?
+  note      String?
+  createdBy String
+  createdAt DateTime      @default(now())
+
+  @@unique([list, email])
+}
+
+/// A saved report (its own item in the Reports menu).
+model Report {
+  id         String    @id @default(cuid())
+  name       String
+  /// workload | trends | quarterly | yearly | volumes | protection | finance
+  template   String
+  /// WEEK | MONTH | QUARTER | YEAR
+  period     String
+  /// INTERNAL | CLIENT_SAFE | EXTERNAL
+  cls        String    @default("INTERNAL")
+  clientId   String?
+  forecast   Boolean   @default(false)
+  /// T | F | B — costing view(s) in the file; the other is left out completely
+  costing    String    @default("B")
+  /// OFF | WEEKLY | MONTHLY | QUARTERLY
+  schedule   String    @default("OFF")
+  sendTime   String    @default("07:30")
+  /// DRY_RUN (to the owner only) | DRAFT (Front draft) | AUTO
+  mode       String    @default("DRY_RUN")
+  recipients String[]  @default([])
+  approvedBy String?
+  approvedAt DateTime?
+  sortOrder  Int       @default(0)
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  sends ReportSend[]
+}
+
+model ReportSend {
+  id        String   @id @default(cuid())
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  at        DateTime @default(now())
+  mode      String
+  to        String[]
+  subject   String
+  ok        Boolean
+  /// Why it was blocked or failed (in plain words)
+  error     String?
+  frontId   String?
+  by        String
+
+  @@index([reportId, at])
+}

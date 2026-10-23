@@ -21,15 +21,14 @@ import { getConnectionStatuses } from "@/lib/integrations/status";
 import { AccessDomainForm, AccessRequestsList, MyAccount, UsersCard } from "./users-card";
 import { parsePanel } from "@/components/ui/panel";
 import { ensureModelDefaults } from "@/lib/model/defaults";
+import { ContactsSection } from "./contacts-section";
 import { ClientsSection, ModelPanel, PoolsSection, RulesSection, ServicesSection, StaffSection, SuppliersSection } from "./model-sections";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 /** Sections that arrive in later chunks (brief §14). */
-const LATER: Record<string, string> = {
-  contacts: "Contacts & recipients (Internal, Clients, Lenders & advisers, Suggestions) is built with Reports, chunk 6.",
-};
+const LATER: Record<string, string> = {};
 
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const me = await requireUser();
@@ -174,6 +173,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       section === "staff" ? <StaffSection canEdit site={site} /> :
       section === "services" ? <ServicesSection canEdit /> :
       <PoolsSection canEdit />;
+  } else if (section === "contacts") {
+    body = <ContactsSection />;
   } else {
     body = <EmptyState title="Not built yet">{LATER[section] ?? "Built in a later chunk."}</EmptyState>;
   }

@@ -7,11 +7,13 @@ import { jobsSchema, pgConnectionString } from "@/lib/db-url";
  *
  *   xero-sync     — nightly incremental Xero read (05:30 Sydney) + "Sync now" / "Full re-read" buttons
  *   front-tickets — nightly Front ticket counts per client (05:45), current + previous month
- * Later chunks add the Thomax API pull (when Thomax sends the API details) and scheduled report emails.
+ *   report-tick   — hourly: scheduled report emails that are due (Sydney day + send time), once per day each
+ * Later: the Thomax API pull (when Thomax sends the API details).
  */
 
 export const QUEUE_XERO_SYNC = "xero-sync";
 export const QUEUE_FRONT_TICKETS = "front-tickets";
+export const QUEUE_REPORT_TICK = "report-tick";
 const TZ = "Australia/Sydney";
 
 let boss: PgBoss | null = null;
@@ -40,8 +42,10 @@ export async function startScheduler(): Promise<void> {
   const b = await getBoss();
   await b.createQueue(QUEUE_XERO_SYNC);
   await b.createQueue(QUEUE_FRONT_TICKETS);
+  await b.createQueue(QUEUE_REPORT_TICK);
   await b.schedule(QUEUE_XERO_SYNC, "30 5 * * *", { kind: "INCREMENTAL" }, { tz: TZ });
   await b.schedule(QUEUE_FRONT_TICKETS, "45 5 * * *", { months: 2 }, { tz: TZ });
+  await b.schedule(QUEUE_REPORT_TICK, "5 * * * *", {}, { tz: TZ });
   await b.work<{ kind?: "FULL" | "INCREMENTAL"; by?: string }>(QUEUE_XERO_SYNC, async ([job]) => {
     const { getConnection } = await import("@/lib/xero/auth");
     if (!(await getConnection())) return;
@@ -61,6 +65,10 @@ export async function startScheduler(): Promise<void> {
     if (!isFrontConfigured()) return;
     const { syncFrontTickets } = await import("@/lib/front/tickets");
     await syncFrontTickets(job.data?.months ?? 2, job.data?.by ?? null);
+  });
+  await b.work(QUEUE_REPORT_TICK, async () => {
+    const { runReportTick } = await import("@/lib/reports/send");
+    await runReportTick();
   });
   console.log("[jobs] scheduler started");
 }
