@@ -57,6 +57,7 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
     logiwaClientId: { label: "Logiwa client", kind: "text", optional: true },
     frontDomains: { label: "Front / email domains", kind: "list", optional: true },
     clmContractRef: { label: "CLM contract", kind: "text", optional: true },
+    renewalDate: { label: "Contract renewal", kind: "date", optional: true, hint: "From CLM once connected" },
     weeklyMinimum: { label: "Weekly minimum", kind: "money", optional: true, min: 0, hint: "Empty = no weekly minimum" },
     levyUntil: { label: "Weekly minimum starts after", kind: "date", optional: true, hint: "Levy-free period end" },
     cmcShare: { label: "Orders packed on the CMC", kind: "pct", optional: true, min: 0, max: 100 },
@@ -95,6 +96,10 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
       ],
     },
     note: { label: "Note", kind: "text", optional: true },
+  },
+  itemmap: {
+    serviceCode: { label: "Standard service", kind: "text", optional: true },
+    excluded: { label: "Left out (postage, freight…)", kind: "bool" },
   },
   wmsmap: {
     serviceCode: { label: "Standard service code", kind: "text" },
@@ -136,6 +141,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   service: "Service",
   xeromap: "Xero account mapping",
   wmsmap: "WMS code mapping",
+  itemmap: "Xero item mapping",
   supplier: "Supplier",
   staff: "Staff member",
   rule: "Rule",

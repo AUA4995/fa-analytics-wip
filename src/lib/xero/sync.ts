@@ -163,9 +163,16 @@ async function syncSales(since?: Date): Promise<{ sales: number; lines: number }
     ]);
     sales++;
     lines += x.LineItems?.length ?? 0;
+    for (const l of x.LineItems ?? []) if (l.ItemCode) items.add(l.ItemCode);
+  };
+  const items = new Set<string>();
+  const saveItems = async () => {
+    for (const code of items) await prisma.xeroItemMap.upsert({ where: { itemCode: code }, update: {}, create: { itemCode: code } });
   };
   for await (const page of xeroPages<XSale>("/Invoices", "Invoices", { modifiedSince: since, params: { where: `Type=="ACCREC"${where ? ` AND ${where}` : ""}` } })) for (const x of page) await save(x, "INVOICE");
   for await (const page of xeroPages<XSale>("/CreditNotes", "CreditNotes", { modifiedSince: since, params: { where: `Type=="ACCRECCREDIT"${where ? ` AND ${where}` : ""}` } })) for (const x of page) await save(x, "CREDIT");
+  // Item codes on invoice lines appear in Settings → Cost pools & mapping, to map to services (billed per service)
+  await saveItems();
   return { sales, lines };
 }
 

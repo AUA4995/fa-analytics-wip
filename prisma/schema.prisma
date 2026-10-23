@@ -325,6 +325,8 @@ model Client {
   logiwaClientId     String?
   frontDomains       String[]     @default([])
   clmContractRef     String?
+  /// Contract renewal date (from CLM once connected; entered here until then)
+  renewalDate        DateTime?    @db.Date
   weeklyMinimum      Decimal?     @db.Decimal(12, 2)
   /// Weekly minimum applies after this date (levy-free period)
   levyUntil          DateTime?    @db.Date
@@ -692,4 +694,162 @@ model ClientRate {
   updatedAt   DateTime @updatedAt
 
   @@id([clientId, serviceCode])
+}
+
+// =====================================================================================
+// Chunk 5 — leakage, rate checks, rate reviews, tasks and notifications
+// =====================================================================================
+
+/// Settings → Mapping: Xero item code on invoice lines → standard service (so billed can be compared per service).
+model XeroItemMap {
+  itemCode    String   @id
+  serviceCode String?
+  /// Postage, freight etc. — left out of processing comparisons
+  excluded    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+}
+
+enum LeakKind {
+  UNDER_BILLING
+  WEEKLY_MINIMUM
+  RATE_MISMATCH
+}
+
+enum LeakStatus {
+  OPEN
+  TASK
+  EXPLAINED
+  RECOVERED
+}
+
+/// One finding. Detection runs are idempotent (key) and never overwrite a person's status or notes.
+model LeakageItem {
+  id               String     @id @default(cuid())
+  /// kind|client|service|period — unique per finding
+  key              String     @unique
+  kind             LeakKind
+  clientId         String
+  serviceCode      String?
+  /// YYYY-MM (month) or YYYY-Www (week)
+  period           String
+  expected         Decimal    @db.Decimal(14, 2)
+  billed           Decimal    @db.Decimal(14, 2)
+  gap              Decimal    @db.Decimal(14, 2)
+  /// How it was worked out, in plain words with the numbers
+  working          String
+  status           LeakStatus @default(OPEN)
+  cause            String?
+  owner            String?
+  note             String?
+  foundOn          DateTime   @default(now())
+  recoveredAmount  Decimal?   @db.Decimal(14, 2)
+  recoveredInvoice String?
+  recoveredOn      DateTime?  @db.Date
+  recoveredBy      String?
+  /// Imported from FA_Leakage_Log.xlsx
+  imported         Boolean    @default(false)
+  updatedAt        DateTime   @updatedAt
+
+  @@index([status])
+  @@index([clientId, period])
+}
+
+/// Rates as another system holds them (Dyspatch export, WMS rate export), for the CLM vs Dyspatch vs WMS checks.
+model RateSnapshot {
+  id          String   @id @default(cuid())
+  /// DYSPATCH | WMS
+  source      String
+  clientId    String
+  serviceCode String
+  rate        Decimal  @db.Decimal(12, 4)
+  asOf        DateTime @db.Date
+  fileName    String?
+  createdAt   DateTime @default(now())
+
+  @@unique([source, clientId, serviceCode])
+}
+
+enum ReviewType {
+  CPI
+  CARRIER
+  RENEWAL
+  ADHOC
+}
+
+/// A rate review (brief §8): type, stage, owner, due date and the proposed rates.
+model RateReview {
+  id        String     @id @default(cuid())
+  clientId  String
+  type      ReviewType
+  /// 0 Preparing · 1 Analysis · 2 Proposal · 3 Client negotiation · 4 Signed · 5 Rates in WMS & Dyspatch · 6 Checked on first invoice
+  stage     Int        @default(0)
+  owner     String?
+  due       DateTime?  @db.Date
+  note      String?
+  /// { serviceCode: newRate }
+  newRates  Json       @default("{}")
+  target    Decimal?   @db.Decimal(5, 4)
+  closed    Boolean    @default(false)
+  createdBy String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([clientId])
+}
+
+enum TaskStatus {
+  OPEN
+  SNOOZED
+  DONE
+}
+
+/// Follow-up tasks (brief §13). Resolve can be verified by API (verify) — failed check → snoozed 24 h.
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  detail       String?
+  /// Where it's fixed: Xero, Dyspatch, WMS, Front, Analytics…
+  where        String?
+  link         String?
+  clientId     String?
+  owner        String?
+  priority     String     @default("Normal")
+  status       TaskStatus @default(OPEN)
+  snoozedUntil DateTime?
+  due          DateTime?  @db.Date
+  /// Origin, e.g. leakage:<id>, notification:<id>, review:<id>
+  source       String?
+  /// { type: "xero-contact" | "xero-employee" | "staff-linked" | "client-linked" | …, …params }
+  verify       Json?
+  lastCheck    String?
+  doneAt       DateTime?
+  doneBy       String?
+  doneNote     String?
+  createdAt    DateTime   @default(now())
+
+  @@index([status])
+  @@index([source])
+}
+
+enum NoticeState {
+  NEW
+  DONE
+  DISMISSED
+}
+
+/// What's new after a sync (brief §13): a staff member, client or supplier the app doesn't know yet.
+model Notification {
+  id        String      @id @default(cuid())
+  /// NEW_STAFF | NEW_CLIENT | NEW_SUPPLIER | NEW_TENANT
+  kind      String
+  /// Stable key so the same thing is notified once, e.g. xero-employee:<id>
+  key       String      @unique
+  title     String
+  detail    String?
+  payload   Json?
+  state     NoticeState @default(NEW)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([state])
 }

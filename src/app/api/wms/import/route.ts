@@ -47,6 +47,7 @@ export async function POST(req: Request) {
       });
     }
     const r = await applyWmsImport(plan, { fileName: b.fileName ?? null, mapping, onOverlap: b.onOverlap ?? "keep", uploadedBy: me.name });
+    void import("@/lib/jobs/after-sync").then((m) => m.afterSync(me.name)).catch(() => {});
     return Response.json({ ok: true, ...r });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });

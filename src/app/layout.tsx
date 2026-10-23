@@ -15,6 +15,7 @@ import { navCounts } from "@/lib/shell/counts";
 import { themeAttr } from "@/lib/theme";
 import { logout } from "./login/actions";
 import "./globals.css";
+import "./analytics.css";
 
 // Company name/logo/colours come from the database and must always be current.
 export const dynamic = "force-dynamic";

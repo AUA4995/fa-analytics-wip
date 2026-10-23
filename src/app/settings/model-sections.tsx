@@ -337,6 +337,8 @@ export async function ServicesSection({ canEdit }: { canEdit: boolean }) {
 }
 
 export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
+  const itemUse = await prisma.xeroSaleLine.groupBy({ by: ["itemCode"], where: { itemCode: { not: null } }, _count: { _all: true }, _sum: { amount: true } });
+  const items = await prisma.xeroItemMap.findMany({ orderBy: { itemCode: "asc" } });
   const [pools, xmap, wmap, services] = await Promise.all([
     prisma.costPool.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { accounts: true } } } }),
     prisma.xeroAccountMap.findMany({ orderBy: { accountCode: "asc" } }),
@@ -428,6 +430,43 @@ export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
                     <td>{fv("xeromap", "treatment", m.treatment)}</td>
                   </ClickableRow>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      <Card title={`Xero item codes → services · ${items.length}`} sub="Item codes on Xero invoice lines, so what was billed can be compared per service (Leakage). Postage and freight items are left out. New item codes appear here after each Xero sync.">
+        {!items.length ? (
+          <p className="empty">None yet — they appear after the Xero sync.</p>
+        ) : (
+          <div className="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item code</th>
+                  <th className="r">Lines</th>
+                  <th className="r">Billed (all time)</th>
+                  <th>Standard service</th>
+                  <th>Left out</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((i) => {
+                  const u = itemUse.find((x) => x.itemCode === i.itemCode);
+                  return (
+                    <tr key={i.itemCode}>
+                      <td className="mono small">{i.itemCode}</td>
+                      <td className="r num">{u?._count._all ?? 0}</td>
+                      <td className="r num">{fv("supplier", "expectedMonthly", u?._sum.amount ?? 0)}</td>
+                      <td>
+                        <EditableValue entity="itemmap" id={i.itemCode} field="serviceCode" spec={{ ...ENTITY_FIELDS.itemmap.serviceCode, kind: "select", options: services.map((s) => [s.code, `${s.code} · ${s.name}`] as const) }} value={i.serviceCode} canEdit={canEdit} compact />
+                      </td>
+                      <td>
+                        <EditableValue entity="itemmap" id={i.itemCode} field="excluded" spec={ENTITY_FIELDS.itemmap.excluded} value={i.excluded} canEdit={canEdit} compact />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -15,6 +15,7 @@ export async function syncXeroAction(kind: "FULL" | "INCREMENTAL"): Promise<Data
     if (process.env.JOBS_DISABLED === "1") {
       const { runXeroSync } = await import("@/lib/xero/sync");
       const s = await runXeroSync(kind, me.name);
+      await (await import("@/lib/jobs/after-sync")).afterSync(me.name);
       revalidatePath("/data");
       return { ok: true, message: `Done: ${s.sales} invoices / credit notes, ${s.pnlMonths} P&L months, ${s.payslips} payslips.` };
     }

@@ -34,6 +34,8 @@ function table(entity: string): { d: Delegate; pk: string } | null {
       return { d: p.xeroAccountMap, pk: "accountCode" };
     case "wmsmap":
       return { d: p.wmsCodeMap, pk: "id" };
+    case "itemmap":
+      return { d: p.xeroItemMap, pk: "itemCode" };
     case "supplier":
       return { d: p.supplier, pk: "id" };
     case "staff":

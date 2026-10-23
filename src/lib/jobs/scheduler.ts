@@ -50,6 +50,7 @@ export async function startScheduler(): Promise<void> {
     try {
       await runXeroSync(job.data?.kind ?? "INCREMENTAL", job.data?.by ?? null);
       await recordSuccess("xero");
+      await (await import("./after-sync")).afterSync(job.data?.by ?? null);
     } catch (err) {
       await recordFailure("xero", err);
       throw err;

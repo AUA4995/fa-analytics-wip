@@ -57,6 +57,10 @@ export async function createRecord(entity: string, _prev: CreateState | null, fo
       case "staff": {
         if (!s("name")) return { ok: false, message: "Enter the person's name." };
         id = (await prisma.staff.create({ data: { name: s("name"), site: s("site") || "smi", pool: s("pool") || "floor", position: s("position") || null } })).id;
+        // Added by hand (not from Xero Payroll): no pay = no cost until they're set up in payroll and linked
+        const [firstName, ...rest] = s("name").split(/\s+/);
+        const { createTask } = await import("@/lib/tasks");
+        await createTask({ title: `Set up ${s("name")} in Xero Payroll`, detail: "No pay or hours in Xero = no labour cost for this person. Then link the employee in Settings → Staff.", where: "Xero", link: "https://go.xero.com/payroll", source: `xero-employee:${id}`, verify: rest.length ? { type: "xero-employee", firstName, lastName: rest.join(" ") } : { type: "staff-linked", staffId: id } });
         break;
       }
       case "service": {
