@@ -19,6 +19,9 @@ import { isAdminRole, isOwnerRole } from "@/lib/auth/roles";
 import { getAccessDomain } from "@/lib/auth/domain";
 import { getConnectionStatuses } from "@/lib/integrations/status";
 import { AccessDomainForm, AccessRequestsList, MyAccount, UsersCard } from "./users-card";
+import { parsePanel } from "@/components/ui/panel";
+import { ensureModelDefaults } from "@/lib/model/defaults";
+import { ClientsSection, ModelPanel, PoolsSection, RulesSection, ServicesSection, StaffSection, SuppliersSection } from "./model-sections";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -26,11 +29,6 @@ export const metadata = { title: "Settings" };
 /** Sections that arrive in later chunks (brief §14). */
 const LATER: Record<string, string> = {
   contacts: "Contacts & recipients (Internal, Clients, Lenders & advisers, Suggestions) is built with Reports, chunk 6.",
-  rules: "Rules (margin floor, tolerance, weekly minimum, utilisation per site, B2B threshold, notional rent, payroll tax, KPI targets) are built in chunk 2.",
-  clients: "Clients (status, sites, IDs in each system, weekly minimum, packing method) are built in chunk 2.",
-  suppliers: "Suppliers (cost pool, site, fixed or variable, rebilled) are built in chunk 2.",
-  staff: "Staff & allocation (sites, pools, WMS codes, allocation matrix) is built in chunk 2.",
-  mapping: "Mapping tables (Xero account → cost pool, WMS charge codes → standard codes) are built in chunk 2.",
 };
 
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
@@ -166,14 +164,26 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </Card>
       </>
     );
+  } else if (["rules", "clients", "suppliers", "staff", "services", "pools"].includes(section)) {
+    if (company.dbOk) await ensureModelDefaults(prisma);
+    const site = typeof sp.site === "string" && ["smi", "par"].includes(sp.site) ? sp.site : "all";
+    body =
+      section === "rules" ? <RulesSection canEdit /> :
+      section === "clients" ? <ClientsSection canEdit /> :
+      section === "suppliers" ? <SuppliersSection canEdit /> :
+      section === "staff" ? <StaffSection canEdit site={site} /> :
+      section === "services" ? <ServicesSection canEdit /> :
+      <PoolsSection canEdit />;
   } else {
     body = <EmptyState title="Not built yet">{LATER[section] ?? "Built in a later chunk."}</EmptyState>;
   }
+  const panel = parsePanel(sp.panel);
 
   return (
     <WithSubNav page="settings" current={section}>
       <PageHeader title="Settings" subtitle={`Admins and the owner (${ownerName}).`} />
       {body}
+      {panel && <ModelPanel panel={panel} canEdit />}
     </WithSubNav>
   );
 }

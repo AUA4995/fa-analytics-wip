@@ -249,3 +249,229 @@ model IntegrationStatus {
   checkedAt     DateTime?
   updatedAt     DateTime  @updatedAt
 }
+
+// =====================================================================================
+// Chunk 2 — cost model settings. Every edit is written to ChangeLog (who, when, old → new, why).
+// =====================================================================================
+
+enum ActorType {
+  USER
+  API_KEY
+  SYNC
+}
+
+/// One row per changed value (brief §12 "Logs on every editable value"). entity + entityId + field identify the value.
+model ChangeLog {
+  id        String    @id @default(cuid())
+  entity    String
+  entityId  String
+  field     String
+  oldValue  Json?
+  newValue  Json?
+  reason    String?
+  actorType ActorType @default(USER)
+  /// User name, API key name or sync source (e.g. "Thomax sync")
+  actorName String
+  at        DateTime  @default(now())
+
+  @@index([entity, entityId, field, at])
+  @@index([at])
+}
+
+/// Warehouse sites. Separate cost pools and utilisation per site (brief §6, provisional B).
+model Site {
+  key             String   @id
+  name            String
+  /// WMS warehouse code(s), e.g. SYD01 = Parramatta
+  wmsCodes        String[] @default([])
+  /// Owned site → no rent in Xero; a notional monthly rent keeps its clients from looking cheaper (brief §6)
+  owned           Boolean  @default(false)
+  notionalRent    Decimal? @db.Decimal(12, 2)
+  palletPositions Int?
+  /// Share of paid floor time available for activities (0–1). Start 0.85, later measured from the WMS.
+  labourUtil      Decimal  @default(0.85) @db.Decimal(5, 4)
+  /// Pallet positions used ÷ total (0–1); floor-stacked pallets count as used
+  spaceUtil       Decimal? @db.Decimal(5, 4)
+  sortOrder       Int      @default(0)
+  updatedAt       DateTime @updatedAt
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ONE_OFF
+}
+
+enum ClientType {
+  B2C
+  B2B
+  MIXED
+}
+
+/// Settings → Clients (brief §14). IDs link the same client across systems.
+model Client {
+  id                 String       @id @default(cuid())
+  name               String
+  shortName          String?
+  status             ClientStatus @default(ACTIVE)
+  type               ClientType   @default(B2C)
+  /// Site keys the client is served from
+  sites              String[]     @default([])
+  xeroContactId      String?      @unique
+  /// Dyspatch Customer ID = WMS tenant ID
+  dyspatchCustomerId String?
+  thomaxTenantId     String?
+  p3lClientId        String?
+  logiwaClientId     String?
+  frontDomains       String[]     @default([])
+  clmContractRef     String?
+  weeklyMinimum      Decimal?     @db.Decimal(12, 2)
+  /// Weekly minimum applies after this date (levy-free period)
+  levyUntil          DateTime?    @db.Date
+  /// Share of orders packed on the CMC CartonWrap (0–1); the rest are packed by hand
+  cmcShare           Decimal?     @db.Decimal(5, 4)
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  allocations StaffAllocation[]
+
+  @@index([status])
+}
+
+enum PoolKind {
+  LABOUR
+  OVERHEAD
+}
+
+/// Cost pools (brief §6). Labour pools are per site; overheads spread by a driver.
+model CostPool {
+  key         String   @id
+  name        String
+  kind        PoolKind
+  /// Site key for site-specific pools; null = shared
+  site        String?
+  /// MINUTES | LABOUR_MINUTES | PALLET_WEEKS | PALLET_MOVES | ORDERS | ORDERS_PACKED | MACHINE_ORDERS | REVENUE
+  driver      String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  accounts XeroAccountMap[]
+}
+
+enum MinutesBasis {
+  ESTIMATE
+  WMS
+  TIME_STUDY
+}
+
+/// The standard services / charge codes (FA charge code catalogue). Minutes drive labour cost (TDABC).
+model Service {
+  code         String       @id
+  name         String
+  /// Billing unit, e.g. order, unit, carton, pallet, pallet-week
+  unit         String
+  /// Labour pool the minutes are priced from (by site at run time); null = no labour
+  poolKind     String?
+  minutes      Decimal?     @db.Decimal(10, 3)
+  minutesBasis MinutesBasis @default(ESTIMATE)
+  billable     Boolean      @default(true)
+  /// Overhead drivers per unit, e.g. { "equip": 1 } = one pallet move per unit
+  overheads    Json         @default("{}")
+  active       Boolean      @default(true)
+  sortOrder    Int          @default(0)
+  updatedAt    DateTime     @updatedAt
+}
+
+/// Settings → Mapping: Xero account → cost pool (or excluded / passed through).
+model XeroAccountMap {
+  accountCode String    @id
+  accountName String?
+  poolKey     String?
+  pool        CostPool? @relation(fields: [poolKey], references: [key])
+  /// INCLUDE (cost in its pool) | EXCLUDE (not an FA operating cost, e.g. postage recharged) | REBILLED
+  treatment   String    @default("INCLUDE")
+  note        String?
+  updatedAt   DateTime  @updatedAt
+}
+
+/// Settings → Mapping: WMS charge codes (per system, optionally per tenant) → standard service code.
+model WmsCodeMap {
+  id          String   @id @default(cuid())
+  /// THOMAX | P3L | LOGIWA
+  source      String
+  /// Tenant / client ID in that WMS; "" = every tenant
+  tenant      String   @default("")
+  wmsCode     String
+  serviceCode String
+  note        String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([source, tenant, wmsCode])
+}
+
+enum CostBehaviour {
+  FIXED
+  VARIABLE
+}
+
+/// Settings → Suppliers (analytics view, brief §14).
+model Supplier {
+  id              String        @id @default(cuid())
+  name            String
+  xeroContactId   String?       @unique
+  poolKey         String?
+  site            String?
+  behaviour       CostBehaviour @default(FIXED)
+  /// Passed through to a client (rebilled) → excluded from FA cost
+  rebilled        Boolean       @default(false)
+  expectedMonthly Decimal?      @db.Decimal(12, 2)
+  notes           String?
+  updatedAt       DateTime      @updatedAt
+}
+
+enum StaffType {
+  PERMANENT
+  CASUAL
+  AGENCY
+}
+
+/// Settings → Staff & allocation (brief §14).
+model Staff {
+  id             String    @id @default(cuid())
+  name           String
+  /// smi | par | both
+  site           String    @default("smi")
+  position       String?
+  /// floor | csr | supervisor | admin
+  pool           String    @default("floor")
+  type           StaffType @default(PERMANENT)
+  xeroEmployeeId String?   @unique
+  thomaxCode     String?
+  p3lCode        String?
+  logiwaCode     String?
+  startDate      DateTime? @db.Date
+  endDate        DateTime? @db.Date
+  updatedAt      DateTime  @updatedAt
+
+  allocations StaffAllocation[]
+}
+
+enum AllocationSource {
+  MANUAL
+  WMS
+}
+
+/// Share of a person's time per client (0–100). Floor staff from the WMS, others manual. Total per person ≤ 100.
+model StaffAllocation {
+  staffId  String
+  staff    Staff            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  clientId String
+  client   Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pct      Decimal          @db.Decimal(5, 2)
+  source   AllocationSource @default(MANUAL)
+
+  @@id([staffId, clientId])
+}

@@ -16,7 +16,7 @@ connected, a page says "no data yet".
 | Chunk | What | State |
 |---|---|---|
 | 1 | Foundation from the Accounts Hub: sign-in + 2FA, users, company, branding, analytics menu, Xero connection (read-only, incl. reports and AU Payroll), Front send channel | ✅ |
-| 2 | Settings and logs: rules, clients, services & minutes, cost pools & Xero mapping, staff & allocation, suppliers; Logs on every field | — |
+| 2 | Settings and logs: rules, sites, clients, suppliers, staff & allocation matrix, services & minutes, cost pools, Xero account and WMS code mapping; Logs on every value; CSV import | ✅ |
 | 3 | Data sources: Thomax API (history from 2021), 3PLWMS uploads, Xero sync incl. payroll, Front ticket counts, Logiwa ready | — |
 | 4 | Cost engine (TDABC / Full absorption) + Cost & margin | — |
 | 5 | Leakage, rate checks, rate review, tasks & notifications | — |
