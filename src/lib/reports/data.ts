@@ -53,7 +53,7 @@ export interface ClientRef {
   id: string;
   name: string;
 }
-async function tenantMap(): Promise<(source: string, tenant: string) => ClientRef | null> {
+export async function tenantMap(): Promise<(source: string, tenant: string) => ClientRef | null> {
   const clients = await prisma.client.findMany({ select: { id: true, name: true, shortName: true, dyspatchCustomerId: true, thomaxTenantId: true, p3lClientId: true, logiwaClientId: true } });
   const m = new Map<string, ClientRef>();
   for (const c of clients) {

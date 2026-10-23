@@ -44,3 +44,17 @@ table.wk tr.tot td { border-top: 2px solid var(--ink); background: var(--surface
 .gauge .gl { font-weight: 600; font-size: 13px; }
 .spark { vertical-align: middle; }
 .kpi .spark { display: block; margin-top: 6px; }
+.ktiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.ktile { display: flex; flex-direction: column; gap: 3px; background: var(--card); border: 1px solid var(--border); border-left: 5px solid var(--chart-grey); border-radius: 10px; padding: 12px 14px; color: var(--ink); text-decoration: none; }
+.ktile:hover { border-color: var(--blue-light); text-decoration: none; }
+.ktile.st-green { border-left-color: var(--green); }
+.ktile.st-amber { border-left-color: var(--amber-line); }
+.ktile.st-red { border-left-color: var(--red); }
+.ktile .l { font-size: 12.5px; color: var(--grey); }
+.ktile .v { font-size: 22px; font-weight: 700; }
+.ktile .v.muted { color: var(--grey); font-size: 15px; font-weight: 600; }
+.ktile .s { font-size: 11.5px; color: var(--grey); }
+.scorebar { display: flex; width: 160px; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface); }
+.scorebar i { display: block; }
+.sb-green { background: var(--green); } .sb-amber { background: var(--amber-line); } .sb-red { background: var(--red); } .sb-none { background: var(--chart-grey); }
+tr.hl td { background: var(--blue-wash); }

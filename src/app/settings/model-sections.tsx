@@ -12,7 +12,7 @@ import { AllocationMatrix } from "@/components/model/allocation-matrix";
 import { DeleteButton } from "@/components/model/delete-button";
 import { prisma } from "@/lib/db";
 import { formatFieldValue } from "@/lib/model/fields";
-import { ENTITY_FIELDS, POOL_DRIVERS, RULES, SITE_OPTIONS, STAFF_SITE_OPTIONS } from "@/lib/model/specs";
+import { BASE_RULE_KEYS, ENTITY_FIELDS, KPI_TARGET_RULES, POOL_DRIVERS, RULES, SITE_OPTIONS, STAFF_SITE_OPTIONS } from "@/lib/model/specs";
 import { getRules, logCounts } from "@/lib/model/store";
 import { IMPORT_COLUMNS } from "@/lib/model/csv";
 
@@ -31,7 +31,10 @@ export async function RulesSection({ canEdit }: { canEdit: boolean }) {
   return (
     <>
       <Card title="Company rules" sub="Used everywhere: leakage checks, rate review, labour cost, B2B / B2C split. Click a value to change it; Logs shows every change.">
-        <FieldList entity="rule" id="rule" row={rules} counts={ruleCounts} canEdit={canEdit} />
+        <FieldList entity="rule" id="rule" row={rules} fields={BASE_RULE_KEYS} counts={ruleCounts} canEdit={canEdit} />
+      </Card>
+      <Card title="KPI targets" sub="Green on target (or within 3%), amber 3–10% off, red more than 10% off. Empty = no target yet (shown grey).">
+        <FieldList entity="rule" id="rule" row={rules} fields={Object.keys(KPI_TARGET_RULES)} counts={ruleCounts} canEdit={canEdit} />
       </Card>
       <Card title="Sites" sub="Separate cost pools per site. Utilisation is an estimate until measured from the WMS; edit here or in any details panel — it's the same value.">
         <div className="tw">

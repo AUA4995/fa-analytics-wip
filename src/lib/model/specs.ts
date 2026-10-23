@@ -23,7 +23,26 @@ export const POOL_DRIVERS: ReadonlyArray<readonly [string, string]> = [
   ["REVENUE", "Revenue"],
 ];
 
-export const RULES: Record<string, FieldSpec & { default: number | null }> = {
+import { KPIS } from "@/lib/kpi/defs";
+
+/** KPI targets live with the rules (Settings → Rules → KPI targets), key kpi_<id>. */
+export const KPI_TARGET_RULES: Record<string, FieldSpec & { default: number | null }> = Object.fromEntries(
+  KPIS.map((k) => [
+    `kpi_${k.id}`,
+    {
+      label: k.label,
+      kind: k.unit === "pct" ? "pct" : k.unit === "money" ? "money" : k.unit === "num" ? "number" : "number",
+      optional: true,
+      min: k.unit === "pct" ? 0 : undefined,
+      max: k.unit === "pct" ? 100 : undefined,
+      default: k.defaultTarget,
+      hint: `${k.better === "up" ? "Higher" : "Lower"} is better${k.needs ? " · needs data source" : ""}`,
+      dp: k.dp,
+    } as FieldSpec & { default: number | null },
+  ]),
+);
+
+const BASE_RULES: Record<string, FieldSpec & { default: number | null }> = {
   marginFloor: { label: "Margin floor", kind: "pct", min: 0, max: 80, default: 0.15, hint: "Below this = amber in Under-pricing and Rate review" },
   tolerance: { label: "Under-billing tolerance", kind: "money", min: 0, max: 1000, default: 5, hint: "Gaps smaller than this are ignored" },
   weeklyMinimum: { label: "Default weekly minimum", kind: "money", min: 0, max: 100000, default: 300, hint: "Postage + processing combined; per client in Clients" },
@@ -33,6 +52,8 @@ export const RULES: Record<string, FieldSpec & { default: number | null }> = {
   workersCompRate: { label: "Workers comp (share of gross)", kind: "pct", min: 0, max: 20, default: null, optional: true, hint: "From the insurance policy — not set yet" },
   csrUtil: { label: "CSR labour utilisation", kind: "pct", min: 10, max: 100, default: 0.8, hint: "Estimate (practical capacity 80–85%) until measured" },
 };
+export const BASE_RULE_KEYS = Object.keys(BASE_RULES);
+export const RULES: Record<string, FieldSpec & { default: number | null }> = { ...BASE_RULES, ...KPI_TARGET_RULES };
 
 export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
   site: {
