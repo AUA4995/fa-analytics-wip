@@ -1,7 +1,9 @@
-# FA Accounts Hub — production image (for the FA server or a cloud host; not used for local dev on the laptop)
+# FA Analytics — production image (for the FA server or a cloud host; not used for local dev on the laptop)
 #
-#   docker build -t fa-accounts-hub .
-#   docker run --env-file .env -p 3000:3000 fa-accounts-hub
+#   docker build -t fa-analytics .
+#   docker run --env-file .env -p 3002:3000 fa-analytics
+#
+# See docs/HOSTING.md.
 #
 # Migrations run on start (prisma migrate deploy), then the Next.js standalone server.
 

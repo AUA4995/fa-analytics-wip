@@ -21,7 +21,7 @@ connected, a page says "no data yet".
 | 4 | Cost engine (TDABC / Full absorption, unused capacity by resource, cost per order B2C / B2B) + Cost & margin pages with every number opening its calculation; client rates until CLM | ✅ |
 | 5 | Leakage (under-billing per service via Xero item codes, weekly minimums, under-pricing, rate checks with Dyspatch / WMS exports, log + import), rate review (calendar, stages, workbench), tasks verified on resolve, notifications after syncs | ✅ |
 | 6 | Reports (screen = PDF, Front email: dry run / draft / auto, schedules, pre-send brake), Contacts & recipients, Finance (P&L, cash & debt, working capital, concentration, bank pack with approval; Xero balance sheet + bills read), KPI (targets in Rules, site filter, scorecard), Improvements & savings (idea → initiative, proposed calculation and plan, steps → tasks, roadmap) | ✅ |
-| 7 | API keys we give out, tests, hosting notes | — |
+| 7 | Main Overview dashboard (incl. provisional break-even), API connections (connected systems, keys we give out, /api/v1), tests, hosting notes (docs/HOSTING.md, docs/API.md) | ✅ |
 
 ## Local setup (Windows work laptop — no Docker)
 

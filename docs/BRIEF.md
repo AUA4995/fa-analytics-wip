@@ -1,7 +1,7 @@
 # FA Analytics app — brief (single source of truth)
 
 **Owner:** Asal Artikbaeva (Revenue Protection / Business Analyst, Fulfilment Australia — 3PL, Smithfield and Parramatta)
-**Status:** building (green light 23/10/2026). Chunks 1–6 done in the repo (see README status table); chunk 7 next: API keys we give out, tests, hosting notes.
+**Status:** built (green light 23/10/2026; all 7 chunks done 24/10/2026) — in GitHub AUA4995/FA-Analytics, waiting for Asal's test. Hosting: Docker (background jobs need a long-running server) — docs/HOSTING.md for Marcus; API for other apps — docs/API.md.
 **Clickable demo:** https://claude.ai/artifact/6881NafvCCHKqaB1FigRV3 — **v3 published 23/10/2026 (all decisions up to the v3 round); waiting for Asal's review.** All figures in the demo are made up (client names are real, their rates/volumes/costs are not).
 **Last updated:** 23/10/2026 — this file is rewritten whenever decisions change; removed features are deleted, not kept.
 
@@ -187,7 +187,7 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 ## 15. Open questions / next
 - **Still to discuss (cost rules):** D rent by space type · E ticket minutes by type · F automation only on orders through the machine · G admin per labour minute vs per revenue · H actual packaging per client. Provisional (can change): A unused capacity separate (TDABC), B separate site pools + notional rent for Parramatta, C agency labour in floor pool (does FA use labour hire?).
 - Cost to serve cards — confirm the four.
-- Break-even: fixed vs variable split and casual share with Mark; orders, revenue or both.
+- Break-even: fixed vs variable split and casual share with Mark; orders, revenue or both. **Built provisionally:** cost of services = variable, overheads + interest = fixed (last 3 months of the Xero P&L), shown in revenue and orders.
 - Asal's old client workload report (upload) → may adjust report layouts.
 - CLM link for the rate review calendar, stages and "Send schedule of rates" (coming soon in the demo).
 - Thomax cluster code + first test query; retention and full export at exit (support@thomax.com).

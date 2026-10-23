@@ -1087,3 +1087,25 @@ model ImproveComment {
   text          String
   at            DateTime    @default(now())
 }
+
+// ---------- Keys we give out (brief §12) ----------
+
+/// An API key for another app (CLM, Accounts Hub, Marcus's app…). Only a hash is stored; the key is shown once.
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  /// Shown in lists so a key can be recognised: "fa_live_ab12cd34…"
+  prefix     String    @unique
+  /// sha256 of the full key
+  hash       String    @unique
+  /// e.g. volumes:read, kpi:read, tasks:write — see lib/apikeys/scopes.ts
+  scopes     String[]
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  lastUsedIp String?
+  uses       Int       @default(0)
+  revokedAt  DateTime?
+  revokedBy  String?
+}

@@ -15,7 +15,8 @@ const PUBLIC_EXACT = new Set([
   "/access/approve",
   "/access/decline",
 ]);
-const PUBLIC_PREFIXES = ["/_next/", "/brand/"];
+// /api/v1/ is authenticated by API key inside each handler (lib/apikeys), not by the session cookie
+const PUBLIC_PREFIXES = ["/_next/", "/brand/", "/api/v1/"];
 
 export function isPublicPath(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;

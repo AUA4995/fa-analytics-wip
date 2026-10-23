@@ -43,7 +43,8 @@ export interface ComboPoint {
   forecast?: boolean;
 }
 /** Bars (money, left axis) + line (%, right axis). Forecast bars are lighter and labelled in the legend. */
-export function ComboChart({ data, barLabel, lineLabel, h = 230 }: { data: ComboPoint[]; barLabel: string; lineLabel: string; h?: number }) {
+export function ComboChart({ data, barLabel, lineLabel, h = 230, money = true }: { data: ComboPoint[]; barLabel: string; lineLabel: string; h?: number; money?: boolean }) {
+  const fb = (v: number) => (money ? fmtK(v) : Math.round(v).toLocaleString("en-AU"));
   const W = 760;
   const pad = { l: 52, r: 44, t: 12, b: 28 };
   const iw = W - pad.l - pad.r;
@@ -70,11 +71,11 @@ export function ComboChart({ data, barLabel, lineLabel, h = 230 }: { data: Combo
           <g key={t}>
             <line x1={pad.l} x2={W - pad.r} y1={yb(t)} y2={yb(t)} stroke="var(--border)" />
             <text x={pad.l - 6} y={yb(t) + 3} textAnchor="end" className="ax">
-              {fmtK(t)}
+              {fb(t)}
             </text>
           </g>
         ))}
-        {[lmin, lmax].map((t, i) => (
+        {lines.length > 0 && [lmin, lmax].map((t, i) => (
           <text key={i} x={W - pad.r + 6} y={yl(t) + 3} className="ax">
             {(t * 100).toFixed(0)}%
           </text>
@@ -82,7 +83,7 @@ export function ComboChart({ data, barLabel, lineLabel, h = 230 }: { data: Combo
         {data.map((d, i) => (
           <g key={d.label}>
             {d.bar != null && <rect x={pad.l + bw * i + bw * 0.18} width={bw * 0.64} y={yb(d.bar)} height={Math.max(0, pad.t + ih - yb(d.bar))} rx={2} fill={d.forecast ? "var(--blue-light)" : "var(--blue)"} opacity={d.forecast ? 0.7 : 1}>
-              <title>{`${d.label}: ${fmtK(d.bar)}${d.forecast ? " (forecast)" : ""}${d.line != null ? ` · ${(d.line * 100).toFixed(1)}%` : ""}`}</title>
+              <title>{`${d.label}: ${fb(d.bar)}${d.forecast ? " (forecast)" : ""}${d.line != null ? ` · ${(d.line * 100).toFixed(1)}%` : ""}`}</title>
             </rect>}
             {showTick(i, data.length) && (
               <text x={pad.l + bw * i + bw / 2} y={h - 10} textAnchor="middle" className="ax">
@@ -99,10 +100,12 @@ export function ComboChart({ data, barLabel, lineLabel, h = 230 }: { data: Combo
           <i className="sw" style={{ background: "var(--blue)" }} />
           {barLabel}
         </span>
-        <span>
-          <i className="sw line" />
-          {lineLabel}
-        </span>
+        {lines.length > 0 && (
+          <span>
+            <i className="sw line" />
+            {lineLabel}
+          </span>
+        )}
         {hasF && (
           <span>
             <i className="sw" style={{ background: "var(--blue-light)" }} />
