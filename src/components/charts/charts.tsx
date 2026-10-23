@@ -119,16 +119,11 @@ export function Waterfall({ steps, h = 220, zero = true }: { steps: Array<{ labe
   const pad = { l: 56, r: 10, t: 16, b: 40 };
   const iw = W - pad.l - pad.r;
   const ih = h - pad.t - pad.b;
-  let run = 0;
-  const bars = steps.map((s) => {
-    if (s.kind !== "step") {
-      run = s.value;
-      return { ...s, from: 0, to: s.value };
-    }
-    const from = run;
-    run += s.value;
-    return { ...s, from, to: run };
-  });
+  const bars = steps.reduce<Array<(typeof steps)[number] & { from: number; to: number }>>((acc, s) => {
+    const run = acc.length ? acc[acc.length - 1].to : 0;
+    acc.push(s.kind !== "step" ? { ...s, from: 0, to: s.value } : { ...s, from: run, to: run + s.value });
+    return acc;
+  }, []);
   const minV = Math.min(...bars.map((b) => (b.kind === "step" ? Math.min(b.from, b.to) : b.to)));
   const lo = zero || minV <= 0 ? Math.min(0, minV) : minV * 0.9;
   for (const b of bars) if (b.kind !== "step") b.from = lo;
