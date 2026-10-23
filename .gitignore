@@ -1,5 +1,29 @@
+# dependencies
 node_modules/
+/.pnp
+.pnp.*
+
+# next.js / build
+/.next/
+/out/
+/build
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma generated client (rebuilt by `prisma generate` / postinstall)
+/src/generated/
+
+# env files — keys never go in the repo
 .env
 .env.*
-.vercel/
+!.env.example
+
+# misc
 .DS_Store
+*.pem
+npm-debug.log*
+.vercel/
+
+# local dev helper (WebAssembly schema engine), not part of the app
+.tools/

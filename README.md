@@ -1,11 +1,66 @@
 # FA Analytics
 
-Analytics app for Fulfilment Australia: cost to serve, leakage, improvements & savings, rate review, reports, KPI and finance.
+Analytics app for Fulfilment Australia: cost to serve (TDABC and Full absorption), leakage, improvements & savings,
+rate reviews, reports, KPI and finance. Decisions and scope: [`docs/BRIEF.md`](docs/BRIEF.md) (single source of truth).
+Clickable demo with made-up data: `docs/demo/index.html`.
 
-**Status:** clickable demo with made-up data. The real app (Next.js + Prisma + PostgreSQL, hosted on Vercel) is built only after Asal's green light.
+**Stack:** Next.js (TypeScript) · PostgreSQL + Prisma 7 · pg-boss · same foundation as the FA Accounts Hub
+(sign-in with 2FA, users, company, branding, layout).
 
-- `demo/index.html` — the clickable demo (single file, open in a browser). All figures are made up.
-- `demo/src/` — source parts the demo was assembled from (reference only).
-- `docs/BRIEF.md` — the single source of truth for decisions. Rewritten on every change.
+**Rules:** Xero, the WMS, Front and Dyspatch are **read-only** (the only exception: report emails sent through Front).
+Keys live only in `.env`, never in the repo. Costs, margins and pay are internal. No made-up numbers: until a source is
+connected, a page says "no data yet".
 
-Rules: read-only to Xero, Dyspatch, WMS and Front (except report emails via Front). Keys only in environment variables, never in the repo. Costs, margins and pay are internal.
+## Status
+
+| Chunk | What | State |
+|---|---|---|
+| 1 | Foundation from the Accounts Hub: sign-in + 2FA, users, company, branding, analytics menu, Xero connection (read-only, incl. reports and AU Payroll), Front send channel | ✅ |
+| 2 | Settings and logs: rules, clients, services & minutes, cost pools & Xero mapping, staff & allocation, suppliers; Logs on every field | — |
+| 3 | Data sources: Thomax API (history from 2021), 3PLWMS uploads, Xero sync incl. payroll, Front ticket counts, Logiwa ready | — |
+| 4 | Cost engine (TDABC / Full absorption) + Cost & margin | — |
+| 5 | Leakage, rate checks, rate review, tasks & notifications | — |
+| 6 | Improvements, reports (PDF + Front email, forecast), KPI, Finance, Contacts & recipients | — |
+| 7 | API keys we give out, tests, hosting notes | — |
+
+## Local setup (Windows work laptop — no Docker)
+
+Prerequisites: Node 22+, PostgreSQL 16 (already installed for the Accounts Hub), Git.
+
+> PowerShell blocks `.ps1` scripts on this laptop, so use `npm.cmd` / `npx.cmd` instead of `npm` / `npx`.
+
+```powershell
+git clone https://github.com/AUA4995/FA-analytics.git C:\Projects\fa-analytics
+cd C:\Projects\fa-analytics
+copy .env.example .env         # then edit .env — at minimum DATABASE_URL, TOKEN_ENCRYPTION_KEY, AUTH_SECRET
+npm.cmd install
+```
+
+Create the database (in `psql` as the postgres superuser) — separate from the Accounts Hub's database:
+
+```sql
+CREATE USER fa_analytics WITH PASSWORD 'choose-a-password' CREATEDB;
+CREATE DATABASE fa_analytics OWNER fa_analytics;
+```
+
+Then:
+
+```powershell
+npm.cmd run db:deploy          # creates the tables
+npm.cmd run db:seed            # company defaults
+npm.cmd run dev                # http://localhost:3002 (the Accounts Hub keeps 3001)
+```
+
+The first visit goes to **/setup** to create the owner account (only possible while no users exist), then two-step sign-in.
+
+**Xero:** create a separate Xero app for Analytics (developer.xero.com → New app, Web app), redirect URI
+`http://localhost:3002/api/xero/callback`, put its client ID and secret in `.env`, restart, then Settings → Company →
+**Connect Xero (read-only)**. It asks only for read permissions (accounting, reports, AU Payroll).
+
+**Front:** `FRONT_API_TOKEN` in `.env`, then Settings → Company → Front · sending emails → Load channels → pick FA Accounts.
+
+## Tests
+
+```powershell
+npm.cmd test                   # unit tests; integration tests run too when DATABASE_URL points at a test database
+```

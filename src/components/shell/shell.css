@@ -1,0 +1,6 @@
+/*
+ * Menu icons at 20 px (Batch 2 item 19): the AP / AR letters stay legible in the pinned menu and the icon rail.
+ * Not in a cascade layer on purpose: this file loads before globals.css, and naming a layer here first would
+ * change Tailwind's layer order (base would then beat components).
+ */
+.side-nav a svg { width: 20px; height: 20px; }

@@ -1,0 +1,251 @@
+// FA Analytics — Prisma schema
+// Outside systems (Xero, WMS, Front, Dyspatch) are READ-ONLY for this app: their tables are a local mirror;
+// everything else is app-owned state. Foundation copied from the FA Accounts Hub (login, users, company, Xero link).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SyncKind {
+  FULL
+  INCREMENTAL
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model XeroConnection {
+  id             String    @id @default(cuid())
+  tenantId       String    @unique
+  tenantName     String
+  /// Encrypted at rest (AES-256-GCM, key = TOKEN_ENCRYPTION_KEY)
+  accessToken    String
+  refreshToken   String
+  expiresAt      DateTime
+  scopes         String
+  lastFullSyncAt DateTime?
+  lastSyncAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model SyncRun {
+  id         String     @id @default(cuid())
+  kind       SyncKind
+  status     SyncStatus @default(RUNNING)
+  startedAt  DateTime   @default(now())
+  finishedAt DateTime?
+  stats      Json?
+  error      String?
+}
+
+/// Single row ("default"). Branding and the people the app works for — editable in Settings.
+model Company {
+  id                 String   @id @default("default")
+  name               String
+  shortName          String
+  /// The person who runs day-to-day accounts (digests are addressed to them)
+  accountHolderName  String?
+  accountHolderEmail String?
+  /// Primary brand colour: buttons, links, highlights (tints derived in CSS)
+  primaryColour      String   @default("#1F54EE")
+  timezone           String   @default("Australia/Sydney")
+  /// Logo for light backgrounds (dark artwork) and dark backgrounds (light artwork)
+  logoLight          Bytes?
+  logoLightMime      String?
+  logoDark           Bytes?
+  logoDarkMime       String?
+  updatedAt          DateTime @updatedAt
+  /// Branding (R1-shell): dark accent — lead summary cards, selected states, email header
+  accentColour       String   @default("#010028")
+  /// Branding: body text colour
+  textColour         String   @default("#14132E")
+  /// Branding: square logo mark for the collapsed menu rail (optional; bundled default otherwise)
+  logoMark           Bytes?
+  logoMarkMime       String?
+}
+
+/// Key/value app settings (thresholds, Front channel, etc.)
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  /// Exactly one (Batch 2 item 1): above ADMIN — only the owner makes/removes admins, connects Xero/Front/AI,
+  /// resets 2FA and transfers ownership. Enforced in src/app/settings/user-actions.ts + a partial unique index.
+  OWNER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  /// scrypt$N$r$p$salt$hash (see src/lib/auth/password.ts)
+  passwordHash String
+  role         UserRole  @default(USER)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  /// Left menu pinned open (true) or collapsed to the icon rail (false)
+  menuPinned   Boolean   @default(true)
+  /// Look of the app for this person: null = follow the device (system), "light" or "dark"
+  theme        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  /// Batch 2 (b2-auth): null = invited, no password yet (passwordHash is "" until they use the invite link)
+  passwordSetAt DateTime?
+  /// TOTP secret, encrypted at rest (src/lib/auth/secrets.ts). Set while enrolling; totpEnabledAt marks it confirmed.
+  totpSecret    String?
+  totpEnabledAt DateTime?
+  /// Last accepted 30-second step — a code can't be used twice
+  totpLastStep  Int?
+  /// Hashed single-use backup codes (10 at enrolment; used ones are removed)
+  backupCodes   String[]  @default([])
+
+  sessions   Session[]
+  authTokens AuthToken[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  /// SHA-256 of the cookie token — the raw token is never stored
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  /// Batch 2: when the 2FA step was completed. null = password OK, code still needed (short-lived pending session).
+  twoFactorAt     DateTime?
+  /// code | backup | device | enrolled
+  twoFactorMethod String?
+
+  @@index([userId])
+}
+
+/// Xero chart of accounts (replaced each sync).
+model XeroAccount {
+  id        String   @id @default(cuid())
+  xeroId    String   @unique
+  code      String?
+  name      String
+  type      String
+  class     String?
+  status    String?
+  taxType   String?
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+}
+
+/// Every Claude API call (or skipped call) — feeds Settings → AI models and budget.
+model AiCallLog {
+  id           String   @id @default(cuid())
+  job          String
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Decimal  @default(0) @db.Decimal(12, 6)
+  ok           Boolean
+  error        String?
+  /// What the call was about, e.g. a Front conversation id
+  ref          String?
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([job, createdAt])
+}
+
+enum AuthTokenPurpose {
+  /// "Set your password" link for a new user (7 days)
+  INVITE
+  /// Password reset link (2 hours)
+  RESET
+  /// Owner's Approve / Decline links for an access request (7 days)
+  ACCESS_APPROVE
+  /// Emergency owner recovery (npm run owner:recover): new password + set up 2FA again (2 hours)
+  TWO_FACTOR_RESET
+}
+
+/// One-time links sent by email. Only the SHA-256 of the token is stored; single use (usedAt) and expiring.
+model AuthToken {
+  id              String           @id @default(cuid())
+  purpose         AuthTokenPurpose
+  tokenHash       String           @unique
+  userId          String?
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessRequestId String?
+  accessRequest   AccessRequest?   @relation(fields: [accessRequestId], references: [id], onDelete: Cascade)
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdById     String?
+  createdAt       DateTime         @default(now())
+
+  @@index([userId, purpose])
+  @@index([accessRequestId])
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+/// "Request access" from the login page (company email domain only). The owner approves or declines.
+model AccessRequest {
+  id            String              @id @default(cuid())
+  name          String
+  email         String
+  reason        String
+  status        AccessRequestStatus @default(PENDING)
+  ip            String?
+  createdAt     DateTime            @default(now())
+  decidedAt     DateTime?
+  decidedByName String?
+  /// Role given on approval
+  role          UserRole?
+  /// User created on approval
+  userId        String?
+
+  tokens AuthToken[]
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+/// Fixed-window rate limits for login, 2FA code, forgot password and request access (key = action + IP/email/user).
+model AuthRateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+/// Last success / last error per connection (xero | front | ai) so Settings → Connections survives restarts.
+model IntegrationStatus {
+  key           String    @id
+  lastSuccessAt DateTime?
+  lastErrorAt   DateTime?
+  /// Plain-words classification (src/lib/integrations/errors.ts), e.g. xero_login_expired
+  errorCode     String?
+  errorStatus   Int?
+  /// Raw message (shown only as detail under the plain reason)
+  errorMessage  String?
+  /// When the Hub will try again (Xero timeouts)
+  nextRetryAt   DateTime?
+  /// Front: { [permission]: { ok: boolean, at: ISO, kind: "read" | "write", detail?: string } }
+  checks        Json?
+  checkedAt     DateTime?
+  updatedAt     DateTime  @updatedAt
+}
