@@ -1,7 +1,7 @@
 # FA Analytics app — brief (single source of truth)
 
 **Owner:** Asal Artikbaeva (Revenue Protection / Business Analyst, Fulfilment Australia — 3PL, Smithfield and Parramatta)
-**Status:** clickable demo in progress, not confirmed. **Build only after Asal gives the green light.** Then this file becomes the build brief.
+**Status:** building (green light 23/10/2026). Chunks 1–6 done in the repo (see README status table); chunk 7 next: API keys we give out, tests, hosting notes.
 **Clickable demo:** https://claude.ai/artifact/6881NafvCCHKqaB1FigRV3 — **v3 published 23/10/2026 (all decisions up to the v3 round); waiting for Asal's review.** All figures in the demo are made up (client names are real, their rates/volumes/costs are not).
 **Last updated:** 23/10/2026 — this file is rewritten whenever decisions change; removed features are deleted, not kept.
 
@@ -192,4 +192,7 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - CLM link for the rate review calendar, stages and "Send schedule of rates" (coming soon in the demo).
 - Thomax cluster code + first test query; retention and full export at exit (support@thomax.com).
 - Xero granular scope names; Asal's payroll access. Dyspatch API (ask Varun). DTS email domain.
+- **To enter in the app once live:** debt schedule (Finance → Cash & debt), KPI targets (Settings → Rules; most start empty), internal domains and report recipients (Settings → Contacts & recipients), staff positions (for suggested project people).
+- **KPIs waiting for data:** dispatch before cut-off, dock-to-stock, returns 48 h, slow stock, stock accuracy (Thomax API); overtime (Xero Payroll earnings lines); mis-pick and damage (a Front tag or claims log — which?).
+- **Bank pack:** confirm the bank's actual list; tax and obligations (BAS, super, payroll tax) are manual for now.
 - FA service catalogue (FA_Charge_Code_Catalogue_v1.xlsx) and real cost pools from Xero. Time study for pack, receiving, returns, CMC pre-pack.
