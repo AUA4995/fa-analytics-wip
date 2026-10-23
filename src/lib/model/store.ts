@@ -61,6 +61,11 @@ export async function getRules(): Promise<Record<string, number | null>> {
 
 export async function readValue(entity: string, id: string, field: string): Promise<unknown> {
   if (entity === "rule") return getRule(field);
+  if (entity === "rate") {
+    const [clientId, serviceCode] = id.split("|");
+    const r = await prisma.clientRate.findUnique({ where: { clientId_serviceCode: { clientId, serviceCode } } });
+    return r ? r.rate : null;
+  }
   const t = table(entity);
   if (!t) throw new Error(`Unknown entity ${entity}`);
   const row = await t.d.findUnique({ where: { [t.pk]: id } });
@@ -78,7 +83,11 @@ export async function updateValue(entity: string, id: string, field: string, raw
   if (!parsed.ok) return parsed;
   const before = await readValue(entity, id, field);
   if (sameValue(before, parsed.value)) return { ok: true, changed: false, value: parsed.value };
-  if (entity === "rule") {
+  if (entity === "rate") {
+    const [clientId, serviceCode] = id.split("|");
+    if (parsed.value == null) await prisma.clientRate.deleteMany({ where: { clientId, serviceCode } });
+    else await prisma.clientRate.upsert({ where: { clientId_serviceCode: { clientId, serviceCode } }, update: { rate: parsed.value as number, source: "MANUAL" }, create: { clientId, serviceCode, rate: parsed.value as number, source: "MANUAL" } });
+  } else if (entity === "rule") {
     await prisma.setting.upsert({ where: { key: `rule:${field}` }, update: { value: parsed.value as never }, create: { key: `rule:${field}`, value: parsed.value as never } });
   } else {
     const t = table(entity)!;

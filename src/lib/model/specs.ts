@@ -67,6 +67,7 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
     driver: { label: "Spread by", kind: "select", options: POOL_DRIVERS },
     site: { label: "Site", kind: "select", options: SITE_OPTIONS, optional: true },
     description: { label: "Description", kind: "text", optional: true },
+    capacity: { label: "Practical capacity / month", kind: "number", optional: true, min: 0, dp: 0, hint: "In its driver units, e.g. orders the CMC can wrap. Empty = fully spread over what was used" },
     active: { label: "In use", kind: "bool" },
   },
   service: {
@@ -76,13 +77,23 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
     minutes: { label: "Standard minutes", kind: "number", optional: true, min: 0, max: 1000, dp: 3 },
     minutesBasis: { label: "Minutes basis", kind: "select", options: [["ESTIMATE", "Estimate"], ["WMS", "WMS"], ["TIME_STUDY", "Time study"]] },
     overheads: { label: "Overhead drivers per unit", kind: "drivers", optional: true, hint: "e.g. equip=1 (one pallet move), automation_cmc=1" },
+    role: { label: "Role", kind: "select", optional: true, options: [["ORDER", "One per order (counts orders)"], ["PACK_MANUAL", "Packing · manual"], ["PACK_CMC", "Packing · CMC"]], hint: "Packing services are costed per order with the client's CMC share" },
     billable: { label: "Billed to clients", kind: "bool" },
     active: { label: "In use", kind: "bool" },
   },
   xeromap: {
     accountName: { label: "Account name", kind: "text", optional: true },
     poolKey: { label: "Cost pool", kind: "text", optional: true },
-    treatment: { label: "Treatment", kind: "select", options: [["INCLUDE", "FA cost (in its pool)"], ["EXCLUDE", "Not an operating cost"], ["REBILLED", "Passed through to clients"]] },
+    treatment: {
+      label: "Treatment",
+      kind: "select",
+      options: [
+        ["INCLUDE", "Included (cost in its pool / processing revenue)"],
+        ["PAYROLL", "Wages / super — from Xero Payroll instead"],
+        ["EXCLUDE", "Left out (not operating, e.g. postage)"],
+        ["REBILLED", "Passed through to clients"],
+      ],
+    },
     note: { label: "Note", kind: "text", optional: true },
   },
   wmsmap: {
@@ -111,6 +122,9 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
     logiwaCode: { label: "Logiwa user code", kind: "text", optional: true },
     startDate: { label: "Start date", kind: "date", optional: true },
     endDate: { label: "End date", kind: "date", optional: true },
+  },
+  rate: {
+    rate: { label: "Rate", kind: "money", min: 0, dp: 4, optional: true },
   },
   rule: Object.fromEntries(Object.entries(RULES).map(([k, spec]) => [k, { ...spec, default: undefined } as FieldSpec])),
 };

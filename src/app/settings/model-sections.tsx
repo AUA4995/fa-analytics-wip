@@ -502,8 +502,39 @@ export async function ModelPanel({ panel, canEdit }: { panel: PanelRef; canEdit:
     row = r as never;
     title = r?.name ?? "";
     kicker = "Client";
+    const [svcs, rts] = await Promise.all([prisma.service.findMany({ where: { billable: true, active: true }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }), prisma.clientRate.findMany({ where: { clientId: id } })]);
+    const rc = await logCounts("rate", svcs.map((s) => `${id}|${s.code}`));
     if (r)
       extra = (
+        <>
+        <div className="tsec">
+          <div className="tsec-h">Rates · until CLM is connected (then read from CLM)</div>
+          {!svcs.length ? (
+            <p className="meta">Add services first (Settings → Services & minutes).</p>
+          ) : (
+            <table>
+              <tbody>
+                {svcs.map((s) => {
+                  const rt = rts.find((x) => x.serviceCode === s.code);
+                  return (
+                    <tr key={s.code}>
+                      <td>
+                        {s.name}
+                        <div className="meta mono">
+                          {s.code} · per {s.unit}
+                        </div>
+                      </td>
+                      <td className="r">
+                        <EditableValue entity="rate" id={`${id}|${s.code}`} field="rate" spec={ENTITY_FIELDS.rate.rate} value={rt ? Number(rt.rate) : null} logCount={rc[`${id}|${s.code}|rate`] ?? 0} canEdit={canEdit} compact />
+                      </td>
+                      <td className="meta small">{rt?.source === "CLM" ? "from CLM" : rt ? "entered here" : ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
         <div className="tsec">
           <div className="tsec-h">Staff working on this client</div>
           {r.allocations.length ? (
@@ -525,6 +556,7 @@ export async function ModelPanel({ panel, canEdit }: { panel: PanelRef; canEdit:
             Edit in the allocation matrix
           </Link>
         </div>
+        </>
       );
   } else if (kind === "supplier") {
     const r = await prisma.supplier.findUnique({ where: { id } });

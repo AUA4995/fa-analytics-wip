@@ -70,9 +70,10 @@ async function syncAccounts(): Promise<number> {
   for (const a of body.Accounts ?? []) {
     const data = { code: a.Code ?? null, name: a.Name, type: a.Type, class: a.Class ?? null, status: a.Status ?? null, taxType: a.TaxType ?? null };
     await prisma.xeroAccount.upsert({ where: { xeroId: a.AccountID }, update: data, create: { xeroId: a.AccountID, ...data } });
-    // Expense / cost-of-sales accounts appear in Settings → Cost pools & mapping, unmapped, so nothing is forgotten
-    if (a.Code && ["EXPENSE", "DIRECTCOSTS", "OVERHEADS"].includes(a.Type)) {
-      await prisma.xeroAccountMap.upsert({ where: { accountCode: a.Code }, update: { accountName: a.Name }, create: { accountCode: a.Code, accountName: a.Name } });
+    // Expense and income accounts appear in Settings → Cost pools & mapping (unmapped / to decide), so nothing is forgotten
+    const side = ["EXPENSE", "DIRECTCOSTS", "OVERHEADS"].includes(a.Type) ? "EXPENSE" : ["REVENUE", "SALES", "OTHERINCOME"].includes(a.Type) ? "INCOME" : null;
+    if (a.Code && side) {
+      await prisma.xeroAccountMap.upsert({ where: { accountCode: a.Code }, update: { accountName: a.Name, side }, create: { accountCode: a.Code, accountName: a.Name, side } });
     }
   }
   return body.Accounts?.length ?? 0;

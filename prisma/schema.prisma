@@ -354,6 +354,9 @@ model CostPool {
   /// MINUTES | LABOUR_MINUTES | PALLET_WEEKS | PALLET_MOVES | ORDERS | ORDERS_PACKED | MACHINE_ORDERS | REVENUE
   driver      String
   description String?
+  /// Practical capacity per month in driver units (e.g. orders the CMC can wrap). Empty = no capacity concept:
+  /// the pool is fully spread over what was used (TDABC = Full absorption for it).
+  capacity    Decimal? @db.Decimal(14, 2)
   active      Boolean  @default(true)
   sortOrder   Int      @default(0)
   updatedAt   DateTime @updatedAt
@@ -378,6 +381,9 @@ model Service {
   minutes      Decimal?     @db.Decimal(10, 3)
   minutesBasis MinutesBasis @default(ESTIMATE)
   billable     Boolean      @default(true)
+  /// ORDER = one per order (counts orders) · PACK_MANUAL / PACK_CMC = packing method, costed per order with the
+  /// client's CMC share (not billed separately)
+  role         String?
   /// Overhead drivers per unit, e.g. { "equip": 1 } = one pallet move per unit
   overheads    Json         @default("{}")
   active       Boolean      @default(true)
@@ -391,8 +397,11 @@ model XeroAccountMap {
   accountName String?
   poolKey     String?
   pool        CostPool? @relation(fields: [poolKey], references: [key])
-  /// INCLUDE (cost in its pool) | EXCLUDE (not an FA operating cost, e.g. postage recharged) | REBILLED
+  /// Expense accounts: INCLUDE (cost in its pool) | PAYROLL (wages / super — taken from Xero Payroll instead) |
+  /// EXCLUDE (not an operating cost) | REBILLED. Income accounts: INCLUDE (processing revenue) | EXCLUDE (postage etc.)
   treatment   String    @default("INCLUDE")
+  /// EXPENSE | INCOME (from the Xero account type)
+  side        String    @default("EXPENSE")
   note        String?
   updatedAt   DateTime  @updatedAt
 }
@@ -670,4 +679,17 @@ model FrontTicketMonth {
   updatedAt DateTime @updatedAt
 
   @@id([clientId, month])
+}
+
+/// Client rate per service (until CLM is connected: entered here or imported; then read from CLM).
+model ClientRate {
+  clientId    String
+  serviceCode String
+  rate        Decimal  @db.Decimal(12, 4)
+  /// MANUAL | IMPORT | CLM
+  source      String   @default("MANUAL")
+  validFrom   DateTime? @db.Date
+  updatedAt   DateTime @updatedAt
+
+  @@id([clientId, serviceCode])
 }
