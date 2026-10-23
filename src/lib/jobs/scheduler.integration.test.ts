@@ -15,10 +15,14 @@ describe.skipIf(!hasDb)("scheduler (integration)", () => {
     await prisma.$disconnect();
   });
 
-  it("starts pg-boss", async () => {
+  it("starts pg-boss and schedules the nightly Xero and Front reads", async () => {
     mod = await import("./scheduler");
     await mod.startScheduler();
     const boss = await mod.getBoss();
-    expect(boss).toBeTruthy();
+    const xero = await boss.getSchedules(mod.QUEUE_XERO_SYNC);
+    expect(xero).toHaveLength(1);
+    expect(xero[0].cron).toBe("30 5 * * *");
+    expect(xero[0].timezone).toBe("Australia/Sydney");
+    expect(await boss.getSchedules(mod.QUEUE_FRONT_TICKETS)).toHaveLength(1);
   });
 });

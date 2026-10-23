@@ -475,3 +475,199 @@ model StaffAllocation {
 
   @@id([staffId, clientId])
 }
+
+// =====================================================================================
+// Chunk 3 — data sources (local read-only copies of Xero, the WMS and Front)
+// =====================================================================================
+
+/// One sync / import run per source (xero, front, thomax, p3l-file, logiwa …) with what it read.
+model SourceRun {
+  id         String     @id @default(cuid())
+  source     String
+  /// e.g. "nightly", "manual", "backfill 2021-03", "file Thomax_orders_Sep.csv"
+  label      String
+  status     SyncStatus @default(RUNNING)
+  startedAt  DateTime   @default(now())
+  finishedAt DateTime?
+  stats      Json?
+  error      String?
+  /// Who started it (null = schedule)
+  startedBy  String?
+
+  @@index([source, startedAt])
+}
+
+// ---------- WMS volumes ----------
+
+/// A file uploaded from a WMS (Thomax export, 3PLWMS export …) or one API page batch. Lines keep a link to it.
+model VolumeImport {
+  id         String    @id @default(cuid())
+  /// THOMAX | P3L | LOGIWA
+  source     String
+  /// CHARGES (date, tenant, charge code, quantity) | ORDERS (order, date, tenant, SKUs, units)
+  kind       String
+  fileName   String?
+  /// sha256 of the file — the same file can't be loaded twice
+  checksum   String?   @unique
+  /// Column mapping used (header → field), remembered per source + kind for next time
+  mapping    Json?
+  rows       Int       @default(0)
+  dateFrom   DateTime? @db.Date
+  dateTo     DateTime? @db.Date
+  /// Lines replaced from an earlier import on overlap (count)
+  replaced   Int       @default(0)
+  uploadedBy String?
+  createdAt  DateTime  @default(now())
+
+  lines  VolumeLine[]
+  orders OrderFact[]
+}
+
+/// Billable activity per day per tenant per WMS charge code (summed). The standard service code comes from mapping.
+model VolumeLine {
+  id         String       @id @default(cuid())
+  importId   String
+  import     VolumeImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  source     String
+  date       DateTime     @db.Date
+  tenant     String
+  wmsCode    String
+  /// Warehouse code if the export has it (SYD01 / SYD02); "" when not given
+  warehouse  String       @default("")
+  quantity   Decimal      @db.Decimal(14, 3)
+
+  @@unique([source, tenant, date, wmsCode, warehouse])
+  @@index([date])
+  @@index([tenant, date])
+}
+
+/// One order (for workload: SKUs per order, units per order, B2B/B2C, weekday). From WMS order exports or the API.
+model OrderFact {
+  id        String       @id @default(cuid())
+  importId  String?
+  import    VolumeImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
+  source    String
+  orderRef  String
+  date      DateTime     @db.Date
+  tenant    String
+  warehouse String?
+  /// Distinct SKUs on the order
+  skus      Int
+  units     Decimal      @db.Decimal(12, 2)
+  /// WMS order type if exported (e.g. B2B)
+  orderType String?
+
+  @@unique([source, orderRef])
+  @@index([tenant, date])
+  @@index([date])
+}
+
+// ---------- Xero (read-only mirror) ----------
+
+model XeroContact {
+  xeroId     String   @id
+  name       String
+  email      String?
+  isCustomer Boolean  @default(false)
+  isSupplier Boolean  @default(false)
+  status     String?
+  updatedAt  DateTime @updatedAt
+}
+
+/// Sales invoices (ACCREC) and credit notes to clients — what was billed, line by line (for leakage and revenue).
+model XeroSale {
+  xeroId    String   @id
+  /// INVOICE | CREDIT
+  kind      String
+  number    String?
+  reference String?
+  contactId String
+  date      DateTime @db.Date
+  status    String
+  total     Decimal  @db.Decimal(14, 2)
+  updatedAt DateTime @updatedAt
+
+  lines XeroSaleLine[]
+
+  @@index([contactId, date])
+  @@index([date])
+}
+
+model XeroSaleLine {
+  id          String   @id @default(cuid())
+  saleId      String
+  sale        XeroSale @relation(fields: [saleId], references: [xeroId], onDelete: Cascade)
+  description String?
+  itemCode    String?
+  accountCode String?
+  quantity    Decimal? @db.Decimal(14, 4)
+  unitAmount  Decimal? @db.Decimal(14, 4)
+  /// Ex GST, negative on credit notes
+  amount      Decimal  @db.Decimal(14, 2)
+
+  @@index([saleId])
+  @@index([itemCode])
+}
+
+/// Profit & loss by month by account (Xero Reports/ProfitAndLoss). Re-read for open months; closed months kept.
+model XeroPnl {
+  month       String
+  accountId   String
+  accountCode String?
+  accountName String
+  /// Income | Less Cost of Sales | Less Operating Expenses | Other Income …
+  section     String
+  amount      Decimal  @db.Decimal(14, 2)
+  updatedAt   DateTime @updatedAt
+
+  @@id([month, accountId])
+}
+
+// ---------- Xero Payroll AU ----------
+
+model PayrollEmployee {
+  xeroId      String    @id
+  firstName   String
+  lastName    String
+  status      String?
+  startDate   DateTime? @db.Date
+  endDate     DateTime? @db.Date
+  updatedAt   DateTime  @updatedAt
+}
+
+model PayRun {
+  xeroId      String   @id
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  paymentDate DateTime @db.Date
+  status      String
+  updatedAt   DateTime @updatedAt
+
+  slips Payslip[]
+}
+
+/// One employee's pay in one pay run: what drives labour cost (gross, super, hours).
+model Payslip {
+  xeroId     String   @id
+  payRunId   String
+  payRun     PayRun   @relation(fields: [payRunId], references: [xeroId], onDelete: Cascade)
+  employeeId String
+  gross      Decimal  @db.Decimal(12, 2)
+  super      Decimal  @db.Decimal(12, 2)
+  hours      Decimal  @db.Decimal(10, 2)
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+}
+
+// ---------- Front ----------
+
+/// Client-service effort: tickets per client per month (matched by the client's email domains).
+model FrontTicketMonth {
+  clientId String
+  month    String
+  tickets  Int
+  updatedAt DateTime @updatedAt
+
+  @@id([clientId, month])
+}

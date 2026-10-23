@@ -5,9 +5,14 @@ import { jobsSchema, pgConnectionString } from "@/lib/db-url";
  * Background jobs (pg-boss, in the same PostgreSQL database under its own schema — see jobsSchema()).
  * Started once per server process from src/instrumentation.ts.
  *
- * Queues are added with the chunks that need them: nightly Xero / WMS / Front syncs (Data sources, chunk 3),
- * the Thomax history backfill (chunk 3) and scheduled report emails (chunk 6).
+ *   xero-sync     — nightly incremental Xero read (05:30 Sydney) + "Sync now" / "Full re-read" buttons
+ *   front-tickets — nightly Front ticket counts per client (05:45), current + previous month
+ * Later chunks add the Thomax API pull (when Thomax sends the API details) and scheduled report emails.
  */
+
+export const QUEUE_XERO_SYNC = "xero-sync";
+export const QUEUE_FRONT_TICKETS = "front-tickets";
+const TZ = "Australia/Sydney";
 
 let boss: PgBoss | null = null;
 let starting: Promise<PgBoss> | null = null;
@@ -32,8 +37,37 @@ export async function startScheduler(): Promise<void> {
     console.log("[jobs] disabled by JOBS_DISABLED=1");
     return;
   }
-  await getBoss();
+  const b = await getBoss();
+  await b.createQueue(QUEUE_XERO_SYNC);
+  await b.createQueue(QUEUE_FRONT_TICKETS);
+  await b.schedule(QUEUE_XERO_SYNC, "30 5 * * *", { kind: "INCREMENTAL" }, { tz: TZ });
+  await b.schedule(QUEUE_FRONT_TICKETS, "45 5 * * *", { months: 2 }, { tz: TZ });
+  await b.work<{ kind?: "FULL" | "INCREMENTAL"; by?: string }>(QUEUE_XERO_SYNC, async ([job]) => {
+    const { getConnection } = await import("@/lib/xero/auth");
+    if (!(await getConnection())) return;
+    const { runXeroSync } = await import("@/lib/xero/sync");
+    const { recordFailure, recordSuccess } = await import("@/lib/integrations/status");
+    try {
+      await runXeroSync(job.data?.kind ?? "INCREMENTAL", job.data?.by ?? null);
+      await recordSuccess("xero");
+    } catch (err) {
+      await recordFailure("xero", err);
+      throw err;
+    }
+  });
+  await b.work<{ months?: number; by?: string }>(QUEUE_FRONT_TICKETS, async ([job]) => {
+    const { isFrontConfigured } = await import("@/lib/front/client");
+    if (!isFrontConfigured()) return;
+    const { syncFrontTickets } = await import("@/lib/front/tickets");
+    await syncFrontTickets(job.data?.months ?? 2, job.data?.by ?? null);
+  });
   console.log("[jobs] scheduler started");
+}
+
+/** Queue a job now (buttons on Data sources). */
+export async function enqueue(queue: string, data: object): Promise<string | null> {
+  const b = await getBoss();
+  return b.send(queue, data, { singletonKey: `${queue}-manual` });
 }
 
 /** Stop pg-boss (tests, graceful shutdown). */

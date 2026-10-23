@@ -5,7 +5,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
  * payroll and the WMS. Created once if missing; never overwrites what was edited in Settings.
  */
 export const DEFAULT_SITES = [
-  { key: "smi", name: "Smithfield", wmsCodes: [] as string[], owned: false, labourUtil: 0.85, spaceUtil: 0.9, sortOrder: 1 },
+  { key: "smi", name: "Smithfield", wmsCodes: ["SYD02"] as string[], owned: false, labourUtil: 0.85, spaceUtil: 0.9, sortOrder: 1 },
   // Owned: no rent in Xero → notional rent set in Settings. Space ~100% used (Asal, 10/2026).
   { key: "par", name: "Parramatta", wmsCodes: ["SYD01"], owned: true, labourUtil: 0.85, spaceUtil: 1, sortOrder: 2 },
 ];

@@ -37,7 +37,7 @@ export const RULES: Record<string, FieldSpec & { default: number | null }> = {
 export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
   site: {
     name: { label: "Name", kind: "text" },
-    wmsCodes: { label: "WMS warehouse codes", kind: "list", optional: true, hint: "e.g. SYD01 = Parramatta" },
+    wmsCodes: { label: "WMS warehouse codes", kind: "list", optional: true, hint: "SYD02 = Smithfield, SYD01 = Parramatta" },
     owned: { label: "Owned (no rent in Xero)", kind: "bool" },
     notionalRent: { label: "Notional rent / month", kind: "money", optional: true, min: 0, hint: "Owned sites only — market rent so their clients aren't understated" },
     palletPositions: { label: "Pallet positions", kind: "int", optional: true, min: 0 },

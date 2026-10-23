@@ -2,7 +2,7 @@ import { getAccessToken } from "./auth";
 import { XERO_API_BASE } from "./config";
 
 /**
- * Minimal Xero Accounting API client — GET only (the app is read-only by design).
+ * Minimal Xero Accounting + AU Payroll API client — GET only (the app is read-only by design).
  * Handles auth, tenant header, JSON, 429 back-off and paging.
  */
 
@@ -21,13 +21,17 @@ export interface GetOptions {
   params?: Record<string, string | number | undefined>;
   /** Only records modified since this time (Xero If-Modified-Since) */
   modifiedSince?: Date;
+  /** accounting (default) or AU payroll API */
+  api?: "accounting" | "payroll";
 }
+
+export const XERO_PAYROLL_AU_BASE = "https://api.xero.com/payroll.xro/1.0";
 
 const MAX_RETRIES = 4;
 
 export async function xeroGet<T>(path: string, opts: GetOptions = {}): Promise<T> {
   const { accessToken, tenantId } = await getAccessToken();
-  const url = new URL(`${XERO_API_BASE}/${path.replace(/^\//, "")}`);
+  const url = new URL(`${opts.api === "payroll" ? XERO_PAYROLL_AU_BASE : XERO_API_BASE}/${path.replace(/^\//, "")}`);
   for (const [k, v] of Object.entries(opts.params ?? {})) {
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   }

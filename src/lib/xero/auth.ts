@@ -107,7 +107,7 @@ export async function getConnection() {
  */
 export async function getAccessToken(): Promise<{ accessToken: string; tenantId: string; tenantName: string }> {
   const conn = await getConnection();
-  if (!conn) throw new Error("Xero is not connected — go to Settings → Connections & AI → Connect Xero.");
+  if (!conn) throw new Error("Xero is not connected — go to Settings → Company → Connect Xero.");
 
   const expiresSoon = conn.expiresAt.getTime() - Date.now() < 2 * 60 * 1000;
   if (!expiresSoon) {
