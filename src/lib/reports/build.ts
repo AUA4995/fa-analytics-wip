@@ -40,6 +40,7 @@ export const TEMPLATES: Record<string, { label: string; periods: Period[]; clien
   yearly: { label: "Year in review (with churn)", periods: ["YEAR"], clientSafe: false },
   volumes: { label: "Client volumes", periods: ["WEEK", "MONTH", "QUARTER"], clientSafe: true },
   protection: { label: "Revenue protection (Mark)", periods: ["MONTH"], clientSafe: false },
+  finance: { label: "Finance · bank pack", periods: ["MONTH", "QUARTER", "YEAR"], clientSafe: false, external: true },
 };
 
 const n = (x: number) => Math.round(x).toLocaleString("en-AU");
@@ -201,6 +202,12 @@ export async function buildReport(r: ReportSpec, opts: { filter?: WorkloadFilter
     blocks.push({ kind: "note", text: "Cash collected faster (debtor days) is shown separately in Finance — it isn't profit." });
   }
 
+  if (r.template === "finance") {
+    const f = await financeBlocks(r, now);
+    subtitle = f.subtitle;
+    blocks.push(...f.blocks);
+  }
+
   if (r.cls === "CLIENT_SAFE" && clientName) blocks.unshift({ kind: "note", text: `Prepared for ${clientName}. Volumes and order profile only.` });
   return { title: r.name, subtitle, blocks, clientsShown: [...shown] };
 }
@@ -217,6 +224,97 @@ export async function scanReport(r: ReportSpec, built: BuiltReport): Promise<str
     if (others.length) problems.push(`Other clients' names are in the file: ${others.slice(0, 5).join(", ")}`);
     for (const w of ["cost", "margin", "tdabc", "absorption", "buy rate", "wage", "pay "]) if (text.includes(w)) problems.push(`The file mentions “${w.trim()}” — internal only.`);
   }
-  if (r.cls === "EXTERNAL" && !r.template.startsWith("finance")) problems.push("Only Finance reports can go to lenders and advisers.");
+  if (r.cls === "EXTERNAL") {
+    if (!r.template.startsWith("finance")) problems.push("Only Finance reports can go to lenders and advisers.");
+    const names = (await prisma.client.findMany({ select: { name: true, shortName: true } })).flatMap((c) => [c.name, c.shortName]).filter((x): x is string => !!x && x.length > 2);
+    const found = names.filter((nm) => text.includes(nm.toLowerCase()));
+    if (found.length) problems.push(`Client names are in the file: ${found.slice(0, 5).join(", ")} — bank reports hide them.`);
+    for (const w of ["tdabc", "absorption", "buy rate", "wage", "payslip"]) if (text.includes(w)) problems.push(`The file mentions “${w}” — internal only.`);
+  }
   return problems;
+}
+
+/**
+ * Bank pack (brief §9b): company totals only — no client rates or margins, no pay by person, client names hidden
+ * ("Client A, B, C"). Forecast only when switched on, and labelled.
+ */
+async function financeBlocks(r: ReportSpec, now: Date): Promise<{ subtitle: string; blocks: Block[] }> {
+  const { loadFinance, lastN, ratiosAt, aged, concentration, monthLabel } = await import("@/lib/finance/load");
+  const { sumMonths, fyOf, AGE_BUCKETS } = await import("@/lib/finance/calc");
+  const d = await loadFinance(now);
+  if (!d.current) return { subtitle: "No Xero P&L yet", blocks: [{ kind: "note", text: "No Xero P&L loaded yet — nothing to report.", tone: "warn" }] };
+  const blocks: Block[] = [];
+  const l12 = lastN(d.months, 12, d.current);
+  const t = sumMonths(l12);
+  const prev = lastN(d.months, 24, d.current).slice(0, -12);
+  const p = prev.length === 12 ? sumMonths(prev) : null;
+  const rt = ratiosAt(d, d.current);
+  const bal = d.bal.find((b) => b.month === d.current);
+  const x = (v: number | null, dp = 2) => (v == null ? "—" : `${v.toFixed(dp)}x`);
+  blocks.push({
+    kind: "kpis",
+    items: [
+      { label: "Revenue · 12 months", value: aud(t.revenue), sub: p ? `${t.revenue >= p.revenue ? "+" : ""}${pc((t.revenue - p.revenue) / Math.abs(p.revenue || 1), 1)} vs prior 12 months` : `${l12.length} months` },
+      { label: "EBITDA · 12 months", value: aud(t.ebitda), sub: `${pc(t.revenue ? t.ebitda / t.revenue : null, 1)} of revenue` },
+      { label: "Cash at bank", value: bal ? aud(bal.cash) : "—", sub: `at ${monthLabel(d.current)}` },
+      { label: "DSCR", value: x(rt.dscr), sub: "minimum 1.25x", tone: rt.dscr == null ? undefined : rt.dscr >= 1.25 ? "green" : "red" },
+    ],
+  });
+  const fys = [...new Set(d.months.map((m) => fyOf(m.month)))].slice(-3);
+  blocks.push({
+    kind: "table",
+    title: "Profit & loss by financial year",
+    sub: "July–June, from Xero. The current year is year to date.",
+    head: ["", ...fys.map((fy) => { const n = d.months.filter((m) => fyOf(m.month) === fy).length; return n < 12 ? `${fy} (${n} mo)` : fy; })],
+    right: fys.map((_, i) => i + 1),
+    rows: (["revenue", "gross", "ebitda", "net"] as const).map((k) => [{ revenue: "Revenue", gross: "Gross profit", ebitda: "EBITDA", net: "Net profit" }[k], ...fys.map((fy) => aud(sumMonths(d.months.filter((m) => fyOf(m.month) === fy))[k]))]),
+  });
+  const six = lastN(d.months, 6, d.current);
+  blocks.push({
+    kind: "table",
+    title: "Last 6 months",
+    head: ["", ...six.map((m) => monthLabel(m.month))],
+    right: six.map((_, i) => i + 1),
+    rows: [
+      ["Revenue", ...six.map((m) => aud(m.revenue))],
+      ["Gross margin", ...six.map((m) => pc(m.revenue ? m.gross / m.revenue : null, 1))],
+      ["EBITDA", ...six.map((m) => aud(m.ebitda))],
+      ["Net profit", ...six.map((m) => aud(m.net))],
+    ],
+  });
+  blocks.push({
+    kind: "table",
+    title: "Debt service and liquidity",
+    head: ["Measure", "Value", "Usual bank view"],
+    right: [1],
+    rows: [
+      ["DSCR (EBITDA ÷ principal + interest)", x(rt.dscr), "at least 1.25x"],
+      ["Interest cover", x(rt.interestCover, 1), "higher is better"],
+      ["Debt / EBITDA", x(rt.debtToEbitda, 1), "below 2.5x comfortable"],
+      ["Current ratio", x(rt.currentRatio), "above 1.2 healthy"],
+      ["Debtor days", rt.debtorDays == null ? "—" : `${Math.round(rt.debtorDays)} days`, ""],
+      ["Creditor days", rt.creditorDays == null ? "—" : `${Math.round(rt.creditorDays)} days`, ""],
+    ],
+  });
+  const ag = await aged(now);
+  if (ag.any)
+    blocks.push({ kind: "table", title: "Aged receivables and payables (inc GST)", head: ["", ...AGE_BUCKETS, "Total"], right: [1, 2, 3, 4, 5, 6], rows: [["Receivables", ...ag.ar.totals.map(aud), aud(ag.ar.total)], ["Payables", ...ag.ap.totals.map(aud), aud(ag.ap.total)]] });
+  const c = await concentration(now, false);
+  if (c.count)
+    blocks.push({
+      kind: "table",
+      title: "Client concentration · last 12 months",
+      sub: `Largest client ${pc(c.top1, 1)} · top 5 ${pc(c.top5, 1)} · top 10 ${pc(c.top10, 1)} of revenue. Names withheld.`,
+      head: ["Client", "Share of revenue"],
+      right: [1],
+      rows: c.rows.slice(0, 10).map((x) => [x.name, pc(x.share, 1)]),
+    });
+  if (r.forecast)
+    blocks.push(
+      d.forecast
+        ? { kind: "bars", title: "Revenue forecast · next 6 months (FORECAST)", sub: "Seasonal: same month last year × growth of the last 12 months. Range ±8%. Not actual results.", rows: d.forecast.map((f) => ({ label: monthLabel(f.month), value: f.value, display: `${aud(f.low)}–${aud(f.high)}`, forecast: true })) }
+        : { kind: "note", text: "Forecast needs 24 months of P&L — not included.", tone: "warn" },
+    );
+  blocks.push({ kind: "note", text: "Figures from Xero (read-only). Must reconcile to the lodged accounts; the accountant confirms before sending." });
+  return { subtitle: `${monthLabel(d.current)} · last 12 months`, blocks };
 }

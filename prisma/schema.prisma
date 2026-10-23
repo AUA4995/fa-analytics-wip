@@ -596,6 +596,9 @@ model XeroSale {
   date      DateTime @db.Date
   status    String
   total     Decimal  @db.Decimal(14, 2)
+  dueDate   DateTime? @db.Date
+  /// inc GST, what the client still owes (0 for credit notes)
+  amountDue Decimal  @default(0) @db.Decimal(14, 2)
   updatedAt DateTime @updatedAt
 
   lines XeroSaleLine[]
@@ -926,4 +929,76 @@ model ReportSend {
   by        String
 
   @@index([reportId, at])
+}
+
+// ---------- Finance (brief §9b) ----------
+
+/// Balance sheet at each month end (Xero Reports/BalanceSheet, read-only)
+model XeroBalance {
+  month       String
+  accountId   String
+  accountCode String?
+  accountName String
+  /// Bank | Current Assets | Fixed Assets | Non-current Assets | Current Liabilities | Non-current Liabilities | Equity
+  section     String
+  amount      Decimal  @db.Decimal(14, 2)
+  updatedAt   DateTime @updatedAt
+
+  @@id([month, accountId])
+}
+
+/// Supplier bills (ACCPAY) — creditor days, aged payables, supplier prices for savings
+model XeroBill {
+  xeroId    String   @id
+  number    String?
+  reference String?
+  contactId String
+  date      DateTime @db.Date
+  dueDate   DateTime? @db.Date
+  status    String
+  /// ex GST
+  total     Decimal  @db.Decimal(14, 2)
+  /// inc GST, what is still owed
+  amountDue Decimal  @default(0) @db.Decimal(14, 2)
+  updatedAt DateTime @updatedAt
+
+  lines XeroBillLine[]
+
+  @@index([contactId, date])
+  @@index([date])
+}
+
+model XeroBillLine {
+  id          String   @id @default(cuid())
+  billId      String
+  bill        XeroBill @relation(fields: [billId], references: [xeroId], onDelete: Cascade)
+  description String?
+  itemCode    String?
+  accountCode String?
+  quantity    Decimal? @db.Decimal(14, 4)
+  unitAmount  Decimal? @db.Decimal(14, 4)
+  amount      Decimal  @db.Decimal(14, 2)
+
+  @@index([billId])
+  @@index([itemCode])
+}
+
+/// Debt schedule — entered by hand (not in Xero in this form)
+model DebtFacility {
+  id         String    @id @default(cuid())
+  name       String
+  lender     String?
+  /// Limit / original amount
+  limit      Decimal?  @db.Decimal(14, 2)
+  balance    Decimal   @db.Decimal(14, 2)
+  /// Interest rate per year (0.072 = 7.2%)
+  rate       Decimal?  @db.Decimal(6, 4)
+  /// Principal repaid per month
+  principalMonthly Decimal @default(0) @db.Decimal(14, 2)
+  endDate    DateTime? @db.Date
+  security   String?
+  note       String?
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }

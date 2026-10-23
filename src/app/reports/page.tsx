@@ -74,7 +74,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       )}
       {showNew && (
         <Card title="New report" sub="Pick a template and period. Client-safe reports cover one client and never show costs, margins or other clients.">
-          <NewReportForm templates={Object.entries(TEMPLATES).map(([k, t]) => [k, t.label])} clients={clients.map((c) => [c.id, c.name])} />
+          <NewReportForm templates={Object.entries(TEMPLATES).map(([k, t]) => [k, t.label])} clients={clients.map((c) => [c.id, c.name])} initialTemplate={TEMPLATES[one("template") ?? ""] ? one("template") : undefined} />
           {!reports.length && <p className="meta">No saved reports yet — save one to see it here.</p>}
         </Card>
       )}
@@ -87,7 +87,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           >
             <div className="row small">
               {cur.cls === "CLIENT_SAFE" && <span className="meta">For {cname(cur.clientId)} only</span>}
-              {["trends", "quarterly", "volumes"].includes(cur.template) && <ForecastToggle id={cur.id} on={cur.forecast} />}
+              {["trends", "quarterly", "volumes", "finance", "yearly"].includes(cur.template) && <ForecastToggle id={cur.id} on={cur.forecast} />}
             </div>
             {cur.template === "workload" && <p className="meta">Click a card to filter the tables (all · single-SKU · B2C · B2B).</p>}
           </Card>

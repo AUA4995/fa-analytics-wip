@@ -44,9 +44,11 @@ export function ForecastToggle({ id, on }: { id: string; on: boolean }) {
 export function NewReportForm({
   templates,
   clients,
+  initialTemplate,
 }: {
   templates: Array<[string, string]>;
   clients: Array<[string, string]>;
+  initialTemplate?: string;
 }) {
   const router = useRouter();
   const [s, action, pending] = useActionState(
@@ -57,7 +59,8 @@ export function NewReportForm({
     },
     null,
   );
-  const [cls, setCls] = useState("INTERNAL");
+  const [tpl, setTpl] = useState(initialTemplate ?? templates[0][0]);
+  const [cls, setCls] = useState(initialTemplate === "finance" ? "EXTERNAL" : "INTERNAL");
   return (
     <form action={action} className="addform">
       <label>
@@ -70,7 +73,7 @@ export function NewReportForm({
       </label>
       <label>
         Template
-        <select name="template">
+        <select name="template" value={tpl} onChange={(e) => (setTpl(e.target.value), setCls(e.target.value === "finance" ? "EXTERNAL" : "INTERNAL"))}>
           {templates.map(([k, l]) => (
             <option key={k} value={k}>
               {l}
@@ -80,7 +83,7 @@ export function NewReportForm({
       </label>
       <label>
         Period
-        <select name="period" defaultValue="MONTH">
+        <select name="period" defaultValue="MONTH" key={tpl}>
           <option value="WEEK">Week</option>
           <option value="MONTH">Month</option>
           <option value="QUARTER">Quarter</option>
@@ -91,7 +94,8 @@ export function NewReportForm({
         Type
         <select name="cls" value={cls} onChange={(e) => setCls(e.target.value)}>
           <option value="INTERNAL">Internal</option>
-          <option value="CLIENT_SAFE">Client-safe (one client)</option>
+          {tpl !== "finance" && <option value="CLIENT_SAFE">Client-safe (one client)</option>}
+          {tpl === "finance" && <option value="EXTERNAL">External finance (bank, accountant)</option>}
         </select>
       </label>
       {cls === "CLIENT_SAFE" && (

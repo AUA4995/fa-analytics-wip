@@ -140,7 +140,11 @@ export async function renderPdf(rep: BuiltReport, brand: PdfBrand, meta: { cls: 
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(range.start + i);
+    // Writing inside the bottom margin would make PDFKit start a new page — lift the margin for the footer line.
+    const bottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
     doc.font("Helvetica").fontSize(7.5).fillColor(MUTED).text(`${brand.companyName} · ${meta.generated} · page ${i + 1} of ${range.count}`, 40, doc.page.height - 32, { width: W, align: "right", lineBreak: false });
+    doc.page.margins.bottom = bottom;
   }
   doc.end();
   return done;

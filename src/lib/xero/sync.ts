@@ -15,6 +15,8 @@ export interface XeroSyncStats {
   saleLines: number;
   pnlMonths: number;
   pnlRows: number;
+  bills?: number;
+  balanceMonths?: number;
   employees: number;
   payRuns: number;
   payslips: number;
@@ -43,6 +45,8 @@ export async function runXeroSync(kind: "FULL" | "INCREMENTAL", startedBy: strin
     const p = await syncPnl(kind === "FULL" ? 24 : 3);
     stats.pnlMonths = p.months;
     stats.pnlRows = p.rows;
+    stats.bills = await syncBills(since);
+    stats.balanceMonths = await syncBalance(kind === "FULL" ? 24 : 3);
     const pay = await syncPayroll().catch((err: unknown) => ({ skipped: err instanceof Error ? err.message : String(err) }));
     if ("skipped" in pay) stats.payrollSkipped = pay.skipped;
     else Object.assign(stats, pay);
@@ -119,6 +123,9 @@ interface XSale {
   Status: string;
   Total?: number;
   SubTotal?: number;
+  AmountDue?: number;
+  DueDate?: string;
+  DueDateString?: string;
   LineAmountTypes?: string;
   LineItems?: XLine[];
 }
@@ -145,6 +152,8 @@ async function syncSales(since?: Date): Promise<{ sales: number; lines: number }
       date: new Date(date + "T00:00:00Z"),
       status: x.Status,
       total: sign * (x.SubTotal ?? x.Total ?? 0),
+      dueDate: dueOf(x),
+      amountDue: kind === "INVOICE" && ["AUTHORISED", "SUBMITTED"].includes(x.Status) ? (x.AmountDue ?? 0) : 0,
     };
     await prisma.$transaction([
       prisma.xeroSale.upsert({ where: { xeroId: id }, update: data, create: { xeroId: id, ...data } }),
@@ -174,6 +183,42 @@ async function syncSales(since?: Date): Promise<{ sales: number; lines: number }
   // Item codes on invoice lines appear in Settings → Cost pools & mapping, to map to services (billed per service)
   await saveItems();
   return { sales, lines };
+}
+
+function dueOf(x: XSale): Date | null {
+  const d = xeroDateToISO(x.DueDateString ?? x.DueDate);
+  return d ? new Date(d + "T00:00:00Z") : null;
+}
+
+/** Supplier bills (ACCPAY), read-only: creditor days, aged payables and supplier unit prices (savings). */
+async function syncBills(since?: Date): Promise<number> {
+  let n = 0;
+  const where = since ? "" : ` AND Date >= DateTime(${SALES_FROM.replace(/-/g, ",")})`;
+  for await (const page of xeroPages<XSale>("/Invoices", "Invoices", { modifiedSince: since, params: { where: `Type=="ACCPAY"${where}` } }))
+    for (const x of page) {
+      const id = x.InvoiceID!;
+      if (x.Status === "DELETED" || x.Status === "VOIDED") {
+        await prisma.xeroBill.deleteMany({ where: { xeroId: id } });
+        continue;
+      }
+      const data = {
+        number: x.InvoiceNumber ?? null,
+        reference: x.Reference ?? null,
+        contactId: x.Contact.ContactID,
+        date: new Date((xeroDateToISO(x.DateString ?? x.Date) ?? SALES_FROM) + "T00:00:00Z"),
+        dueDate: dueOf(x),
+        status: x.Status,
+        total: x.SubTotal ?? x.Total ?? 0,
+        amountDue: ["AUTHORISED", "SUBMITTED"].includes(x.Status) ? (x.AmountDue ?? 0) : 0,
+      };
+      await prisma.$transaction([
+        prisma.xeroBill.upsert({ where: { xeroId: id }, update: data, create: { xeroId: id, ...data } }),
+        prisma.xeroBillLine.deleteMany({ where: { billId: id } }),
+        prisma.xeroBillLine.createMany({ data: (x.LineItems ?? []).map((l) => ({ billId: id, description: l.Description ?? null, itemCode: l.ItemCode ?? null, accountCode: l.AccountCode ?? null, quantity: l.Quantity ?? null, unitAmount: l.UnitAmount ?? null, amount: exGst(l, x.LineAmountTypes) })) }),
+      ]);
+      n++;
+    }
+  return n;
 }
 
 // ---------- Profit & loss by month ----------
@@ -256,6 +301,24 @@ async function syncPnl(monthsBack: number): Promise<{ months: number; rows: numb
     rows += parsed.length;
   }
   return { months, rows };
+}
+
+/** Balance sheet at each month end (12 per call), parsed like the P&L. */
+async function syncBalance(monthsBack: number): Promise<number> {
+  const accounts = new Map((await prisma.xeroAccount.findMany({ select: { xeroId: true, code: true } })).map((a) => [a.xeroId, a.code]));
+  const now = new Date();
+  let months = 0;
+  for (let back = 0; back < monthsBack; back += 12) {
+    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back + 1, 0));
+    const periods = Math.min(11, monthsBack - back - 1);
+    const rep = await xeroGet<XReport>("/Reports/BalanceSheet", { params: { date: end.toISOString().slice(0, 10), periods, timeframe: "MONTH", standardLayout: "true" } });
+    const parsed = parsePnl(rep);
+    const seen = new Set(parsed.map((p) => p.month));
+    for (const m of seen) await prisma.xeroBalance.deleteMany({ where: { month: m } });
+    if (parsed.length) await prisma.xeroBalance.createMany({ data: parsed.map((p) => ({ ...p, accountCode: accounts.get(p.accountId) ?? null })) });
+    months += seen.size;
+  }
+  return months;
 }
 
 // ---------- AU Payroll ----------

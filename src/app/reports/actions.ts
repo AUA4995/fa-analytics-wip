@@ -21,7 +21,7 @@ export async function createReportAction(_p: RepState | null, fd: FormData): Pro
   if (!t) return { ok: false, message: "Unknown template." };
   if (!t.periods.includes(p.data.period)) return { ok: false, message: `${t.label} works for: ${t.periods.join(", ").toLowerCase()}.` };
   if (p.data.cls === "CLIENT_SAFE" && (!t.clientSafe || !p.data.clientId)) return { ok: false, message: "Client reports need one client and a client-safe template (workload, trends, quarterly or volumes)." };
-  if (p.data.cls === "EXTERNAL") return { ok: false, message: "External finance reports are made from Finance → Bank pack." };
+  if (p.data.cls === "EXTERNAL" && !t.external) return { ok: false, message: "External finance reports use the Finance · bank pack template." };
   const r = await prisma.report.create({ data: { name: p.data.name, template: p.data.template, period: p.data.period, cls: p.data.cls, clientId: p.data.clientId || null, createdBy: me.name, sortOrder: await prisma.report.count() } });
   await logChange({ entity: "report", entityId: r.id, field: "_created", oldValue: null, newValue: p.data, actor: actor(me) });
   revalidatePath("/reports");
