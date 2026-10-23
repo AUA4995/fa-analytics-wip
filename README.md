@@ -20,7 +20,7 @@ connected, a page says "no data yet".
 | 3 | Data sources: WMS file imports (Thomax, 3PLWMS, Logiwa) with column mapping, overlap and duplicate checks; Xero read (accounts, contacts, sales lines since 2021, monthly P&L, AU Payroll); Front tickets per client; nightly jobs. Thomax API waits for Thomax's API details | ✅ |
 | 4 | Cost engine (TDABC / Full absorption, unused capacity by resource, cost per order B2C / B2B) + Cost & margin pages with every number opening its calculation; client rates until CLM | ✅ |
 | 5 | Leakage (under-billing per service via Xero item codes, weekly minimums, under-pricing, rate checks with Dyspatch / WMS exports, log + import), rate review (calendar, stages, workbench), tasks verified on resolve, notifications after syncs | ✅ |
-| 6 | Improvements, reports (PDF + Front email, forecast), KPI, Finance, Contacts & recipients | — |
+| 6 | Reports (screen = PDF, Front email: dry run / draft / auto, schedules, pre-send brake), Contacts & recipients, Finance (P&L, cash & debt, working capital, concentration, bank pack with approval; Xero balance sheet + bills read), KPI (targets in Rules, site filter, scorecard), Improvements & savings (idea → initiative, proposed calculation and plan, steps → tasks, roadmap) | ✅ |
 | 7 | API keys we give out, tests, hosting notes | — |
 
 ## Local setup (Windows work laptop — no Docker)

@@ -1002,3 +1002,88 @@ model DebtFacility {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
+
+// ---------- Improvements & savings (brief §9a) ----------
+
+/// Categories (sub-categories inside); more can be added
+model ImproveCategory {
+  key       String   @id
+  name      String
+  subs      String[] @default([])
+  sortOrder Int      @default(0)
+}
+
+/// One record from idea to verified initiative — it moves stage with its history, nothing retyped
+model Improvement {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  sub         String?
+  detail      String?
+  /// process | supplier | materials | equipment | space | people
+  changes     String[]  @default([])
+  /// IDEA | PARKED | REJECTED | APPROVED | IN_PROGRESS | DONE | VERIFIED
+  stage       String    @default("IDEA")
+  /// Ideas
+  reviewer    String?
+  reviewDue   DateTime? @db.Date
+  /// SHORT | LONG
+  horizon     String    @default("SHORT")
+  /// Initiatives: 1 = do first
+  priority    Int?
+  owner       String?
+  startDate   DateTime? @db.Date
+  dueDate     DateTime? @db.Date
+  /// HARD | AVOIDANCE | SOFT (CIPS)
+  savingType  String    @default("HARD")
+  /// Calculation blocks: [{ kind, inputs }] — see lib/improve/calc.ts
+  calc        Json      @default("[]")
+  /// Estimated / measured saving per month (from the calc; measured after the change)
+  estMonthly  Decimal?  @db.Decimal(14, 2)
+  measuredMonthly Decimal? @db.Decimal(14, 2)
+  /// Months of real data confirming the measured saving
+  monthsConfirmed Int   @default(0)
+  investment  Decimal?  @db.Decimal(14, 2)
+  /// { service, clients[], site, supplierContactId, account, startDate }
+  mapping     Json      @default("{}")
+  /// Participant names (staff, with or without a login)
+  participants String[] @default([])
+  verifiedAt  DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  steps    ImproveStep[]
+  comments ImproveComment[]
+
+  @@index([stage])
+}
+
+model ImproveStep {
+  id            String      @id @default(cuid())
+  improvementId String
+  improvement   Improvement @relation(fields: [improvementId], references: [id], onDelete: Cascade)
+  name          String
+  start         DateTime?   @db.Date
+  due           DateTime?   @db.Date
+  owner         String?
+  /// NOT_STARTED | IN_PROGRESS | DONE
+  status        String      @default("NOT_STARTED")
+  /// "measure_after" triggers the saving recalculation
+  kind          String?
+  sortOrder     Int         @default(0)
+  taskId        String?
+  updatedAt     DateTime    @updatedAt
+
+  @@index([improvementId])
+}
+
+model ImproveComment {
+  id            String      @id @default(cuid())
+  improvementId String
+  improvement   Improvement @relation(fields: [improvementId], references: [id], onDelete: Cascade)
+  by            String
+  text          String
+  at            DateTime    @default(now())
+}

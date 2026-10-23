@@ -58,3 +58,49 @@ table.wk tr.tot td { border-top: 2px solid var(--ink); background: var(--surface
 .scorebar i { display: block; }
 .sb-green { background: var(--green); } .sb-amber { background: var(--amber-line); } .sb-red { background: var(--red); } .sb-none { background: var(--chart-grey); }
 tr.hl td { background: var(--blue-wash); }
+.newidea .step { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+.newidea .step > b { width: 22px; height: 22px; border-radius: 50%; background: var(--blue-wash); color: var(--blue-deep); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; align-self: center; }
+.newidea .step > b:empty { background: none; }
+.newidea label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--grey); }
+.newidea label.grow { flex: 1; min-width: 240px; }
+.newidea label.grow input { width: 100%; }
+.cblock { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+input.missing { border-color: var(--amber-line) !important; background: var(--amber-bg); }
+table.steps input, table.steps select { font-size: 12.5px; padding: 3px 5px; }
+table.steps tr.late td { background: var(--red-wash); }
+.fedit input, .fedit select { font-size: 13px; padding: 3px 6px; }
+.roadmap .rl { font-size: 12px; fill: var(--ink); font-family: var(--sans); }
+.roadmap .rl.idea { fill: var(--amber); }
+.mcals { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.mcal .mh { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.mcal .mg { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; font-size: 12px; }
+.mcal .dh { color: var(--grey); font-size: 10.5px; }
+.mcal .d { padding: 4px 0; border-radius: 5px; color: var(--ink); text-decoration: none; }
+.mcal .d.today { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.mcal .d.rv { background: var(--amber-bg); color: var(--amber); font-weight: 700; }
+.mcal .d.st { background: var(--blue-wash); color: var(--blue-deep); font-weight: 700; }
+.quarters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.quarters .q { background: var(--surface); border-radius: 10px; padding: 10px; }
+.quarters .q h4 { margin: 0 0 6px; font-size: 13px; }
+.quarters .q a { display: block; font-size: 12.5px; padding: 3px 0; }
+.weekstrip { display: flex; gap: 8px; flex-wrap: wrap; }
+.weekstrip a { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; background: var(--card); color: var(--ink); text-decoration: none; }
+.weekstrip a.rv { border-left: 4px solid var(--amber-line); }
+.weekstrip a.st { border-left: 4px solid var(--blue); }
+.weekstrip a.late { border-left-color: var(--red); }
+.pbar { display: inline-block; width: 80px; height: 7px; background: var(--surface); border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.pbar i { display: block; height: 100%; background: var(--blue); }
+.drawer .kpis { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)) !important; }
+.drawer .fl dd { min-width: 0; }
+.drawer .fedit select, .drawer .fedit input { max-width: 100%; }
+.drawer .cblock .addform label { min-width: 0; }
+.drawer .cblock .addform input { width: 96px !important; }
+.drawer > * { min-width: 0; }
+.steplist { display: grid; gap: 8px; }
+.stepcard { border: 1px solid var(--border); border-left: 4px solid var(--chart-grey); border-radius: 8px; padding: 8px 10px; }
+.stepcard.late { border-left-color: var(--red); background: var(--red-wash); }
+.stepcard.done { border-left-color: var(--green); }
+.stepcard input, .stepcard select { font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--ink); }
+.stepcard .sn { font-size: 12px; color: var(--grey); width: 16px; }
+.stepcard .sf { margin-top: 6px; gap: 8px; padding-left: 22px; }
+.stepcard .sf label { display: flex; flex-direction: column; font-size: 11px; color: var(--grey); gap: 2px; }

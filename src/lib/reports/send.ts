@@ -123,6 +123,8 @@ export function sydneyParts(now: Date): { day: Date; hour: number; ymd: string }
  */
 export async function runReportTick(now = new Date()): Promise<Array<{ id: string; result: SendResult }>> {
   const { day, hour, ymd } = sydneyParts(now);
+  // Project steps (Improvements): late steps' tasks go to the top of their owner's list
+  await prisma.task.updateMany({ where: { source: { startsWith: "improve-step:" }, status: { not: "DONE" }, due: { lt: day }, priority: { not: "High" } }, data: { priority: "High" } });
   const reps = await prisma.report.findMany({ where: { schedule: { not: "OFF" } } });
   const owner = await prisma.user.findFirst({ where: { role: "OWNER" }, select: { name: true, email: true } });
   if (!owner) return [];
