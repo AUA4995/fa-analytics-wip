@@ -174,6 +174,13 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 ## 9d. Notifications panel (coming soon — to discuss)
 - A separate notifications menu / panel (top or bottom of the app): urgent things Analytics notices, e.g. something serious read from the Accounts Hub. **Not designed yet — discuss with Asal before building.** The demo shows a "coming soon" placeholder so it isn't forgotten. (Today's "New since the last sync" list on Tasks stays as it is.)
 
+## 9e. One login for all FA apps (planned — after the apps are live)
+- **Idea:** one sign-in for Accounts Hub, Analytics, CLM (and Marcus's HR if he adds it), a home page with tiles (only the apps a person may use; one app → straight in), and a horizontal app switcher at the top; each app keeps its own vertical menu.
+- **Apps stay separate** (own database, own deploys, bridges through API keys). The shared login only proves **who** you are; **what** you may do is decided inside each app by its own owner (Asal is Primary Owner of Hub / Analytics / CLM; Marcus is Primary Owner of HR, Asal a manager there). Tiles are shown only if that app says the person has access.
+- **Own login, not Microsoft 365** (the Microsoft sign-in on 3PLWMS was slow and annoying for the team). Same flow as today: password + authenticator code, "trust this device" so it's once a day. Sensitive apps may ask for the code again (to decide).
+- **Who manages the shared login** (it can block a person in all apps at once, e.g. on leaving): to decide — Asal and Marcus both, logged. Owner keeps an emergency direct sign-in to each app.
+- Order: launch the apps first; then a tiles home page; then the shared login, apps moving to it one by one. HR joins via the standard (OpenID Connect) — a small change on Marcus's side.
+
 ## 10. Email / PDF sending
 - "Email / PDF" on every report topic: Send PDF now · Preview · Schedule (on/off; Dry run → Draft in Front → Send automatically). Multi-page branded PDF; Claude summary at the top (marked AI) only from the figures included.
 - Sent via **Front** (FA Accounts mailbox). **Recipients only from Settings → Contacts & recipients** (dropdown).
