@@ -8,7 +8,8 @@ import "@fontsource/ibm-plex-mono/500.css";
 import { getCompany, logoUrl } from "@/lib/company";
 import { brandCss } from "@/lib/brand";
 import { AppShell } from "@/components/shell/app-shell";
-import { getCurrentUser } from "@/lib/auth/session";
+import { IdleWarning } from "@/components/shell/idle-warning";
+import { getCurrentUser, IDLE_MINUTES } from "@/lib/auth/session";
 import { isAdminRole, roleLabel } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db";
 import { navCounts } from "@/lib/shell/counts";
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             signOut={logout}
           >
             {children}
+            <IdleWarning idleMinutes={IDLE_MINUTES} />
           </AppShell>
         ) : (
           <main className="main">{children}</main>

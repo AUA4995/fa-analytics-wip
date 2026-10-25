@@ -128,8 +128,12 @@ model Session {
   userAgent String?
   /// Batch 2: when the 2FA step was completed. null = password OK, code still needed (short-lived pending session).
   twoFactorAt     DateTime?
-  /// code | backup | device | enrolled
+  /// code | backup | device | enrolled | idle-lock (locked after inactivity; code needed)
   twoFactorMethod String?
+  /// Last request on this session (activity) — after IDLE_MINUTES without one, the session asks for the code again
+  lastSeenAt      DateTime @default(now())
+  /// Absolute end of the sign-in (8 hours from the password); kept through an idle-lock re-check
+  capAt           DateTime?
 
   @@index([userId])
 }

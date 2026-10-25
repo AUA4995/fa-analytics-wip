@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, getPendingLogin } from "@/lib/auth/session";
+import { getCurrentUser, getPendingLogin, IDLE_MINUTES } from "@/lib/auth/session";
 import { safeNext } from "@/lib/auth/paths";
 import { AuthCard } from "@/components/auth/auth-card";
 import { VerifyCodeForm } from "../two-factor-forms";
@@ -15,7 +15,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
   if (!pending) redirect("/login");
   if (!pending.user.totpEnabled) redirect(`/login/setup-2fa${next === "/" ? "" : `?next=${encodeURIComponent(next)}`}`);
   return (
-    <AuthCard title="Two-step sign-in" sub={`Signing in as ${pending.user.email}`}>
+    <AuthCard title={pending.idleLocked ? "Welcome back" : "Two-step sign-in"} sub={pending.idleLocked ? `Signed out after ${IDLE_MINUTES} minutes without activity. Enter your code to continue as ${pending.user.email}.` : `Signing in as ${pending.user.email}`}>
       <VerifyCodeForm next={next} />
     </AuthCard>
   );

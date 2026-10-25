@@ -124,4 +124,35 @@ describe.skipIf(!hasDb)("sessions (integration)", () => {
     expect(jar.has(auth.SESSION_COOKIE)).toBe(false);
     expect(await prisma.session.findUnique({ where: { tokenHash: auth.hashToken(token) } })).toBeNull();
   });
+
+  it("8-hour cap; an hour idle locks to 'code only' within the same 8 hours; activity keeps it open", async () => {
+    await signInForTest(userId);
+    const t0 = jar.get(auth.SESSION_COOKIE)!;
+    const row = await prisma.session.findUniqueOrThrow({ where: { tokenHash: auth.hashToken(t0) } });
+    expect(Math.round((row.expiresAt.getTime() - Date.now()) / 60_000)).toBe(auth.SESSION_HOURS * 60);
+    expect(row.capAt?.getTime()).toBe(row.expiresAt.getTime());
+    // 50 minutes idle → still signed in, visit recorded
+    await prisma.session.update({ where: { id: row.id }, data: { lastSeenAt: new Date(Date.now() - 50 * 60_000) } });
+    expect(await auth.getCurrentUser()).toMatchObject({ id: userId });
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: row.id } })).lastSeenAt.getTime()).toBeGreaterThan(Date.now() - 5000);
+    // 61 minutes idle → locked: not signed in, pending "code only", same cap
+    await prisma.session.update({ where: { id: row.id }, data: { lastSeenAt: new Date(Date.now() - 61 * 60_000) } });
+    expect(await auth.getCurrentUser()).toBeNull();
+    const pending = await auth.getPendingLogin();
+    expect(pending).toMatchObject({ idleLocked: true });
+    expect(pending!.capAt!.getTime()).toBe(row.capAt!.getTime());
+    await auth.completeTwoFactor(pending!, "code");
+    const t1 = jar.get(auth.SESSION_COOKIE)!;
+    const again = await prisma.session.findUniqueOrThrow({ where: { tokenHash: auth.hashToken(t1) } });
+    expect(again.expiresAt.getTime()).toBe(row.capAt!.getTime());
+    expect(await auth.getCurrentUser()).toMatchObject({ id: userId });
+  });
+
+  it("idle rules", () => {
+    const now = new Date("2026-10-25T10:00:00Z");
+    const ago = (m: number) => new Date(now.getTime() - m * 60_000);
+    expect(auth.idleState(ago(0.5), now)).toBe("fresh");
+    expect(auth.idleState(ago(5), now)).toBe("touch");
+    expect(auth.idleState(ago(61), now)).toBe("locked");
+  });
 });

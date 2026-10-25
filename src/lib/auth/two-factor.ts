@@ -112,7 +112,7 @@ export async function rememberThisDevice(userId: string, enabledAt: Date): Promi
     sameSite: "lax",
     secure: secureCookies(),
     path: "/",
-    expires: new Date(exp),
+    // Browser-session cookie: closing the browser / turning the computer off forgets the device (8 h max inside)
   });
 }
 
