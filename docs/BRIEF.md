@@ -152,16 +152,26 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 
 ## 9c. ★ WMS / SLA (planned — discussing; no demo or code yet)
 - **Source:** Thomax Query API (Logiwa later), read-only. Fields still to confirm (see §15) before the demo.
-- **SLA rule (Settings → Rules):** orders in by **14:00** ship the same day (all clients); **B2B: 48 hours**.
-- **Sub-menus:** Overview · Morning plan 06:00 · Afternoon check 13:00 · Receiving · Returns (coming soon) · SLA history (to confirm).
+- **Site filter on every WMS / SLA page:** All · Smithfield · Parramatta (company-wide or per warehouse).
+- **Sub-menus:** Overview · Morning plan 06:00 · Afternoon check 13:00 · Receiving · Returns (coming soon) · SLA.
   - **Overview:** cards Ready to pick · Expected by 14:00 · Shipped today · At risk of SLA · Inbound expected.
   - **Morning plan (snapshot 06:00):** open orders with stock available to pick at 06:00, by client (orders, lines, SKUs, units; single / multi-SKU, B2B); not ready (no stock, hold, embargo) shown separately; forecast of orders still to arrive by 14:00 (same weekday, last 4–8 weeks + events), shown as a range and labelled forecast; Pick / Pack workload.
   - **Afternoon check (snapshot 13:00, start of lunch):** what must still ship today under the SLA vs done, by stage (Pick / Pack / Dispatch) and client; at-risk list; receiving due today.
   - **Receiving:** expected receipts from the WMS (ASN) **and** from Front emails (when the client emailed but no ASN yet), merged, source shown; by client and receipt type (unit / outer / pallet / container — palletised or not), ETA, SKUs, units, status (expected → arrived → receiving → received → discrepancy); row → lines per SKU; "Waiting for packing list from client" with the Front ticket, date asked and days waiting; "Remind" makes a Front draft (never sends); a task after N days.
   - **Returns:** coming soon (from Front later).
+  - **SLA:** one page, no separate tabs.
+    - **Top: target chips** — Pick & pack: in by 14:00 → same day, B2B 48 h · Ticket first response: **4 working hours (Mon–Fri 09:00–17:00, CSR hours)** · Receiving · Invoicing · Client payment. Click a chip → pop-up to edit; same value as Settings → Rules (synced, logged).
+    - **Under the chips: filters** for the whole page and the panels — period (day / week / month / quarter / year / custom range, vs previous period) · clients (all / one / several) · site (All / Smithfield / Parramatta).
+    - **Cards, our side and the client's side:** Pick & pack (% shipped on time) · Receiving (% received on time; client: % with packing list / ASN in advance) · Tickets (% answered within 4 working h, time to resolve; client: how fast they answer our requests) · Invoicing (% invoices issued on time; client: % paid by due date, days late).
+    - **Card → panel:** trend for the period, by client, list of breaches with links (order, Front ticket, Xero invoice), formula and target; the same filters at the top of the panel.
+    - **Below the cards:** scorecard table, clients × areas, green / amber / red.
+    - **Sources:** tickets — Front (already connected); pick & pack — Thomax API; **receiving and invoicing — from the Accounts Hub** (David's billing calendar is set up there) through a **read-only API key the Hub gives to Analytics** (the Hub needs a "keys we give out" section and these endpoints; Analytics never changes anything in the Hub). Client payments — Xero.
 - **Snapshots** at 06:00 and 13:00 are stored (plan vs actual); "Refresh now" in the day. Times configurable.
 - **Delivery:** on the page **and** by email (Front, internal recipients, PDF + short summary), email switchable off in settings.
 - **Front events:** extracted in Analytics, in the existing Front connection (which already reads emails for client admin complexity) — one more element: deliveries, embargoes, sales, launches, pickups. Workforce Planning in Marcus's HR platform reads them through the Analytics API.
+
+## 9d. Notifications panel (coming soon — to discuss)
+- A separate notifications menu / panel (top or bottom of the app): urgent things Analytics notices, e.g. something serious read from the Accounts Hub. **Not designed yet — discuss with Asal before building.** The demo shows a "coming soon" placeholder so it isn't forgotten. (Today's "New since the last sync" list on Tasks stays as it is.)
 
 ## 10. Email / PDF sending
 - "Email / PDF" on every report topic: Send PDF now · Preview · Schedule (on/off; Dry run → Draft in Front → Send automatically). Multi-page branded PDF; Claude summary at the top (marked AI) only from the figures included.
