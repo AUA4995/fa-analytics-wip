@@ -150,6 +150,19 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - Built from Xero (full read access) + WMS order history. Forecast seasonal on full history.
 - **Report type External finance:** company totals only; no client rates/margins, no pay by person; **client names hidden by default** ("Client A, B, C"), can be shown manually; must reconcile to Xero and lodged figures; forecasts labelled; **approval (Mark or the accountant) before sending**.
 
+## 9c. ★ WMS / SLA (planned — discussing; no demo or code yet)
+- **Source:** Thomax Query API (Logiwa later), read-only. Fields still to confirm (see §15) before the demo.
+- **SLA rule (Settings → Rules):** orders in by **14:00** ship the same day (all clients); **B2B: 48 hours**.
+- **Sub-menus:** Overview · Morning plan 06:00 · Afternoon check 13:00 · Receiving · Returns (coming soon) · SLA history (to confirm).
+  - **Overview:** cards Ready to pick · Expected by 14:00 · Shipped today · At risk of SLA · Inbound expected.
+  - **Morning plan (snapshot 06:00):** open orders with stock available to pick at 06:00, by client (orders, lines, SKUs, units; single / multi-SKU, B2B); not ready (no stock, hold, embargo) shown separately; forecast of orders still to arrive by 14:00 (same weekday, last 4–8 weeks + events), shown as a range and labelled forecast; Pick / Pack workload.
+  - **Afternoon check (snapshot 13:00, start of lunch):** what must still ship today under the SLA vs done, by stage (Pick / Pack / Dispatch) and client; at-risk list; receiving due today.
+  - **Receiving:** expected receipts from the WMS (ASN) **and** from Front emails (when the client emailed but no ASN yet), merged, source shown; by client and receipt type (unit / outer / pallet / container — palletised or not), ETA, SKUs, units, status (expected → arrived → receiving → received → discrepancy); row → lines per SKU; "Waiting for packing list from client" with the Front ticket, date asked and days waiting; "Remind" makes a Front draft (never sends); a task after N days.
+  - **Returns:** coming soon (from Front later).
+- **Snapshots** at 06:00 and 13:00 are stored (plan vs actual); "Refresh now" in the day. Times configurable.
+- **Delivery:** on the page **and** by email (Front, internal recipients, PDF + short summary), email switchable off in settings.
+- **Front events:** extracted in Analytics, in the existing Front connection (which already reads emails for client admin complexity) — one more element: deliveries, embargoes, sales, launches, pickups. Workforce Planning in Marcus's HR platform reads them through the Analytics API.
+
 ## 10. Email / PDF sending
 - "Email / PDF" on every report topic: Send PDF now · Preview · Schedule (on/off; Dry run → Draft in Front → Send automatically). Multi-page branded PDF; Claude summary at the top (marked AI) only from the figures included.
 - Sent via **Front** (FA Accounts mailbox). **Recipients only from Settings → Contacts & recipients** (dropdown).
