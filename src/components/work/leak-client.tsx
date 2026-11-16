@@ -88,7 +88,7 @@ export function StartReview({ clientId }: { clientId: string }) {
     <button type="button" className="lnk" disabled={pending} onClick={() => start(async () => {
       const r = await createReviewAction(clientId, "ADHOC", null, "Started from Under-pricing");
       set(r);
-      if (r.ok && r.id) router.push(`/rates?section=workbench&client=${clientId}&review=${r.id}`);
+      if (r.ok && r.id) router.push(`/cost?section=workbench&client=${clientId}&review=${r.id}`);
     })}>
       Rate review
     </button>

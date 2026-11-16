@@ -18,6 +18,7 @@ import { ENTITY_FIELDS } from "@/lib/model/specs";
 import { getRules } from "@/lib/model/store";
 import { PackagingToggle } from "@/components/cost/packaging-toggle";
 import { loadLogiwaTracker, type LogiwaTracker } from "@/lib/cost/logiwa";
+import { RateWorkbench } from "./workbench";
 import "./cost.css";
 
 export const dynamic = "force-dynamic";
@@ -57,9 +58,10 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
   return (
     <WithSubNav page="cost" current={section}>
       <PageHeader
-        title={section === "base" ? "Base cost" : "Cost to serve"}
-        subtitle={`${monthLabel(run.month)} · ${section === "base" ? "what the company spends per order and per unit — the same for every client" : "what each client costs, given how complex it is"}`}
+        title={section === "base" ? "Base cost" : section === "workbench" ? "Rate workbench" : "Cost to serve"}
+        subtitle={section === "workbench" ? "Costs are TDABC. Set new rates and see the change in margin and $; CLM builds the schedule of rates for the amendment." : `${monthLabel(run.month)} · ${section === "base" ? "what the company spends per order and per unit — the same for every client" : "what each client costs, given how complex it is"}`}
         actions={
+          section === "workbench" ? undefined : (
           <>
             <span className="seg">
               {run.months.slice(0, 12).map((m) => (
@@ -69,9 +71,12 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
               ))}
             </span>
           </>
+          )
         }
       />
-      {!hasData ? (
+      {section === "workbench" ? (
+        <RateWorkbench sp={sp} me={me.name} />
+      ) : !hasData ? (
         <EmptyState title="No data for this month yet">
           Cost needs payroll and P&amp;L from Xero (Data sources → Xero), WMS volumes (Data sources → WMS), services with minutes, and accounts mapped to cost pools (Settings). Nothing is estimated in their place.
         </EmptyState>
@@ -81,8 +86,8 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
         <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} />
       )}
       {hasData && section === "base" && <PackagingAndSoftware admin={isAdminRole(me.role)} />}
-      <Warnings run={run} admin={isAdminRole(me.role)} />
-      {panel && <CostPanel run={run} kind={panel.kind} id={panel.id} />}
+      {section !== "workbench" && <Warnings run={run} admin={isAdminRole(me.role)} />}
+      {panel && section !== "workbench" && <CostPanel run={run} kind={panel.kind} id={panel.id} />}
     </WithSubNav>
   );
 }

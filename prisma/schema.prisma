@@ -1255,3 +1255,38 @@ model FrontTicketWeek {
 
   @@id([clientId, week])
 }
+
+// =====================================================================================
+// Batch 4 (16/11/2026) — Revenue protection: one-off cases (cost avoided, losses, recovered), with a CAR link
+// =====================================================================================
+
+/// One case. result = before − after when both are known (positive = money protected; negative = a loss).
+model RevenueCase {
+  id          String    @id @default(cuid())
+  /// Day it happened (Sydney)
+  date        DateTime  @db.Date
+  clientId    String?
+  /// Free text when the client isn't in Settings, or as written at the time
+  clientName  String?
+  title       String
+  /// COST_AVOIDED | LOSS | RECOVERED
+  kind        String
+  whatHappened String
+  /// "Would have cost" (cost avoided) / "should have cost" (loss) / "missed" (recovered), ex GST
+  amountBefore Decimal? @db.Decimal(14, 2)
+  /// What it actually cost (or was recovered)
+  amountAfter  Decimal? @db.Decimal(14, 2)
+  /// Parts still to confirm, in words ("NZ domestic delivery", "Tetris invoice hours")
+  pending     String?
+  /// OPEN (figures to confirm) | CLOSED
+  status      String    @default("OPEN")
+  stoppedBy   String?
+  /// Corrective Action Report number from the HR app (no staff names here)
+  carNumber   String?
+  lessons     String?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([date])
+}

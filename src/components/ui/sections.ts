@@ -8,8 +8,8 @@ export type PageKey =
   | "operations"
   | "cost"
   | "leakage"
+  | "revenue"
   | "improve"
-  | "rates"
   | "reports"
   | "kpi"
   | "finance"
@@ -35,15 +35,15 @@ export const PAGES: Record<PageKey, PageDef> = {
     href: "/operations",
     sections: [["lookup", "Order lookup"], ["receiving", "Receiving"], ["sla", "SLA"], ["returns", "Returns"], ["trends", "Trends & forecast"]],
   },
-  cost: { key: "cost", label: "Cost & margin", href: "/cost", sections: [["base", "Base cost"], ["serve", "Cost to serve"]] },
+  cost: { key: "cost", label: "Cost & margin", href: "/cost", sections: [["base", "Base cost"], ["serve", "Cost to serve"], ["workbench", "Rate workbench"]] },
   leakage: {
     key: "leakage",
     label: "Leakage",
     href: "/leakage",
     sections: [["overview", "Overview"], ["underbilling", "Under-billing"], ["underpricing", "Under-pricing"], ["ratechecks", "Rate checks"], ["log", "Leakage log"]],
   },
+  revenue: { key: "revenue", label: "Revenue protection", href: "/revenue", sections: [["overview", "Overview"], ["cases", "Cases"]] },
   improve: { key: "improve", label: "Improvements & savings", href: "/improve", sections: [["overview", "Overview"], ["ideas", "Ideas"], ["initiatives", "Initiatives"]] },
-  rates: { key: "rates", label: "Rate review", href: "/rates", sections: [["calendar", "Calendar"], ["progress", "In progress"], ["workbench", "Workbench"]] },
   reports: { key: "reports", label: "Reports", href: "/reports", sections: [] },
   kpi: {
     key: "kpi",
@@ -82,7 +82,7 @@ export const PAGES: Record<PageKey, PageDef> = {
 };
 
 /** Main menu order; Data sources, API connections and Settings sit at the bottom of the menu. */
-export const MAIN_MENU: PageKey[] = ["overview", "operations", "cost", "leakage", "improve", "rates", "reports", "kpi", "finance", "tasks"];
+export const MAIN_MENU: PageKey[] = ["overview", "operations", "cost", "leakage", "revenue", "improve", "reports", "kpi", "finance", "tasks"];
 export const BOTTOM_MENU: PageKey[] = ["data", "apis", "settings"];
 
 /** Which page a pathname belongs to (null for login/setup/unknown). */

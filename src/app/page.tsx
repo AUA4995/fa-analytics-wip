@@ -312,7 +312,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                         <Pill tone="blue">{TYPES[r.type as keyof typeof TYPES]?.[0] ?? r.type}</Pill>
                       </td>
                       <td className="sup">
-                        <Link href={`/rates?section=progress`} className="lnk">
+                        <Link href={`/cost?section=workbench`} className="lnk">
                           {cn(r.clientId)}
                         </Link>
                         <div className="meta small">{STAGES[r.stage] ?? ""}{r.owner ? ` · ${r.owner}` : ""}</div>

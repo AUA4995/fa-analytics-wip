@@ -38,7 +38,7 @@ export const SOURCES: ReadonlyArray<SourceDef> = [
     affects: [
       { where: "Leakage → under-billing and rate checks", href: "/leakage", until: "rates entered in Settings → Clients" },
       { where: "Overview → renewals & reviews", href: "/", until: "renewal dates in Settings → Clients" },
-      { where: "Rate review", href: "/rates", until: "reviews started in Analytics" },
+      { where: "Cost & margin → Rate workbench (review dates and stages)", href: "/cost?section=workbench", until: "reviews started in Analytics" },
     ],
     needs: "CLM's read-only API (CLM is still being built).",
   },
