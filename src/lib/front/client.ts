@@ -614,6 +614,24 @@ export async function downloadAttachment(url: string, maxBytes = 15_000_000): Pr
  * How many conversations match a search (Front returns `_total` with the first page). Read-only.
  * Analytics uses it for tickets per client per month: `from:@domain after:<unix> before:<unix>`.
  */
+/** Tickets for scoring (batch 3): tags, created and — when archived/resolved — closed time (Front's last update). */
+export interface ScoredConversation {
+  id: string;
+  tags: string[];
+  createdAt: Date;
+  closedAt: Date | null;
+}
+
+export async function listConversationsForScore(query: string, maxItems = 2000): Promise<ScoredConversation[]> {
+  const rows = await paginate<RawConversation>(`/conversations/search/${enc(query)}?limit=100`, { maxItems });
+  return rows
+    .filter((c) => typeof c.created_at === "number")
+    .map((c) => {
+      const closed = c.status === "archived" || c.status === "deleted" || c.status_category === "resolved";
+      return { id: c.id, tags: (c.tags ?? []).map((t) => t.name ?? "").filter(Boolean), createdAt: secs(c.created_at)!, closedAt: closed ? secs(c.updated_at) : null };
+    });
+}
+
 export async function countConversations(query: string): Promise<number> {
   const body = await frontFetch<{ _total?: number; _results?: unknown[] }>(`/conversations/search/${enc(query)}?limit=1`, { headers: headers() });
   return typeof body._total === "number" ? body._total : (body._results?.length ?? 0);

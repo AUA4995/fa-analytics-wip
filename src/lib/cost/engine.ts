@@ -8,6 +8,12 @@
  * Labour pools: gross + super + payroll tax + workers comp (+ agency labour accounts mapped to the pool), priced per
  * activity minute. Overhead pools: Xero P&L accounts mapped to the pool (+ notional rent for an owned site), spread by
  * their driver. A service costs: minutes × cost per minute + admin per labour minute + its overhead drivers.
+ *
+ * Batch 3 (16/11/2026):
+ *   • rent by space type — practical capacity = pallets + bins × bin size + bays × bay size (in pallet-equivalents)
+ *   • client-level drivers (office split): TICKET_SCORE (support, weighted tickets) and INVOICES_TICKETS (accounts:
+ *     invoices and accounts tickets) spread the pool by each client's share, not per service. A labour pool with one
+ *     of these drivers takes no activity minutes (no double count).
  */
 
 export type Variant = "T" | "F";
@@ -18,12 +24,19 @@ export interface EngineRules {
   workersCompRate: number | null;
   csrUtil: number;
   b2bUnits: number;
+  /** Pallet-equivalents per bin / per bay; null = not set (bins / bays then left out of capacity) */
+  binSize?: number | null;
+  baySize?: number | null;
+  /** INVOICES_TICKETS: weight of invoices (rest = accounts ticket score) */
+  accountsInvoiceShare?: number | null;
 }
 export interface EngineSite {
   key: string;
   name: string;
   labourUtil: number;
   palletPositions: number | null;
+  binPositions?: number | null;
+  bayPositions?: number | null;
   spaceUtil: number | null;
   notionalRent: number | null;
   owned: boolean;
@@ -58,7 +71,15 @@ export interface EngineClient {
   orders: number | null;
   volumes: Array<{ serviceCode: string; site: string; qty: number }>;
   rates: Record<string, number>;
+  /** Batch 3 office split: Xero sales invoices this month, weighted ticket scores (support / accounts) */
+  invoices?: number | null;
+  supportScore?: number | null;
+  accountsScore?: number | null;
 }
+
+/** Drivers spread by each client's share instead of per service (batch 3). */
+export const CLIENT_DRIVERS = ["TICKET_SCORE", "INVOICES_TICKETS"] as const;
+export const isClientDriver = (d: string) => (CLIENT_DRIVERS as readonly string[]).includes(d);
 export interface EngineInput {
   month: string;
   days: number;
@@ -160,9 +181,10 @@ export function runEngine(inp: EngineInput): EngineResult {
   const site = new Map(inp.sites.map((s) => [s.key, s]));
   const pools = new Map(inp.pools.map((p) => [p.key, p]));
   const labourPoolFor = (siteKey: string, poolKind: string | null): string | null => {
-    if (poolKind === "csr") return inp.pools.find((p) => p.kind === "LABOUR" && !p.site)?.key ?? null;
-    if (poolKind === "floor") return inp.pools.find((p) => p.kind === "LABOUR" && p.site === siteKey)?.key ?? null;
-    return null;
+    const k =
+      poolKind === "csr" ? (inp.pools.find((p) => p.kind === "LABOUR" && !p.site)?.key ?? null) : poolKind === "floor" ? (inp.pools.find((p) => p.kind === "LABOUR" && p.site === siteKey)?.key ?? null) : null;
+    // A labour pool spread by a client-level driver (e.g. support by ticket score) takes no activity minutes.
+    return k && isClientDriver(pools.get(k)?.driver ?? "") ? null : k;
   };
   const resolve = (key: string, siteKey: string) => key.replace("{site}", siteKey);
   const adminPool = inp.pools.find((p) => p.driver === "LABOUR_MINUTES");
@@ -215,6 +237,7 @@ export function runEngine(inp: EngineInput): EngineResult {
     else if (p.driver === "ORDERS" || p.driver === "ORDERS_PACKED") used.set(p.key, totalOrders);
     else if (p.driver === "REVENUE") used.set(p.key, totalRevenue);
     else if (p.driver === "MACHINE_ORDERS" && p.key.includes("cmc")) used.set(p.key, inp.clients.reduce((a, c) => a + (clientOrders.get(c.id) ?? 0) * (c.cmcShare ?? 0), 0));
+    else if (isClientDriver(p.driver)) used.set(p.key, 1); // 100% of the pool, spread by client share (step 5)
   }
   if (missingMinutes.size) warnings.push(`No standard minutes yet for ${[...missingMinutes].join(", ")} — their labour is counted as zero (Settings → Services & minutes).`);
 
@@ -243,10 +266,17 @@ export function runEngine(inp: EngineInput): EngineResult {
       unitLabel = "minute";
       if (!lab?.hours && cost) warnings.push(`${p.name}: no paid hours from payroll — cost per minute can't be worked out.`);
       if (practical && u > practical) warnings.push(`${p.name}: activity minutes (${Math.round(u)}) are more than practical capacity (${Math.round(practical)}) — standard minutes may be too high or utilisation too low.`);
-    } else if (p.driver === "PALLET_WEEKS" && s?.palletPositions) {
-      practical = s.palletPositions * WEEKS(inp.days);
+    } else if (p.driver === "PALLET_WEEKS" && s && (s.palletPositions || s.binPositions || s.bayPositions)) {
+      // Rent by space type (batch 3): bins and bays in pallet-equivalents; left out while their size isn't set
+      const bins = s.binPositions && inp.rules.binSize ? s.binPositions * inp.rules.binSize : 0;
+      const bays = s.bayPositions && inp.rules.baySize ? s.bayPositions * inp.rules.baySize : 0;
+      if (s.binPositions && !inp.rules.binSize) warnings.push(`${s.name}: ${s.binPositions} bins aren't in rent capacity yet — set the bin size in pallet-equivalents (Settings → Rules).`);
+      if (s.bayPositions && !inp.rules.baySize) warnings.push(`${s.name}: ${s.bayPositions} bays aren't in rent capacity yet — set the bay size in pallet-equivalents (Settings → Rules).`);
+      practical = ((s.palletPositions ?? 0) + bins + bays) * WEEKS(inp.days);
       // No storage volumes measured → Full absorption spreads rent over the space used (positions used ÷ total)
       if (u === 0 && s.spaceUtil != null) u = practical * s.spaceUtil;
+    } else if (isClientDriver(p.driver)) {
+      unitLabel = "share";
     } else if (p.capacity) practical = p.capacity;
     const cap = practical && practical > 0 ? practical : null;
     const uEff = cap ? Math.min(u, cap) : u;
@@ -286,6 +316,27 @@ export function runEngine(inp: EngineInput): EngineResult {
 
   // ---- 5. clients
   const revPoolRate = (v: Variant) => revenuePools.reduce((a, p) => a + rate(p.key, v), 0);
+  // Client-level pools (batch 3 office split): each client's share of the pool
+  const sum = (f: (c: EngineClient) => number) => inp.clients.reduce((a, c) => a + f(c), 0);
+  const totSupport = sum((c) => c.supportScore ?? 0);
+  const totAcct = sum((c) => c.accountsScore ?? 0);
+  const totInv = sum((c) => c.invoices ?? 0);
+  const invW = Math.min(1, Math.max(0, inp.rules.accountsInvoiceShare ?? 0.5));
+  const shareOf = (driver: string, c: EngineClient): number => {
+    if (driver === "TICKET_SCORE") return totSupport ? (c.supportScore ?? 0) / totSupport : 0;
+    if (driver === "INVOICES_TICKETS") {
+      const inv = totInv ? (c.invoices ?? 0) / totInv : null;
+      const acc = totAcct ? (c.accountsScore ?? 0) / totAcct : null;
+      if (inv != null && acc != null) return invW * inv + (1 - invW) * acc;
+      return inv ?? acc ?? 0;
+    }
+    return 0;
+  };
+  const clientPools = poolResults.filter((p) => isClientDriver(p.driver) && p.cost > 0);
+  for (const p of clientPools) {
+    if (p.driver === "TICKET_SCORE" && !totSupport) warnings.push(`${p.name}: no weighted ticket scores this month — its cost isn't spread to clients yet (Data sources → Front → Score tickets).`);
+    if (p.driver === "INVOICES_TICKETS" && !totInv && !totAcct) warnings.push(`${p.name}: no invoices or accounts tickets this month — its cost isn't spread to clients yet.`);
+  }
   const clients: ClientResult[] = inp.clients.map((c) => {
     const byCode = new Map<string, Array<{ site: string; qty: number }>>();
     for (const a of acts.get(c.id) ?? []) byCode.set(a.serviceCode, [...(byCode.get(a.serviceCode) ?? []), { site: a.site, qty: a.qty }]);
@@ -316,6 +367,13 @@ export function runEngine(inp: EngineInput): EngineResult {
         marginPctF: rt ? (rt - unitF) / rt : null,
       };
     });
+    for (const p of clientPools) {
+      const sh = shareOf(p.driver, c);
+      if (!sh) continue;
+      const amt = p.cost * sh;
+      const part: Part = { label: `${p.name} · ${pct(sh)} share (${p.driver === "TICKET_SCORE" ? "weighted tickets" : "invoices + accounts tickets"})`, amount: amt, ref: `pool:${p.key}` };
+      lines.push({ code: `pool:${p.key}`, name: p.name, unit: "share", qty: sh, billable: false, unitT: amt / sh, unitF: amt / sh, costT: amt, costF: amt, partsT: [part], partsF: [part], rate: null, marginPctT: null, marginPctF: null });
+    }
     lines.sort((a, b) => b.costT - a.costT);
     let costT = lines.reduce((a, l) => a + l.costT, 0);
     let costF = lines.reduce((a, l) => a + l.costF, 0);
@@ -397,6 +455,8 @@ export function runEngine(inp: EngineInput): EngineResult {
 }
 
 const UNIT_LABEL: Record<string, string> = {
+  TICKET_SCORE: "share",
+  INVOICES_TICKETS: "share",
   MINUTES: "minute",
   LABOUR_MINUTES: "labour minute",
   PALLET_WEEKS: "pallet-week",

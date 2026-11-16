@@ -40,6 +40,8 @@ function table(entity: string): { d: Delegate; pk: string } | null {
       return { d: p.supplier, pk: "id" };
     case "staff":
       return { d: p.staff, pk: "id" };
+    case "tickettype":
+      return { d: p.ticketType, pk: "id" };
     default:
       return null;
   }

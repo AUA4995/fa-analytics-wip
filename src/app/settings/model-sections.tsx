@@ -693,3 +693,111 @@ export async function ModelPanel({ panel, canEdit }: { panel: PanelRef; canEdit:
     </Drawer>
   );
 }
+
+/** Settings → Ticket types (batch 3): weights 1–10 and the Front tags that mean each type. */
+export async function TicketTypesSection({ canEdit }: { canEdit: boolean }) {
+  const { ensureTicketTypes } = await import("@/lib/tickets/sync");
+  await ensureTicketTypes();
+  const [types, weeks] = await Promise.all([
+    prisma.ticketType.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.frontTicketWeek.findMany({ orderBy: { week: "desc" }, take: 400 }),
+  ]);
+  const latest = weeks[0]?.week ?? null;
+  const thisWeek = weeks.filter((w) => w.week === latest);
+  const clients = await prisma.client.findMany({ where: { id: { in: thisWeek.map((w) => w.clientId) } }, select: { id: true, name: true, shortName: true } });
+  const { vsAverage } = await import("@/lib/tickets/score");
+  const ratio = vsAverage(Object.fromEntries(thisWeek.map((w) => [w.clientId, Number(w.score)])));
+  const counts = await logCounts("tickettype", types.map((t) => t.id));
+  const f = ENTITY_FIELDS.tickettype;
+  return (
+    <>
+      <Card
+        title={`Ticket types & weights · ${types.length}`}
+        sub="Starting list (draft) — change weights and map each type to Front tags. A ticket scores its weight × how long it stayed open (+25% for each extra week, up to ×3; Settings → Rules). Tickets with no matching tag count as Unclassified. Support scores spread the support pool, accounts scores part of the accounts pool."
+      >
+        {canEdit && (
+          <div className="row" style={{ marginBottom: 10 }}>
+            <AddForm
+              entity="tickettype"
+              label="Add type"
+              fields={[
+                { name: "name", label: "Type", width: 240 },
+                { name: "weight", label: "Weight", placeholder: "3", width: 70 },
+              ]}
+            />
+          </div>
+        )}
+        <div className="tw">
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Department</th>
+                <th className="r">Weight</th>
+                <th>Front tags</th>
+                <th>In use</th>
+              </tr>
+            </thead>
+            <tbody>
+              {types.map((t) => (
+                <tr key={t.id} className={t.active ? "" : "muted"}>
+                  <td>{t.name}</td>
+                  <td>
+                    <EditableValue entity="tickettype" id={t.id} field="department" spec={f.department} value={t.department} canEdit={canEdit} logCount={counts[`${t.id}|department`] ?? 0} compact />
+                  </td>
+                  <td className="r">
+                    <EditableValue entity="tickettype" id={t.id} field="weight" spec={f.weight} value={t.weight} canEdit={canEdit} logCount={counts[`${t.id}|weight`] ?? 0} compact />
+                  </td>
+                  <td>
+                    <EditableValue entity="tickettype" id={t.id} field="tags" spec={f.tags} value={t.tags} canEdit={canEdit} logCount={counts[`${t.id}|tags`] ?? 0} compact />
+                  </td>
+                  <td>
+                    <EditableValue entity="tickettype" id={t.id} field="active" spec={f.active} value={t.active} canEdit={canEdit} compact />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <Card title={latest ? `Client scores · week of ${latest.split("-").reverse().join("/")}` : "Client scores"} sub="Weighted score per client vs the average client that week (1.0 = average). Counted nightly from Front, or with Score tickets on Data sources → Front.">
+        {!thisWeek.length ? (
+          <p className="empty">No scores yet.</p>
+        ) : (
+          <div className="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th className="r">Tickets</th>
+                  <th className="r">Score</th>
+                  <th className="r">vs average</th>
+                  <th className="r">Support</th>
+                  <th className="r">Accounts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {thisWeek
+                  .sort((a, b) => Number(b.score) - Number(a.score))
+                  .map((w) => {
+                    const c = clients.find((x) => x.id === w.clientId);
+                    const r = ratio[w.clientId];
+                    return (
+                      <tr key={w.clientId}>
+                        <td>{c ? c.shortName || c.name : w.clientId}</td>
+                        <td className="r num">{w.tickets}</td>
+                        <td className="r num">{Number(w.score).toFixed(1)}</td>
+                        <td className="r num">{r == null ? "—" : <Pill tone={r >= 2 ? "red" : r >= 1.3 ? "amber" : "green"}>{r.toFixed(2)}×</Pill>}</td>
+                        <td className="r num">{Number(w.supportScore).toFixed(1)}</td>
+                        <td className="r num">{Number(w.accountsScore).toFixed(1)}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}

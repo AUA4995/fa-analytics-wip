@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getRules } from "@/lib/model/store";
+import { monthScores } from "@/lib/tickets/sync";
 import { runEngine, type EngineClient, type EngineInput, type EngineResult } from "./engine";
 
 /**
@@ -185,11 +186,27 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
     if (e) e.rates[r.serviceCode] = Number(r.rate);
   }
 
+  // ---- batch 3 office split: invoices per client (Xero sales invoices) and weighted ticket scores
+  if (linked.length) {
+    const inv = await prisma.xeroSale.groupBy({ by: ["contactId"], where: { contactId: { in: linked.map((c) => c.xeroContactId!) }, date: { gte: from, lt: to }, status: { in: ["AUTHORISED", "PAID"] }, kind: "INVOICE" }, _count: { xeroId: true } });
+    for (const c of linked) {
+      const n = inv.find((i) => i.contactId === c.xeroContactId)?._count.xeroId ?? 0;
+      if (n || ec.has(c.id)) clientRow(c).invoices = n;
+    }
+  }
+  for (const [clientId, sc] of await monthScores(month)) {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) continue;
+    const e = clientRow(c);
+    e.supportScore = sc.support;
+    e.accountsScore = sc.accounts;
+  }
+
   const input: EngineInput = {
     month,
     days,
-    rules: { superRate: rules.superRate ?? 0.12, payrollTaxRate: rules.payrollTaxRate ?? 0, workersCompRate: rules.workersCompRate, csrUtil: rules.csrUtil ?? 0.8, b2bUnits: rules.b2bUnits ?? 20 },
-    sites: sites.map((s) => ({ key: s.key, name: s.name, labourUtil: Number(s.labourUtil), palletPositions: s.palletPositions, spaceUtil: s.spaceUtil == null ? null : Number(s.spaceUtil), notionalRent: s.notionalRent == null ? null : Number(s.notionalRent), owned: s.owned })),
+    rules: { superRate: rules.superRate ?? 0.12, payrollTaxRate: rules.payrollTaxRate ?? 0, workersCompRate: rules.workersCompRate, csrUtil: rules.csrUtil ?? 0.8, b2bUnits: rules.b2bUnits ?? 20, binSize: rules.binSize, baySize: rules.baySize, accountsInvoiceShare: rules.accountsInvoiceShare },
+    sites: sites.map((s) => ({ key: s.key, name: s.name, labourUtil: Number(s.labourUtil), palletPositions: s.palletPositions, binPositions: s.binPositions, bayPositions: s.bayPositions, spaceUtil: s.spaceUtil == null ? null : Number(s.spaceUtil), notionalRent: s.notionalRent == null ? null : Number(s.notionalRent), owned: s.owned })),
     pools: pools.map((p) => ({ key: p.key, name: p.name, kind: p.kind, site: p.site, driver: p.driver, capacity: p.capacity == null ? null : Number(p.capacity) })),
     labour,
     accounts,

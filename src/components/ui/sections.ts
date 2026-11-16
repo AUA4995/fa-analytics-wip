@@ -75,6 +75,7 @@ export const PAGES: Record<PageKey, PageDef> = {
       ["suppliers", "Suppliers"],
       ["staff", "Staff & allocation"],
       ["services", "Services & minutes"],
+      ["tickets", "Ticket types"],
       ["pools", "Cost pools & mapping"],
     ],
   },

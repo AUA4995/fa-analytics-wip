@@ -60,6 +60,14 @@ export async function createRecord(entity: string, _prev: CreateState | null, fo
         id = (await prisma.client.create({ data: { name: s("name"), shortName: s("shortName") || null, sites: formData.getAll("sites").map(String) } })).id;
         break;
       }
+      case "tickettype": {
+        if (!s("name")) return { ok: false, message: "Enter the ticket type." };
+        if (await prisma.ticketType.findUnique({ where: { name: s("name") } })) return { ok: false, message: `${s("name")} already exists.` };
+        const w = Math.round(Number(s("weight") || 3));
+        if (!(w >= 1 && w <= 10)) return { ok: false, message: "Weight is 1–10." };
+        id = (await prisma.ticketType.create({ data: { name: s("name"), department: "SUPPORT", weight: w, sortOrder: 50 } })).id;
+        break;
+      }
       case "supplier": {
         if (!s("name")) return { ok: false, message: "Enter the supplier's name." };
         id = (await prisma.supplier.create({ data: { name: s("name"), poolKey: s("poolKey") || null } })).id;

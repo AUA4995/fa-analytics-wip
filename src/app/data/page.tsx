@@ -254,10 +254,13 @@ async function FrontSection({ admin }: { admin: boolean }) {
   const months = [...new Set(counts.map((c) => c.month))].sort().reverse().slice(0, 6);
   return (
     <>
-      <Card title="Front · tickets per client" sub="Client-service effort for cost to serve: conversations per client per month, matched by the client's email domains. Counted every night at 05:45.">
+      <Card title="Front · tickets per client" sub="Client-service effort for cost to serve: conversations per client per month, matched by the client's email domains. Counted every night at 05:45, together with the weighted ticket scores per week (types and weights: Settings → Ticket types). Recount also re-scores the weeks it covers.">
         <div className="row" style={{ marginBottom: 10 }}>
           <Pill tone={configured ? "green" : "grey"}>{configured ? "Token set" : "Not connected"}</Pill>
           {admin && <FrontRecountButton configured={configured} />}
+          <Link href="/settings?section=tickets" className="lnk">
+            Ticket types & weekly scores
+          </Link>
           {clientsNoDomain > 0 && (
             <Link href="/settings?section=clients" className="lnk">
               {clientsNoDomain} active clients have no email domain yet

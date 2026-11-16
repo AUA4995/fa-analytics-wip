@@ -13,7 +13,7 @@ import { addMonth, lastN, loadFinance, monthLabel } from "@/lib/finance/load";
 import { isoWeek } from "@/lib/leakage/detect";
 import { getRules } from "@/lib/model/store";
 import { STAGES, TYPES } from "@/lib/rates/review";
-import { breakEven } from "@/lib/overview/breakeven";
+import { loadBreakEven } from "@/lib/finance/breakeven-load";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Overview" };
@@ -78,10 +78,10 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const prevWeek = wk(new Date(today.getTime() - 14 * DAY));
   const wkSum = (w: string) => ordersByDay.filter((r) => wk(r.d) === w).reduce((a, r) => a + r.n, 0);
 
-  // 5 Break-even (provisional split; Xero P&L last 3 months)
+  // 5 Break-even (standard cost-behaviour method, batch 3; Xero P&L last 3 months, high-low over 12)
   const fin3 = lastN(fin.months, 3, fin.current);
   const orders3 = fin3.map((m) => om.get(m.month) ?? 0);
-  const be = breakEven(fin3, orders3.every((x) => x > 0) ? orders3.reduce((a, b) => a + b, 0) / orders3.length : null);
+  const be = fin3.length && fin.current ? await loadBreakEven(fin.current, fin3.map((m) => m.month), orders3.every((x) => x > 0) ? orders3.reduce((a, b) => a + b, 0) / orders3.length : null) : null;
   const fin12 = lastN(fin.months, 12, fin.current);
 
   const tile = (k: string, l: string, v: string, s: React.ReactNode, tone = "", spark?: Array<number | null>) => (
@@ -222,12 +222,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </Card>
       )}
       {show("breakeven") && (
-        <Card title="Break-even" sub="Provisional split until agreed with Mark: cost of services = variable, overheads + interest = fixed. Averages of the last 3 months of the Xero P&L.">
+        <Card title="Break-even" sub="Standard cost-behaviour method: cost of services (incl. postage, re-billed with a mark-up) variable; overheads, depreciation and interest fixed; semi-variable accounts split by high-low over 12 months; set any account in Settings → Mapping. Averages of the last 3 months of the Xero P&L.">
           {be ? (
             <>
               <ComboChart data={fin12.map((m) => ({ label: monthLabel(m.month), bar: m.revenue, line: be.beRevenue && m.revenue ? (m.revenue - be.beRevenue) / m.revenue : null }))} barLabel="Revenue" lineLabel="Margin of safety % (above break-even)" h={190} />
               <div className="formula">
-                Contribution margin = (revenue {aud(be.revenue)} − cost of services {aud(be.variable)}) ÷ revenue = <strong>{pc(be.cmPct)}</strong>
+                Contribution margin = (revenue {aud(be.revenue)} − variable costs {aud(be.variable)}) ÷ revenue = <strong>{pc(be.cmPct)}</strong>
                 <br />
                 Break-even revenue = fixed costs {aud(be.fixed)} ÷ {pc(be.cmPct)} = <strong>{aud(be.beRevenue)}</strong> a month
                 <br />
@@ -237,6 +237,19 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                   </>
                 ) : (
                   "Break-even in orders needs WMS orders for the same months."
+                )}
+                {be.semi.length > 0 && (
+                  <>
+                    <br />
+                    Semi-variable (high-low):{" "}
+                    {be.semi.map((x) => `${x.account}: ${aud(x.fixed)} fixed + ${aud(x.variable)} variable${x.note !== "high-low" ? ` (${x.note})` : ""}`).join(" · ")}
+                  </>
+                )}
+                {be.overridden > 0 && (
+                  <>
+                    <br />
+                    {be.overridden} account{be.overridden === 1 ? "" : "s"} set by hand in Settings → Mapping.
+                  </>
                 )}
               </div>
             </>

@@ -22,7 +22,7 @@ import { AccessDomainForm, AccessRequestsList, MyAccount, UsersCard } from "./us
 import { parsePanel } from "@/components/ui/panel";
 import { ensureModelDefaults } from "@/lib/model/defaults";
 import { ContactsSection } from "./contacts-section";
-import { ClientsSection, ModelPanel, PoolsSection, RulesSection, ServicesSection, StaffSection, SuppliersSection } from "./model-sections";
+import { ClientsSection, ModelPanel, PoolsSection, RulesSection, ServicesSection, StaffSection, SuppliersSection, TicketTypesSection } from "./model-sections";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
@@ -164,7 +164,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </Card>
       </>
     );
-  } else if (["rules", "clients", "suppliers", "staff", "services", "pools"].includes(section)) {
+  } else if (["rules", "clients", "suppliers", "staff", "services", "tickets", "pools"].includes(section)) {
     if (company.dbOk) await ensureModelDefaults(prisma);
     const site = typeof sp.site === "string" && ["smi", "par"].includes(sp.site) ? sp.site : "all";
     body =
@@ -173,6 +173,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       section === "suppliers" ? <SuppliersSection canEdit /> :
       section === "staff" ? <StaffSection canEdit site={site} /> :
       section === "services" ? <ServicesSection canEdit /> :
+      section === "tickets" ? <TicketTypesSection canEdit /> :
       <PoolsSection canEdit />;
   } else if (section === "contacts") {
     body = <ContactsSection />;

@@ -80,6 +80,9 @@ export async function startScheduler(): Promise<void> {
     if (!isFrontConfigured()) return;
     const { syncFrontTickets } = await import("@/lib/front/tickets");
     await syncFrontTickets(job.data?.months ?? 2, job.data?.by ?? null);
+    // Batch 3: weighted ticket scores for the last 2 full weeks (or more when recounting history)
+    const { syncTicketScores } = await import("@/lib/tickets/sync");
+    await syncTicketScores(job.data?.months && job.data.months > 2 ? Math.min(104, Math.round(job.data.months * 4.35)) : 2, job.data?.by ?? null);
   });
   await b.work(QUEUE_REPORT_TICK, async () => {
     const { runReportTick } = await import("@/lib/reports/send");

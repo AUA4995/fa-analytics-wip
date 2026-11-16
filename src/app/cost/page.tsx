@@ -15,6 +15,8 @@ import { loadCostRun, type CostRun } from "@/lib/cost/load";
 import type { ClientResult, Part, PoolResult, Variant } from "@/lib/cost/engine";
 import { ENTITY_FIELDS } from "@/lib/model/specs";
 import { getRules } from "@/lib/model/store";
+import { PackagingToggle } from "@/components/cost/packaging-toggle";
+import { loadLogiwaTracker, type LogiwaTracker } from "@/lib/cost/logiwa";
 import "./cost.css";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +79,8 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
       ) : (
         <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} />
       )}
-      <Warnings run={run} />
+      {hasData && section === "base" && <PackagingAndSoftware admin={isAdminRole(me.role)} />}
+      <Warnings run={run} admin={isAdminRole(me.role)} />
       {panel && <CostPanel run={run} kind={panel.kind} id={panel.id} />}
     </WithSubNav>
   );
@@ -493,19 +496,68 @@ function MarginPill({ m, floor }: { m: number | null; floor: number }) {
   return <Pill tone={m < 0 ? "red" : m < floor ? "amber" : "green"}>{pc(m)}</Pill>;
 }
 
-function Warnings({ run }: { run: CostRun }) {
+async function PackagingAndSoftware({ admin }: { admin: boolean }) {
+  const [mode, logiwa] = await Promise.all([prisma.setting.findUnique({ where: { key: "packagingMode" } }), loadLogiwaTracker()]);
+  return (
+    <div className="grid2">
+      <Card title="Packaging cost" sub="Average per order now. Precise = each client's real cartons and fill from Logiwa pack scans.">
+        <PackagingToggle mode={mode?.value === "PRECISE" ? "PRECISE" : "AVERAGE"} admin={admin} />
+      </Card>
+      <LogiwaCard t={logiwa} />
+    </div>
+  );
+}
+
+function LogiwaCard({ t }: { t: LogiwaTracker }) {
+  const n0 = (x: number) => Math.round(x).toLocaleString("en-AU");
+  const usedPct = t.allowance ? t.usedLogiwa / t.allowance : null;
+  return (
+    <Card title="Logiwa credits (step cost)" sub={`Plan ${n0(t.allowance)} credits a year · 1 credit per order up to ${t.linesPerCredit} unique lines · above the plan ${pc(t.overage)} of the plan price · year: ${t.year.label}`}>
+      <div className="formula">
+        Used on Logiwa this year: <strong>{n0(t.usedLogiwa)}</strong> credits{usedPct != null ? ` (${pc(usedPct)} of the plan)` : ""}
+        <br />
+        {t.monthlyAllVolume != null ? (
+          <>
+            If all current volume ran on Logiwa: about <strong>{n0(t.monthlyAllVolume)}</strong> credits a month → <strong>{n0(t.projectedYear ?? 0)}</strong> a year
+            {t.projectedOver ? (
+              <>
+                {" "}
+                — <span className="delta-neg">{n0(t.projectedOver)} over the plan</span> (charged at {pc(t.overage)})
+              </>
+            ) : (
+              " — within the plan"
+            )}
+          </>
+        ) : (
+          "Projection needs WMS orders for the last 3 full months (Data sources → WMS)."
+        )}
+      </div>
+      <p className="meta" style={{ marginBottom: 0 }}>For break-even, Logiwa is a step cost: fixed until the plan is used up (set its account to Step in Settings → Mapping).</p>
+    </Card>
+  );
+}
+
+function Warnings({ run, admin }: { run: CostRun; admin: boolean }) {
   const n = run.notes;
+  const wcMissing = run.input.rules.workersCompRate == null;
   const items = [
-    ...run.result.warnings,
+    ...run.result.warnings.filter((w) => !(wcMissing && w.startsWith("Workers comp rate"))),
     ...(n.unknownTenants.length ? [`${n.unknownTenants.length} WMS tenants aren't linked to a client (${n.unknownTenants.slice(0, 5).map((t) => t.tenant).join(", ")}…) — their volumes are left out. Settings → Clients.`] : []),
     ...(n.unmappedCodes.length ? [`${n.unmappedCodes.length} WMS charge codes aren't mapped to a service (${n.unmappedCodes.slice(0, 5).map((t) => t.code).join(", ")}…) — left out. Settings → Cost pools & mapping.`] : []),
     ...(n.unmappedAccounts.length ? [`${n.unmappedAccounts.length} Xero expense accounts with amounts this month have no cost pool (${aud(n.unmappedAccounts.reduce((a, x) => a + x.amount, 0), 0)}) — left out. Settings → Cost pools & mapping.`] : []),
     ...(n.noIncomeMapping ? ["No Xero income accounts are marked as processing revenue yet — client revenue can't be read (Settings → Cost pools & mapping)."] : []),
   ];
-  if (!items.length) return null;
+  if (!items.length && !wcMissing) return null;
   return (
     <Card title="What's missing or estimated" tone="warn">
       <ul className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+        {wcMissing && (
+          <li>
+            Workers comp rate isn&apos;t set — left out of labour cost. Rate from the insurance policy (share of gross):{" "}
+            <EditableValue entity="rule" id="rule" field="workersCompRate" spec={ENTITY_FIELDS.rule.workersCompRate} value={null} canEdit={admin} compact />{" "}
+            <span className="meta">(the same value as Settings → Rules)</span>
+          </li>
+        )}
         {items.map((w, i) => (
           <li key={i}>{w}</li>
         ))}

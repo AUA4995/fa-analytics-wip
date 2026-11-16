@@ -309,7 +309,7 @@ export function AccessRequestsList({ requests, isOwner, ownerName, tz }: { reque
                         </button>
                       </div>
                     ) : (
-                      <span className="meta">Only an owner can approve</span>
+                      <span className="meta">Only an owner can approve (primary owner: {ownerName})</span>
                     )}
                   </td>
                 </tr>

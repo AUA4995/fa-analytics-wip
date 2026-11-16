@@ -295,6 +295,9 @@ model Site {
   owned           Boolean  @default(false)
   notionalRent    Decimal? @db.Decimal(12, 2)
   palletPositions Int?
+  /// Batch 3 — rent by space type: bins and bays, counted in pallet-equivalents (Rules → bin / bay size)
+  binPositions    Int?
+  bayPositions    Int?
   /// Share of paid floor time available for activities (0–1). Start 0.85, later measured from the WMS.
   labourUtil      Decimal  @default(0.85) @db.Decimal(5, 4)
   /// Pallet positions used ÷ total (0–1); floor-stacked pallets count as used
@@ -411,6 +414,9 @@ model XeroAccountMap {
   treatment   String    @default("INCLUDE")
   /// EXPENSE | INCOME (from the Xero account type)
   side        String    @default("EXPENSE")
+  /// Batch 3 — break-even cost behaviour: null = by P&L section (cost of sales variable, overheads fixed) |
+  /// FIXED | VARIABLE | SEMI (split by the high-low method) | STEP (fixed until a capacity limit, e.g. Logiwa credits)
+  behaviour   String?
   note        String?
   updatedAt   DateTime  @updatedAt
 }
@@ -1212,4 +1218,40 @@ model ThomaxRef {
 
   @@index([value])
   @@index([rowId])
+}
+
+// =====================================================================================
+// Batch 3 (16/11/2026) — weighted tickets: type weights (1–10) per department, weekly score per client
+// =====================================================================================
+
+/// A ticket type and its weight. A Front conversation gets the first type whose tags it carries; else "Unclassified".
+model TicketType {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  /// SUPPORT | ACCOUNTS | WAREHOUSE | SALES
+  department String
+  /// 1 (quick) – 10 (heavy)
+  weight     Int
+  /// Front tag names that mean this type (case-insensitive)
+  tags       String[] @default([])
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+/// Per client per week (Monday, Sydney): ticket count and weighted score, by department.
+model FrontTicketWeek {
+  clientId     String
+  /// Monday of the week, YYYY-MM-DD
+  week         String
+  tickets      Int
+  /// Σ weight × duration multiplier, all departments
+  score        Decimal  @db.Decimal(12, 2)
+  supportScore Decimal  @default(0) @db.Decimal(12, 2)
+  accountsScore Decimal @default(0) @db.Decimal(12, 2)
+  /// { [typeName]: count }
+  byType       Json?
+  updatedAt    DateTime @updatedAt
+
+  @@id([clientId, week])
 }

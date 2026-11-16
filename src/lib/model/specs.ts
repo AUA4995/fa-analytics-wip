@@ -21,6 +21,8 @@ export const POOL_DRIVERS: ReadonlyArray<readonly [string, string]> = [
   ["ORDERS_PACKED", "Orders packed"],
   ["MACHINE_ORDERS", "Orders through the machine"],
   ["REVENUE", "Revenue"],
+  ["TICKET_SCORE", "Client share of weighted support tickets"],
+  ["INVOICES_TICKETS", "Client share of invoices + accounts tickets"],
 ];
 
 import { KPIS } from "@/lib/kpi/defs";
@@ -51,17 +53,36 @@ const BASE_RULES: Record<string, FieldSpec & { default: number | null }> = {
   payrollTaxRate: { label: "Payroll tax", kind: "pct", min: 0, max: 15, default: 0.0545, hint: "NSW rate" },
   workersCompRate: { label: "Workers comp (share of gross)", kind: "pct", min: 0, max: 20, default: null, optional: true, hint: "From the insurance policy — not set yet" },
   csrUtil: { label: "CSR labour utilisation", kind: "pct", min: 10, max: 100, default: 0.8, hint: "Estimate (practical capacity 80–85%) until measured" },
+  // Batch 3 (16/11/2026)
+  binSize: { label: "Bin size (pallet-equivalents)", kind: "number", min: 0, max: 10, dp: 3, default: null, optional: true, hint: "Rent by space type: one bin = this many pallet positions. Not set = bins left out of rent capacity" },
+  baySize: { label: "Bay size (pallet-equivalents)", kind: "number", min: 0, max: 100, dp: 2, default: null, optional: true, hint: "One bay = this many pallet positions. Not set = bays left out" },
+  accountsInvoiceShare: { label: "Accounts split: weight of invoices", kind: "pct", min: 0, max: 100, default: 0.5, hint: "Pools spread by invoices + accounts tickets: this much by invoice count, the rest by accounts ticket score (starting split — change if needed)" },
+  ticketWeekStep: { label: "Ticket score: extra per week open", kind: "pct", min: 0, max: 100, default: 0.25, hint: "+25% for each started week after the first" },
+  ticketMaxMultiplier: { label: "Ticket score: highest multiplier", kind: "number", min: 1, max: 10, dp: 2, default: 3, hint: "×3 at most" },
+  logiwaCreditsYear: { label: "Logiwa credits per year", kind: "int", min: 0, max: 100000000, default: 800000, hint: "Plan allowance" },
+  logiwaLinesPerCredit: { label: "Logiwa: order lines per credit", kind: "int", min: 1, max: 1000, default: 25, hint: "An order with up to 25 unique lines = 1 credit" },
+  logiwaOverage: { label: "Logiwa overage price", kind: "pct", min: 100, max: 500, default: 1.5, hint: "Credits above the plan cost this share of the plan price (150%)" },
+  logiwaStartMonth: { label: "Logiwa contract year starts (month 1–12)", kind: "int", min: 1, max: 12, default: null, optional: true, hint: "For the credit tracker" },
 };
 export const BASE_RULE_KEYS = Object.keys(BASE_RULES);
 export const RULES: Record<string, FieldSpec & { default: number | null }> = { ...BASE_RULES, ...KPI_TARGET_RULES };
 
 export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
+  tickettype: {
+    name: { label: "Type", kind: "text" },
+    department: { label: "Department", kind: "select", options: [["SUPPORT", "Client support"], ["ACCOUNTS", "Accounts"], ["WAREHOUSE", "Warehouse"], ["SALES", "Sales"]] },
+    weight: { label: "Weight (1–10)", kind: "int", min: 1, max: 10, hint: "1 = quick, 10 = heavy" },
+    tags: { label: "Front tags", kind: "list", optional: true, hint: "A conversation with any of these tags is this type" },
+    active: { label: "In use", kind: "bool" },
+  },
   site: {
     name: { label: "Name", kind: "text" },
     wmsCodes: { label: "WMS warehouse codes", kind: "list", optional: true, hint: "SYD02 = Smithfield, SYD01 = Parramatta" },
     owned: { label: "Owned (no rent in Xero)", kind: "bool" },
     notionalRent: { label: "Notional rent / month", kind: "money", optional: true, min: 0, hint: "Owned sites only — market rent so their clients aren't understated" },
     palletPositions: { label: "Pallet positions", kind: "int", optional: true, min: 0 },
+    binPositions: { label: "Bin positions", kind: "int", optional: true, min: 0, hint: "Counted as pallet-equivalents (Rules → bin size)" },
+    bayPositions: { label: "Bay positions", kind: "int", optional: true, min: 0, hint: "Counted as pallet-equivalents (Rules → bay size)" },
     labourUtil: { label: "Labour utilisation", kind: "pct", min: 10, max: 100, hint: "Share of paid floor time available for activities" },
     spaceUtil: { label: "Space utilisation", kind: "pct", optional: true, min: 0, max: 100, hint: "Pallet positions used ÷ total" },
   },
@@ -112,9 +133,21 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
       options: [
         ["INCLUDE", "Included (cost in its pool / processing revenue)"],
         ["PAYROLL", "Wages / super — from Xero Payroll instead"],
-        ["EXCLUDE", "Left out (not operating, e.g. postage)"],
+        ["EXCLUDE", "Left out of cost to serve (e.g. postage — see note)"],
         ["REBILLED", "Passed through to clients"],
       ],
+    },
+    behaviour: {
+      label: "Break-even behaviour",
+      kind: "select",
+      optional: true,
+      options: [
+        ["FIXED", "Fixed"],
+        ["VARIABLE", "Variable (moves with revenue)"],
+        ["SEMI", "Semi-variable (split by high-low)"],
+        ["STEP", "Step (fixed until a capacity limit, e.g. Logiwa credits)"],
+      ],
+      hint: "Empty = by P&L section: cost of sales variable, overheads fixed. Postage is marked up: its income counts as revenue and its cost as variable.",
     },
     note: { label: "Note", kind: "text", optional: true },
   },

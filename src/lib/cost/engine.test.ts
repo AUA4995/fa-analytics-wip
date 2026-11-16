@@ -130,4 +130,56 @@ describe("cost engine", () => {
     noMin.services[1] = { ...noMin.services[1], minutes: null };
     expect(runEngine(noMin).warnings.join(" ")).toMatch(/No standard minutes yet for PICK/);
   });
+
+  it("batch 3 — rent by space type: bins and bays add pallet-equivalents to capacity once their size is set", () => {
+    const base = input();
+    const noSize = runEngine({ ...base, sites: [{ ...base.sites[0], binPositions: 400, bayPositions: 10 }] });
+    expect(noSize.pools.find((p) => p.key === "rent_smi")!.practical).toBe(100 * 4);
+    expect(noSize.warnings.some((w) => /400 bins aren't in rent capacity/.test(w))).toBe(true);
+    const sized = runEngine({ ...base, rules: { ...base.rules, binSize: 0.1, baySize: 5 }, sites: [{ ...base.sites[0], binPositions: 400, bayPositions: 10 }] });
+    // (100 pallets + 400 × 0.1 + 10 × 5) × 4 weeks = 190 × 4
+    expect(sized.pools.find((p) => p.key === "rent_smi")!.practical).toBe(760);
+    expect(sized.warnings.some((w) => /bins aren't/.test(w))).toBe(false);
+  });
+
+  it("batch 3 — office split: support spread by weighted ticket share, accounts by invoices + accounts tickets", () => {
+    const base = input();
+    const r3 = runEngine({
+      ...base,
+      rules: { ...base.rules, accountsInvoiceShare: 0.5 },
+      pools: [...base.pools, { key: "support", name: "Support", kind: "OVERHEAD", site: null, driver: "TICKET_SCORE", capacity: null }, { key: "accounts", name: "Accounts", kind: "OVERHEAD", site: null, driver: "INVOICES_TICKETS", capacity: null }],
+      accounts: { ...base.accounts, support: 1000, accounts: 600 },
+      clients: [
+        { ...base.clients[0], supportScore: 30, accountsScore: 0, invoices: 3 },
+        { ...base.clients[1], supportScore: 10, accountsScore: 8, invoices: 1 },
+      ],
+    });
+    const a = r3.clients.find((c) => c.id === "a")!;
+    const b = r3.clients.find((c) => c.id === "b")!;
+    const line = (c: typeof a, k: string) => c.lines.find((l) => l.code === `pool:${k}`)?.costT ?? 0;
+    expect(line(a, "support")).toBeCloseTo(750, 6); // 30 ÷ 40
+    expect(line(b, "support")).toBeCloseTo(250, 6);
+    // accounts: A = 0.5 × 3/4 + 0.5 × 0/8 = 0.375 → 225; B = 0.5 × 1/4 + 0.5 × 8/8 = 0.625 → 375
+    expect(line(a, "accounts")).toBeCloseTo(225, 6);
+    expect(line(b, "accounts")).toBeCloseTo(375, 6);
+    // all of each pool is spread, nothing left as unused capacity
+    expect(line(a, "support") + line(b, "support")).toBeCloseTo(1000, 6);
+    expect(r3.pools.find((p) => p.key === "support")!.unused).toBe(0);
+  });
+
+  it("batch 3 — a labour pool spread by ticket score takes no activity minutes (no double count)", () => {
+    const base = input();
+    const r4 = runEngine({
+      ...base,
+      pools: base.pools.map((p) => (p.key === "csr" ? { ...p, driver: "TICKET_SCORE" } : p)),
+      labour: { ...base.labour, csr: { gross: 2000, super: 240, hours: 40, people: 1 } },
+      services: [...base.services, { code: "CALL", name: "Client call", unit: "call", poolKind: "csr", minutes: 10, overheads: {}, billable: false, role: null }],
+      clients: [{ ...base.clients[0], volumes: [...base.clients[0].volumes, { serviceCode: "CALL", site: "smi", qty: 5 }], supportScore: 1 }, base.clients[1]],
+    });
+    const call = r4.clients.find((c) => c.id === "a")!.lines.find((l) => l.code === "CALL")!;
+    expect(call.partsT.some((p) => p.ref === "pool:csr")).toBe(false);
+    const csrLine = r4.clients.find((c) => c.id === "a")!.lines.find((l) => l.code === "pool:csr")!;
+    expect(csrLine.costT).toBeCloseTo(r4.pools.find((p) => p.key === "csr")!.cost, 6);
+    expect(r4.warnings.some((w) => /no weighted ticket scores/.test(w))).toBe(false);
+  });
 });
