@@ -9,6 +9,8 @@ export type ThomaxRecord = Record<string, unknown>;
 
 /** Query API page size cap (help page: Limit is capped at 25,000). */
 export const PAGE_LIMIT = 25_000;
+/** Page size we ask for: smaller pages keep memory down on an office PC (review 16/11/2026). */
+export const PAGE_SIZE = 10_000;
 
 const SAFE_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 
@@ -72,27 +74,42 @@ export function monthWindows(from: Date, until: Date): Array<{ from: Date; to: D
   return out;
 }
 
+const SYD = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+
+/** A real moment → Sydney wall-clock time stored as if it were UTC (the same scale as zone-less Thomax values). */
+function sydneyWallClock(t: number): Date {
+  const p = Object.fromEntries(SYD.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+  return new Date(Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second, t % 1000 < 0 ? 0 : t % 1000));
+}
+
 /**
- * Thomax date values as returned in JSON. Handles ISO ("2026-06-01T10:00:00", with or without zone),
- * "2026-06-01 10:00:00" and "/Date(1717200000000)/". Anything else → null. Zone-less values are read as UTC
- * wall-clock (only used for ordering and windows; displayed as stored).
+ * Thomax date values as returned in JSON. Handles ISO ("2026-06-01T10:00:00", with or without a zone),
+ * "2026-06-01 10:00:00" and "/Date(1717200000000)/". Anything else, impossible dates (31 Feb, month 13, hour 25)
+ * and placeholder years before 1900 (.NET's 0001-01-01) → null.
+ * All results are on one scale: Sydney wall-clock time written as UTC. Zone-less values are taken as already
+ * Sydney local (the WMS runs in Sydney); zoned and /Date()/ values are converted to Sydney local. So sorting and
+ * month windows compare like with like, and a value displays as the warehouse saw it.
  */
 export function parseThomaxDate(v: unknown): Date | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
   if (typeof v !== "string") return null;
   const s = v.trim();
   const ms = /^\/Date\((-?\d+)(?:[+-]\d{4})?\)\/$/.exec(s);
-  if (ms) return new Date(Number(ms[1]));
-  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,7}))?)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(s);
+  if (ms) {
+    const t = Number(ms[1]);
+    return new Date(t).getUTCFullYear() < 1900 ? null : sydneyWallClock(t);
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,7}))?)?)?(Z|[+-]\d{2}(?::?\d{2})?)?$/.exec(s);
   if (!m) return null;
   const [, y, mo, d, h = "0", mi = "0", se = "0", frac = "0", zone] = m;
   const msPart = Number(frac.slice(0, 3).padEnd(3, "0"));
-  if (!zone) {
-    const t = Date.UTC(+y, +mo - 1, +d, +h, +mi, +se, msPart);
-    return Number.isNaN(t) ? null : new Date(t);
-  }
-  const t = Date.parse(`${y}-${mo}-${d}T${h.padStart(2, "0")}:${mi}:${se}.${String(msPart).padStart(3, "0")}${zone === "Z" ? "Z" : zone.length === 5 ? `${zone.slice(0, 3)}:${zone.slice(3)}` : zone}`);
-  return Number.isNaN(t) ? null : new Date(t);
+  const Y = +y, M = +mo, D = +d, H = +h, MI = +mi, SE = +se;
+  if (Y < 1900 || M < 1 || M > 12 || D < 1 || H > 23 || MI > 59 || SE > 59) return null;
+  const local = Date.UTC(Y, M - 1, D, H, MI, SE, msPart);
+  if (new Date(local).getUTCDate() !== D) return null; // 31 Feb, 30 Feb …
+  if (!zone) return new Date(local);
+  const z = zone === "Z" ? 0 : (zone[0] === "-" ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.replace(":", "").slice(3, 5) || 0));
+  return sydneyWallClock(local - z * 60_000);
 }
 
 /** Stable JSON (keys sorted) so the same row always hashes the same. */
@@ -110,10 +127,30 @@ export function rowHash(row: ThomaxRecord): string {
   return createHash("sha256").update(stableJson(row)).digest("hex");
 }
 
-/** Row key from the chosen key fields ("|" joined); whole-row hash when none are chosen (MASTER only). */
-export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string {
-  if (!keyFields.length) return `h:${rowHash(row)}`;
-  return keyFields.map((f) => (row[f] === null || row[f] === undefined ? "" : String(row[f]))).join("|");
+/**
+ * Row key from the chosen key fields: one field → its value; several → a JSON list (so "x|y"+"z" can't equal
+ * "x"+"y|z"). null when any key value is missing — such rows are skipped and counted, never merged together.
+ */
+export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string | null {
+  if (!keyFields.length) return null;
+  const vals: string[] = [];
+  for (const f of keyFields) {
+    const v = row[f];
+    if (v === null || v === undefined || (typeof v === "string" && !v.trim()) || typeof v === "object") return null;
+    vals.push(String(v));
+  }
+  return vals.length === 1 ? vals[0] : JSON.stringify(vals);
+}
+
+/** Fields that look like secrets are never stored (USR may hold password hashes, PINs, tokens). */
+const SECRET_FIELD = /pass|pwd|secret|token|hash|salt|pin$|^pin(code|number|no)?$/i;
+export function isSecretField(f: string): boolean {
+  return SECRET_FIELD.test(f);
+}
+export function withoutSecrets(row: ThomaxRecord): ThomaxRecord {
+  const out: ThomaxRecord = {};
+  for (const [k, v] of Object.entries(row)) if (!isSecretField(k)) out[k] = v;
+  return out;
 }
 
 /** Values for the lookup index: trimmed, upper-cased, 2–100 chars, de-duplicated. */
@@ -131,11 +168,16 @@ export function lookupValues(row: ThomaxRecord, fields: readonly string[]): Arra
   return out;
 }
 
-/** Field names in first-seen order across the sample rows. */
+/** Field names in first-seen order across the sample rows (secret-looking fields left out). */
 export function fieldsOf(rows: readonly ThomaxRecord[]): string[] {
   const out: string[] = [];
-  for (const r of rows) for (const k of Object.keys(r)) if (!out.includes(k)) out.push(k);
+  for (const r of rows) for (const k of Object.keys(r)) if (!out.includes(k) && !isSecretField(k)) out.push(k);
   return out;
+}
+
+/** Of the sample rows, how many have no usable date in `field` (they'd never be copied by date windows). */
+export function nullDates(rows: readonly ThomaxRecord[], field: string): number {
+  return rows.filter((r) => parseThomaxDate(r[field]) === null).length;
 }
 
 function dateLike(rows: readonly ThomaxRecord[], f: string): boolean {

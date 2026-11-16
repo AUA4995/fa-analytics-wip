@@ -1,8 +1,9 @@
 /** Settings values, logs, allocation and CSV import against the test database (runs when DATABASE_URL is set). */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 const actor = { type: "USER" as const, name: "Test Person" };
 
 describe.skipIf(!hasDb)("cost model settings (integration)", () => {

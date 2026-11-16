@@ -1,6 +1,7 @@
 /** Sessions against the local DB with a fake cookie jar. Skipped without DATABASE_URL. */
 import "dotenv/config";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
 const jar = new Map<string, string>();
 vi.mock("next/headers", () => ({
@@ -17,7 +18,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("sessions (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;

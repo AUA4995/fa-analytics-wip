@@ -1,8 +1,9 @@
 /** Starts the real scheduler against the local DB in an isolated jobs schema. */
 import "dotenv/config";
 import { afterAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 process.env.PGBOSS_SCHEMA = `jobs_test_${Date.now()}`;
 
 describe.skipIf(!hasDb)("scheduler (integration)", () => {

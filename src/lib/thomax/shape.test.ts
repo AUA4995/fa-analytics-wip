@@ -10,6 +10,7 @@ import {
   parseThomaxDate,
   rowHash,
   rowKey,
+  withoutSecrets,
   suggestDateField,
   suggestKeyFields,
   suggestLookupFields,
@@ -54,17 +55,35 @@ describe("Thomax values", () => {
     expect(parseThomaxDate("2026-06-01T10:20:30")?.toISOString()).toBe("2026-06-01T10:20:30.000Z");
     expect(parseThomaxDate("2026-06-01 10:20")?.toISOString()).toBe("2026-06-01T10:20:00.000Z");
     expect(parseThomaxDate("2026-06-01")?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
-    expect(parseThomaxDate("2026-06-01T10:00:00+10:00")?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
-    expect(parseThomaxDate("/Date(1717200000000)/")?.toISOString()).toBe(new Date(1717200000000).toISOString());
+    // zoned and /Date()/ values are converted to Sydney wall-clock (the scale zone-less values are on)
+    expect(parseThomaxDate("2026-06-01T10:00:00+10:00")?.toISOString()).toBe("2026-06-01T10:00:00.000Z"); // AEST
+    expect(parseThomaxDate("2026-11-10T04:00:00Z")?.toISOString()).toBe("2026-11-10T15:00:00.000Z"); // AEDT +11
+    expect(parseThomaxDate("2026-11-10T15:00:00+11")?.toISOString()).toBe("2026-11-10T15:00:00.000Z");
+    expect(parseThomaxDate(`/Date(${Date.UTC(2026, 10, 10, 4)})/`)?.toISOString()).toBe("2026-11-10T15:00:00.000Z"); // 04:00Z
     expect(parseThomaxDate("ABC123")).toBeNull();
     expect(parseThomaxDate(12345)).toBeNull();
   });
-  it("hashes rows regardless of key order; keys from fields or a whole-row hash", () => {
+  it("refuses impossible dates and placeholder years", () => {
+    expect(parseThomaxDate("2026-02-31")).toBeNull();
+    expect(parseThomaxDate("2026-13-01")).toBeNull();
+    expect(parseThomaxDate("2026-06-01 25:00")).toBeNull();
+    expect(parseThomaxDate("0001-01-01T00:00:00")).toBeNull();
+    expect(parseThomaxDate("/Date(-62135596800000)/")).toBeNull();
+  });
+  it("hashes rows regardless of key order; keys never merge rows with a missing value", () => {
     expect(rowHash({ a: 1, b: { c: 2, d: 3 } })).toBe(rowHash({ b: { d: 3, c: 2 }, a: 1 }));
     expect(rowHash({ a: 1 })).not.toBe(rowHash({ a: 2 }));
-    expect(rowKey({ JobID: 7, LineNo: 2 }, ["JobID", "LineNo"])).toBe("7|2");
-    expect(rowKey({ JobID: null }, ["JobID"])).toBe("");
-    expect(rowKey({ a: 1 }, [])).toMatch(/^h:[0-9a-f]{64}$/);
+    expect(rowKey({ JobID: 7 }, ["JobID"])).toBe("7");
+    expect(rowKey({ JobID: 7, LineNo: 2 }, ["JobID", "LineNo"])).toBe('["7","2"]');
+    // "x|y"+"z" vs "x"+"y|z" stay different
+    expect(rowKey({ a: "x|y", b: "z" }, ["a", "b"])).not.toBe(rowKey({ a: "x", b: "y|z" }, ["a", "b"]));
+    expect(rowKey({ JobID: null }, ["JobID"])).toBeNull();
+    expect(rowKey({ JobID: "  " }, ["JobID"])).toBeNull();
+    expect(rowKey({ a: 1 }, [])).toBeNull();
+  });
+  it("secret-looking fields are dropped (USR may hold password hashes)", () => {
+    expect(withoutSecrets({ UserID: 1, Name: "Jo", PasswordHash: "x", PIN: "1234", ApiToken: "t", Pinned: true })).toEqual({ UserID: 1, Name: "Jo", Pinned: true });
+    expect(fieldsOf([{ UserID: 1, Password: "x" }])).toEqual(["UserID"]);
   });
   it("lookup values are trimmed, upper-cased, 2–100 chars, no objects", () => {
     expect(lookupValues({ OrderNo: " so-123 ", Ref: "x", Con: { a: 1 }, Track: null }, ["OrderNo", "Ref", "Con", "Track"])).toEqual([{ field: "OrderNo", value: "SO-123" }]);
@@ -116,9 +135,23 @@ describe("Thomax client", () => {
     expect(rows).toEqual([]);
     expect(waits).toEqual([5000, 10000]);
   });
-  it("401 → a plain message about the login; a Status without Data → error", async () => {
+  it("401 → a plain message about the login; an error Status is an error even with an empty Data list", async () => {
     await expect(queryPage(creds, { table: "TNT" }, { fetchImpl: async () => new Response("no", { status: 401 }) })).rejects.toThrow(/refused the login/);
     expect(() => dataOf({ Status: "Invalid table" }, "XX")).toThrow(/Invalid table/);
+    expect(() => dataOf({ Status: "Error: Invalid field Created", Data: [] }, "PCK")).toThrow(/Invalid field/);
+    expect(dataOf({ Status: "OK", Data: [] }, "PCK")).toEqual([]);
+  });
+  it("never follows redirects and doesn't retry a host that doesn't exist", async () => {
+    let seen: RequestInit | undefined;
+    await queryPage(creds, { table: "TNT" }, { fetchImpl: async (_u, i) => ((seen = i), ok({ Data: [] })) });
+    expect(seen?.redirect).toBe("error");
+    let calls = 0;
+    const dns = Object.assign(new TypeError("fetch failed"), { cause: new Error("getaddrinfo ENOTFOUND x.dotwms.com") });
+    await expect(queryPage(creds, { table: "TNT" }, { sleep: async () => {}, fetchImpl: async () => (calls++, Promise.reject(dns)) })).rejects.toThrow(/didn't answer/);
+    expect(calls).toBe(1);
+  });
+  it("stops paging when Thomax sends the same page twice", async () => {
+    await expect(queryAll(creds, { table: "PCK" }, async () => {}, { pageSize: 2, fetchImpl: async () => ok({ Data: [{ a: 1 }, { a: 2 }] }) })).rejects.toThrow(/same page came back twice/);
   });
   it("pages with Limit + Skip until a short page", async () => {
     const skips: string[] = [];

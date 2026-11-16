@@ -118,6 +118,7 @@ code.keyshow { font-size: 13px; padding: 6px 8px; word-break: break-all; }
 .form-grid > .row { grid-column: 1 / -1; }
 .stack { display: grid; gap: 12px; }
 .stack > label.row { display: flex; }
+.stack select, .form-grid select, .form-grid input { max-width: 100%; min-width: 0; }
 .stack fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 0; min-width: 0; }
 .stack legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
 .chips-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

@@ -1,8 +1,9 @@
 /** Reports against the test database: client-safe build, the pre-send brake, recipient lists and a blocked send. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("reports (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;

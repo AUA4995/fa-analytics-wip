@@ -1,6 +1,7 @@
 /** Sign-in with 2FA (Batch 2 item 32) against the local DB: password → code, set-up, backup codes, 8-hour device cookie, limits. */
 import "dotenv/config";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
 const jar = new Map<string, string>();
 const ip = vi.hoisted(() => ({ value: "10.9.3.1" }));
@@ -19,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 const stamp = Date.now();
 const mail = (n: string) => `${n}-${stamp}@example.com`;
 const form = (o: Record<string, string>) => {

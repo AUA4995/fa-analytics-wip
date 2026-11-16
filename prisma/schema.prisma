@@ -1133,6 +1133,10 @@ model ThomaxConnection {
   recheckDays Int       @default(14)
   enabled     Boolean   @default(true)
   updatedBy   String?
+  /// Last test / login result, shown on the panel (a refused login stops every copy until fixed)
+  lastTestAt  DateTime?
+  lastTestOk  Boolean?
+  lastError   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }

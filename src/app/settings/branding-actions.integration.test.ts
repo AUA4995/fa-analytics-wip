@@ -4,11 +4,12 @@
  */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ assertAdmin: vi.fn(async () => ({ id: "u", email: "a@b.c", name: "Admin", role: "ADMIN" })) }));
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("Branding actions (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;

@@ -1,8 +1,9 @@
 /** Thomax copy against the test database, with a fake Thomax: connect → explore → confirm → history → nightly → lookup. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 type Row = Record<string, unknown>;
 
@@ -115,11 +116,41 @@ describe.skipIf(!hasDb)("Thomax copy (integration)", () => {
     expect(await l.lookup("x")).toBeNull();
   });
 
-  it("changing the key clears the table so it's copied again with the new key", async () => {
-    await s.saveTableSettings("PCK", { enabled: true, kind: "TRANSACTIONAL", dateField: "JobCreateTime", keyFields: ["OrderNo"], lookupFields: ["OrderNo"] }, "Test");
+  it("changing the key needs a tick, then clears the table so it's copied again with the new key", async () => {
+    await expect(s.saveTableSettings("PCK", { enabled: true, kind: "TRANSACTIONAL", dateField: "JobCreateTime", keyFields: ["OrderNo"], lookupFields: ["OrderNo"] }, "Test")).rejects.toThrow(/tick "I understand"/);
+    expect(await prisma.thomaxRow.count({ where: { table: "PCK" } })).toBe(3);
+    await s.saveTableSettings("PCK", { enabled: true, kind: "TRANSACTIONAL", dateField: "JobCreateTime", keyFields: ["OrderNo"], lookupFields: ["OrderNo"], confirmKeyChange: true }, "Test");
     const t = await prisma.thomaxTable.findUniqueOrThrow({ where: { name: "PCK" } });
     expect(t.rowCount).toBe(0);
     expect(t.historyDoneTo).toBeNull();
     expect(await prisma.thomaxRow.count({ where: { table: "PCK" } })).toBe(0);
+  });
+
+  it("rows without a key value are skipped and counted, never merged; masters need a key too", async () => {
+    await expect(s.saveTableSettings("TNT", { enabled: true, kind: "MASTER", dateField: null, keyFields: [], lookupFields: [] }, "Test")).rejects.toThrow(/identify one row/);
+    const r = await s.storeRows({ name: "PCK", keyFields: ["OrderNo"], lookupFields: [], dateField: "JobCreateTime" }, [{ OrderNo: "SO-9" }, { OrderNo: null }, { OrderNo: "" }, { Other: 1 }]);
+    expect(r).toMatchObject({ inserted: 1, noKey: 3 });
+  });
+
+  it("paging is ordered by the key and a refused login stops everything and pauses copying", async () => {
+    calls.length = 0;
+    await s.nightly(new Date("2026-11-16T12:00:00Z"), opts);
+    expect(calls.some((c) => c.startsWith("PCK"))).toBe(true);
+    const url401 = async () => new Response("no", { status: 401 });
+    const r = await s.nightly(new Date("2026-11-16T12:00:00Z"), { fetchImpl: url401, sleep: async () => {} });
+    expect(r.stopped).toMatch(/refused the login/);
+    expect(r.errors).toHaveLength(1); // stopped at the first table
+    const c = await prisma.thomaxConnection.findUniqueOrThrow({ where: { id: "thomax" } });
+    expect(c).toMatchObject({ enabled: false, lastTestOk: false });
+    expect(await s.getCreds()).toBeNull();
+    expect((await s.historyStep(2, new Date(), opts)).stopped).toMatch(/refused the login earlier/);
+    // saving a working login again un-pauses
+    await s.saveConnection({ cluster: "e", username: "analytics", password: "s3cret!" }, "Test");
+    expect(await s.getCreds()).not.toBeNull();
+  });
+
+  it("the stored password is never re-used for a different cluster or user", async () => {
+    await expect(s.saveConnection({ cluster: "f", username: "analytics" }, "Test")).rejects.toThrow(/needs the password again/);
+    await expect(s.saveConnection({ cluster: "e", username: "someone-else" }, "Test")).rejects.toThrow(/needs the password again/);
   });
 });

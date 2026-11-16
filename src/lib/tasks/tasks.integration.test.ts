@@ -1,8 +1,9 @@
 /** Tasks, notifications and leakage detection against the test database. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 const actor = { type: "USER" as const, name: "Task Tester" };
 
 describe.skipIf(!hasDb)("tasks, notifications, leakage (integration)", () => {

@@ -1,4 +1,4 @@
-import { buildQueryUrl, PAGE_LIMIT, type QueryParts, type ThomaxRecord } from "./shape";
+import { buildQueryUrl, PAGE_LIMIT, PAGE_SIZE, type QueryParts, type ThomaxRecord } from "./shape";
 
 /**
  * Thomax (.wms) Query API client — read only, one GET per call.
@@ -30,6 +30,8 @@ export interface ClientOptions {
   /** Per-request timeout; Thomax may queue a request up to 120 s */
   timeoutMs?: number;
   maxRetries?: number;
+  /** Stops waiting and paging when the job is cancelled or times out */
+  signal?: AbortSignal;
 }
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -46,16 +48,22 @@ export async function queryPage(creds: ThomaxCreds, q: QueryParts, opts: ClientO
   const url = buildQueryUrl(creds.cluster, q);
   let wait = 5_000;
   for (let attempt = 0; ; attempt++) {
+    if (opts.signal?.aborted) throw new ThomaxError("Stopped (the job was cancelled or ran out of time).");
     let res: Response;
     try {
+      const timeout = AbortSignal.timeout(opts.timeoutMs ?? 150_000);
       res = await fetchImpl(url, {
         method: "GET",
         headers: { Authorization: authHeader(creds), Accept: "application/json" },
-        signal: AbortSignal.timeout(opts.timeoutMs ?? 150_000),
+        signal: opts.signal ? AbortSignal.any([timeout, opts.signal]) : timeout,
         cache: "no-store",
+        // Never follow a redirect with the login attached
+        redirect: "error",
       });
     } catch (err) {
-      if (attempt < maxRetries) {
+      // A name that doesn't exist won't start working on a retry
+      const dns = /ENOTFOUND|EAI_AGAIN|getaddrinfo/.test(String((err as { cause?: unknown })?.cause ?? err));
+      if (attempt < maxRetries && !dns && !opts.signal?.aborted) {
         await sleep(wait);
         wait *= 2;
         continue;
@@ -80,26 +88,44 @@ export async function queryPage(creds: ThomaxCreds, q: QueryParts, opts: ClientO
   }
 }
 
-/** { Status, Data: [...] } → rows. A non-array Data with a Status message is an error from Thomax. */
+/**
+ * { Status, Data: [...] } → rows. A Status that reads like an error is an error even when Data is an empty list
+ * (otherwise a failed month would be marked as loaded with 0 rows).
+ */
 export function dataOf(body: unknown, table: string): ThomaxRecord[] {
   if (Array.isArray(body)) return body as ThomaxRecord[];
   if (body && typeof body === "object") {
     const o = body as Record<string, unknown>;
     const data = o.Data ?? o.data;
+    const status = o.Status ?? o.status;
+    if (typeof status === "string" && /error|invalid|fail|denied|exceed|not\s*found|unknown|exception/i.test(status)) throw new ThomaxError(`Thomax ${table}: ${status.slice(0, 300)}`);
     if (Array.isArray(data)) return data.filter((r): r is ThomaxRecord => !!r && typeof r === "object" && !Array.isArray(r));
-    const status = o.Status ?? o.status ?? o.Message ?? o.message;
-    throw new ThomaxError(`Thomax ${table}: ${typeof status === "string" ? status : JSON.stringify(status ?? body).slice(0, 200)}`);
+    const why = status ?? o.Message ?? o.message;
+    throw new ThomaxError(`Thomax ${table}: ${typeof why === "string" ? why.slice(0, 300) : JSON.stringify(why ?? body).slice(0, 200)}`);
   }
   throw new ThomaxError(`Thomax ${table}: unexpected answer`);
 }
 
-/** All pages of a query (Limit + Skip) — calls onPage for each so big windows aren't held in memory. */
+/** Safety stop: no window or table is read for more pages than this (10,000 × 400 = 4 million rows). */
+export const MAX_PAGES = 400;
+
+/**
+ * All pages of a query (Limit + Skip) — calls onPage for each so big windows aren't held in memory.
+ * Order by a unique field (the table's key) so Skip can't skip or repeat rows. Stops at MAX_PAGES, or if Thomax
+ * sends the same page twice (it ignored Skip), instead of looping forever.
+ */
 export async function queryAll(creds: ThomaxCreds, q: Omit<QueryParts, "limit" | "skip">, onPage: (rows: ThomaxRecord[]) => Promise<void>, opts: ClientOptions & { pageSize?: number } = {}): Promise<number> {
-  const size = Math.min(opts.pageSize ?? PAGE_LIMIT, PAGE_LIMIT);
+  const size = Math.min(opts.pageSize ?? PAGE_SIZE, PAGE_LIMIT);
   let skip = 0;
   let total = 0;
-  for (;;) {
+  let lastFirst: string | null = null;
+  for (let page = 0; ; page++) {
+    if (page >= MAX_PAGES) throw new ThomaxError(`Thomax ${q.table}: more than ${MAX_PAGES} pages — stopped. Use smaller windows.`);
+    if (opts.signal?.aborted) throw new ThomaxError("Stopped (the job was cancelled or ran out of time).");
     const rows = await queryPage(creds, { ...q, limit: size, skip }, opts);
+    const first = rows.length ? JSON.stringify(rows[0]) : null;
+    if (first && first === lastFirst) throw new ThomaxError(`Thomax ${q.table}: the same page came back twice (Skip ignored?) — stopped.`);
+    lastFirst = first;
     if (rows.length) await onPage(rows);
     total += rows.length;
     if (rows.length < size) return total;

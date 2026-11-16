@@ -1,8 +1,9 @@
 /** Loader end to end against the test database: payroll + P&L + WMS lines + Settings → engine. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("cost loader (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;

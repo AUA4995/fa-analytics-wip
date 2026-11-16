@@ -1,7 +1,8 @@
 /**
  * Thomax (.wms) Query API tables (help page "Using The Query API", shared by Asal 10/11/2026).
  * The list is what we know exists; field names are discovered by Explore, never hard-coded.
- * ATR (attributes) needs an InnerJoin, so it is listed but off by default.
+ * ATR (attributes) needs an InnerJoin, so it is listed but off by default. USR (WMS users) is off by default too:
+ * it may hold login data. Fields that look like secrets are dropped from every table anyway (shape.ts).
  */
 
 export type ThomaxKind = "TRANSACTIONAL" | "MASTER";
@@ -42,7 +43,7 @@ export const THOMAX_TABLES: ReadonlyArray<ThomaxTableDef> = [
   { name: "ULDL", label: "Logistic unit history (movements)", group: "Stock units", kind: "TRANSACTIONAL" },
   // People and activity
   { name: "ACT", label: "Timed activities", group: "People & activity", kind: "TRANSACTIONAL" },
-  { name: "USR", label: "WMS users", group: "People & activity", kind: "MASTER" },
+  { name: "USR", label: "WMS users (off by default — may hold login data)", group: "People & activity", kind: "MASTER", off: true },
   // Master data
   { name: "TNT", label: "Tenants (clients)", group: "Master data", kind: "MASTER" },
   { name: "WHS", label: "Warehouses", group: "Master data", kind: "MASTER" },

@@ -1,8 +1,9 @@
 /** Keys we give out: auth, scopes, expiry / revoke, and two API routes, against the test database. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("API keys (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;

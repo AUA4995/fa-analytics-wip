@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertAdmin, assertOwner } from "@/lib/auth/session";
 import { THOMAX_TABLE_NAMES } from "@/lib/thomax/tables";
+import { prisma } from "@/lib/db";
 import type { DataActionState } from "./actions";
 
 /**
@@ -71,10 +72,11 @@ export async function exploreThomaxAction(table?: string): Promise<DataActionSta
       if (!THOMAX_TABLE_NAMES.includes(table)) throw new Error("Unknown table");
       const r = await exploreTable(table);
       revalidatePath("/data");
-      return ok(`${table}: ${r.fields} fields found.`);
+      return ok(r.empty ? `${table}: the table returned no rows${r.fields ? " — the fields found before are kept" : " — nothing to set up yet"}.` : `${table}: ${r.fields} fields found.`);
     }
     const r = await exploreAll();
     revalidatePath("/data");
+    if (r.stopped) return { ok: false, message: `${r.stopped}${r.ok ? ` (${r.ok} tables explored before that)` : ""}` };
     return { ok: !r.failed.length, message: `Explored ${r.ok} tables${r.failed.length ? `; failed: ${r.failed.join(", ")} (see each table)` : ""}. Check the suggested settings on each table and save them.` };
   } catch (err) {
     return fail(err);
@@ -88,7 +90,7 @@ export async function saveThomaxTableAction(_: DataActionState | null, form: For
     if (!THOMAX_TABLE_NAMES.includes(name)) throw new Error("Unknown table");
     const kind = String(form.get("kind") ?? "TRANSACTIONAL") === "MASTER" ? "MASTER" : "TRANSACTIONAL";
     const { saveTableSettings } = await import("@/lib/thomax/sync");
-    await saveTableSettings(
+    const r = await saveTableSettings(
       name,
       {
         enabled: form.get("enabled") === "on",
@@ -96,11 +98,12 @@ export async function saveThomaxTableAction(_: DataActionState | null, form: For
         dateField: String(form.get("dateField") ?? "") || null,
         keyFields: form.getAll("keyFields").map(String).filter(Boolean),
         lookupFields: form.getAll("lookupFields").map(String).filter(Boolean),
+        confirmKeyChange: form.get("confirmKeyChange") === "on",
       },
       me.name,
     );
     revalidatePath("/data");
-    return ok(`${name} saved.`);
+    return ok(r.cleared ? `${name} saved — its copied rows were cleared and will be copied again with the new key.` : `${name} saved.`);
   } catch (err) {
     return fail(err);
   }
@@ -110,17 +113,20 @@ export async function saveThomaxTableAction(_: DataActionState | null, form: For
 export async function runThomaxAction(what: "nightly" | "history"): Promise<DataActionState> {
   try {
     await assertAdmin();
+    if (what !== "nightly" && what !== "history") throw new Error("Unknown action");
     const { getCreds } = await import("@/lib/thomax/sync");
-    if (!(await getCreds())) throw new Error("Connect Thomax first.");
+    if (!(await getCreds())) throw new Error("Thomax isn't connected, or its login was refused — check Change login.");
+    if (!(await prisma.thomaxTable.count({ where: { enabled: true, confirmedAt: { not: null } } }))) throw new Error("No table is saved yet — Explore, check and save the tables first.");
     if (process.env.JOBS_DISABLED === "1") {
       const { historyStep, nightly } = await import("@/lib/thomax/sync");
       const r = what === "nightly" ? await nightly() : await historyStep(2);
       revalidatePath("/data");
+      if (r.stopped) return { ok: false, message: r.stopped };
       return { ok: !r.errors.length, message: `${r.rows.toLocaleString("en-AU")} rows read${r.remaining ? `, ${r.remaining} month windows still to load` : ""}.${r.errors.length ? ` Problems: ${r.errors.join("; ")}` : ""}` };
     }
     const { enqueue, QUEUE_THOMAX_HISTORY, QUEUE_THOMAX_NIGHTLY } = await import("@/lib/jobs/scheduler");
     await enqueue(what === "nightly" ? QUEUE_THOMAX_NIGHTLY : QUEUE_THOMAX_HISTORY, what === "history" ? { anyTime: true } : {});
-    return ok(what === "nightly" ? "Sync started in the background — refresh in a few minutes." : "History load started in the background. It keeps going step by step; refresh to see progress. By default it only runs 20:00–06:00, this button starts it now.");
+    return ok(what === "nightly" ? "Sync started in the background — refresh in a few minutes." : "History load started: the first step runs now, the rest continues step by step between 20:00 and 06:00. Refresh to see progress.");
   } catch (err) {
     return fail(err);
   }

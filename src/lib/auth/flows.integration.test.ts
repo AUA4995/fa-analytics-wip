@@ -5,6 +5,7 @@
  */
 import "dotenv/config";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
 const jar = new Map<string, string>();
 const ip = vi.hoisted(() => ({ value: "10.9.2.1" }));
@@ -32,7 +33,7 @@ vi.mock("@/lib/front/client", async (orig) => ({
   }),
 }));
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 const stamp = Date.now();
 const mail = (n: string) => `${n}-${stamp}@fulfilmentaustralia.com.au`;
 const form = (o: Record<string, string>) => {

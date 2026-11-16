@@ -7,7 +7,7 @@ import { WithSubNav } from "@/components/ui/sub-nav";
 import { requireUser } from "@/lib/auth/session";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db";
-import { lookup } from "@/lib/thomax/lookup";
+import { lookup, showThomaxTime } from "@/lib/thomax/lookup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operations" };
@@ -16,10 +16,10 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 
 const SUBTITLE: Record<string, string> = {
   lookup: "Type an order, consignment, reference or tracking number: every Thomax row that has it, and the timeline from all their dates.",
-  receiving: "Expected and received deliveries by client and type.",
-  sla: "Same-day dispatch, ticket replies, receiving and billing against their targets.",
-  returns: "Returns waiting and processed.",
-  trends: "Volumes over time and the forecast.",
+  receiving: "Coming soon: expected and received deliveries by client and type.",
+  sla: "Coming soon: same-day dispatch, ticket replies, receiving and billing against their targets.",
+  returns: "Coming soon: returns waiting and processed.",
+  trends: "Coming soon: volumes over time and the forecast.",
 };
 
 const cell = (v: unknown) => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
@@ -75,10 +75,9 @@ async function Lookup({ q }: { q: string }) {
             {res.timeline.length ? (
               <ul className="timeline">
                 {res.timeline.map((e, i) => {
-                  const row = res.rows.find((r) => r.id === e.rowId);
                   return (
                     <li key={i}>
-                      <span>{cell(row?.data[e.field])}</span>
+                      <span>{showThomaxTime(e.at)}</span>
                       <span>
                         <b>{e.table}</b> · {e.field}
                       </span>
@@ -104,7 +103,7 @@ async function Lookup({ q }: { q: string }) {
           {res.rows.map((r) => (
             <Card key={r.id} title={`${r.table} · ${r.label}`} sub={`matched on ${r.matchedOn.join(", ")}`}>
               <dl className="raw-kv">
-                {Object.entries(r.data).map(([k, v]) => (
+                {r.entries.map(([k, v]) => (
                   <div key={k} style={{ display: "contents" }}>
                     <dt>{k}</dt>
                     <dd>{cell(v)}</dd>

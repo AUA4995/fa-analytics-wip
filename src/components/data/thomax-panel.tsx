@@ -14,6 +14,17 @@ const n = (x: number) => x.toLocaleString("en-AU");
 export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owner: boolean; open?: string }) {
   const conn = await getConnectionInfo();
   if (conn) await ensureTables();
+  if (conn && !admin) {
+    // Users see that the copy exists; the login, tables and errors are for admins
+    const rows = await prisma.thomaxRow.count();
+    return (
+      <Card title="Thomax (.wms) · Query API copy">
+        <p className="small" style={{ margin: 0 }}>
+          <Pill tone={conn.enabled ? "green" : "red"}>{conn.enabled ? "connected" : "paused"}</Pill> {n(rows)} rows copied. An admin manages this.
+        </p>
+      </Card>
+    );
+  }
   const [tables, lastRuns, remaining] = await Promise.all([
     prisma.thomaxTable.findMany({ orderBy: { name: "asc" } }),
     prisma.sourceRun.findMany({ where: { source: "THOMAX" }, orderBy: { startedAt: "desc" }, take: 5 }),
@@ -22,6 +33,7 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
   const order = new Map(THOMAX_TABLES.map((t, i) => [t.name, i]));
   tables.sort((a, b) => (order.get(a.name) ?? 99) - (order.get(b.name) ?? 99));
   const totalRows = tables.reduce((s, t) => s + t.rowCount, 0);
+  const saved = tables.filter((t) => t.confirmedAt && t.enabled).length;
   const sel = open ? tables.find((t) => t.name === open) : undefined;
   const fields = (v: unknown) => (Array.isArray(v) ? (v as string[]) : []);
 
@@ -47,9 +59,15 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
         ) : (
           <>
             <p className="small" style={{ marginTop: 0 }}>
-              <Pill tone="green">connected</Pill> {conn.username} @ {conn.cluster}.dotwms.com · history from {au(conn.historyFrom)} · re-check {conn.recheckDays} days ·{" "}
-              <b>{n(totalRows)}</b> rows copied · {remaining ? `${n(remaining)} month windows of history still to load (runs 20:00–06:00)` : "history up to date"}
+              {!conn.enabled ? <Pill tone="red">login refused — copying paused</Pill> : conn.lastTestOk === false ? <Pill tone="red">last test failed</Pill> : <Pill tone="green">connected</Pill>}{" "}
+              {admin ? `${conn.username} @ ${conn.cluster}.dotwms.com · ` : ""}history from {au(conn.historyFrom)} · re-check {conn.recheckDays} days · <b>{n(totalRows)}</b> rows copied ·{" "}
+              {!saved ? "no table saved yet — Explore, then check and save each table" : remaining ? `${n(remaining)} month windows of history still to load (runs 20:00–06:00)` : "history up to date"}
             </p>
+            {admin && conn.lastTestAt && (
+              <p className={conn.lastTestOk ? "meta" : "msg-err"} style={{ marginTop: 0 }}>
+                Last test {auTime(conn.lastTestAt)}: {conn.lastTestOk ? "Thomax answered ✓" : (conn.lastError ?? "failed")}
+              </p>
+            )}
             {admin && <ThomaxButtons owner={owner} />}
             {owner && (
               <details style={{ marginTop: 10 }}>
@@ -120,11 +138,12 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
 
       {conn && sel && (
         <div id="thomax-table">
-          <Card title={`${sel.name} · ${tableDef(sel.name)?.label ?? ""}`} sub={sel.exploredAt ? `Explored ${auTime(sel.exploredAt)} · ${fields(sel.fields).length} fields${sel.confirmedAt ? ` · saved by ${sel.confirmedBy ?? "—"} ${auTime(sel.confirmedAt)}` : ""}` : "Not explored yet"}>
+          <Card title={`${sel.name} · ${tableDef(sel.name)?.label ?? ""}`} sub={sel.exploredAt ? `Explored ${auTime(sel.exploredAt)} · ${fields(sel.fields).length ? `${fields(sel.fields).length} fields` : "no rows in the table yet"}${sel.confirmedAt ? ` · saved by ${sel.confirmedBy ?? "—"} ${auTime(sel.confirmedAt)}` : ""}` : "Not explored yet"}>
             {sel.lastError && <p className="msg-err" style={{ marginTop: 0 }}>{sel.lastError}</p>}
             {admin && <ExploreOneButton table={sel.name} />}
             <div style={{ marginTop: 12 }}>
               <ThomaxTableForm
+                key={sel.name}
                 table={sel.name}
                 fields={fields(sel.fields)}
                 enabled={sel.enabled}
@@ -133,6 +152,7 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
                 keyFields={sel.keyFields}
                 lookupFields={sel.lookupFields}
                 confirmed={!!sel.confirmedAt}
+                rowCount={sel.rowCount}
                 owner={owner}
               />
             </div>

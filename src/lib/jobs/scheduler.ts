@@ -50,8 +50,9 @@ export async function startScheduler(): Promise<void> {
   await b.schedule(QUEUE_XERO_SYNC, "30 5 * * *", { kind: "INCREMENTAL" }, { tz: TZ });
   await b.schedule(QUEUE_FRONT_TICKETS, "45 5 * * *", { months: 2 }, { tz: TZ });
   await b.schedule(QUEUE_REPORT_TICK, "5 * * * *", {}, { tz: TZ });
-  await b.createQueue(QUEUE_THOMAX_NIGHTLY);
-  await b.createQueue(QUEUE_THOMAX_HISTORY);
+  // Long, one-at-a-time jobs: up to 5 hours, no automatic retry (a retry would only repeat the load on Thomax)
+  await b.createQueue(QUEUE_THOMAX_NIGHTLY, { policy: "singleton", expireInSeconds: 5 * 3600, retryLimit: 0 });
+  await b.createQueue(QUEUE_THOMAX_HISTORY, { policy: "singleton", expireInSeconds: 5 * 3600, retryLimit: 0 });
   await b.schedule(QUEUE_THOMAX_NIGHTLY, "15 2 * * *", {}, { tz: TZ });
   // Picks the history load up again each evening (a no-op once it's done).
   await b.schedule(QUEUE_THOMAX_HISTORY, "5 20 * * *", {}, { tz: TZ });
@@ -79,18 +80,20 @@ export async function startScheduler(): Promise<void> {
     const { runReportTick } = await import("@/lib/reports/send");
     await runReportTick();
   });
-  await b.work(QUEUE_THOMAX_NIGHTLY, async () => {
+  await b.work(QUEUE_THOMAX_NIGHTLY, async ([job]) => {
     const { getCreds, nightly } = await import("@/lib/thomax/sync");
     if (!(await getCreds())) return;
-    await nightly();
+    await nightly(new Date(), { signal: job.signal });
   });
   await b.work<{ anyTime?: boolean }>(QUEUE_THOMAX_HISTORY, async ([job]) => {
     const { getCreds, historyStep } = await import("@/lib/thomax/sync");
     if (!(await getCreds())) return;
     const { thomaxWindowOpen } = await import("@/lib/thomax/window");
     if (!job.data?.anyTime && !thomaxWindowOpen(new Date())) return; // tonight's 20:05 run picks it up
-    const r = await historyStep(6);
-    if (r.remaining > 0) await b.send(QUEUE_THOMAX_HISTORY, { anyTime: job.data?.anyTime ?? false }, { startAfter: 30, singletonKey: "thomax-history-next" });
+    const r = await historyStep(6, new Date(), { signal: job.signal });
+    // Next step only when this one made progress and nothing stopped it. "Load history now" applies to the first
+    // step only: the rest continues in the 20:00–06:00 window.
+    if (r.remaining > 0 && r.windows > 0 && !r.stopped) await b.send(QUEUE_THOMAX_HISTORY, { anyTime: false }, { startAfter: 30 });
   });
   console.log("[jobs] scheduler started");
 }

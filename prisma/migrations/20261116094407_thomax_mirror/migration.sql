@@ -9,6 +9,9 @@ CREATE TABLE "ThomaxConnection" (
     "recheckDays" INTEGER NOT NULL DEFAULT 14,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "updatedBy" TEXT,
+    "lastTestAt" TIMESTAMP(3),
+    "lastTestOk" BOOLEAN,
+    "lastError" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

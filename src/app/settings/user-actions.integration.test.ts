@@ -1,6 +1,7 @@
 /** Owner rules (Batch 2 item 1) + email links instead of temporary passwords (item 2), against the local DB. Front is mocked. */
 import "dotenv/config";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
 const jar = new Map<string, string>();
 vi.mock("next/headers", () => ({
@@ -27,7 +28,7 @@ vi.mock("@/lib/front/client", async (orig) => ({
   }),
 }));
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 const stamp = Date.now();
 const mail = (n: string) => `${n}-${stamp}@fulfilmentaustralia.com.au`;
 

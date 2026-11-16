@@ -65,7 +65,7 @@ export function ThomaxButtons({ owner }: { owner: boolean }) {
       <button type="button" className="btn primary" disabled={pending} onClick={() => run(() => runThomaxAction("nightly"))}>
         Sync now
       </button>
-      <button type="button" className="btn" disabled={pending} onClick={() => confirm("Start loading history now? It reads month by month and runs in the background. By day it shares Thomax with Power BI and the daily emails, so the night is better.") && run(() => runThomaxAction("history"))}>
+      <button type="button" className="btn" disabled={pending} onClick={() => confirm("Start loading history now? The first step runs now (by day it shares Thomax with Power BI and the daily emails); the rest continues each night 20:00–06:00.") && run(() => runThomaxAction("history"))}>
         Load history now
       </button>
       {owner && (
@@ -99,6 +99,7 @@ export function ThomaxTableForm({
   keyFields,
   lookupFields,
   confirmed,
+  rowCount,
   owner,
 }: {
   table: string;
@@ -109,6 +110,7 @@ export function ThomaxTableForm({
   keyFields: string[];
   lookupFields: string[];
   confirmed: boolean;
+  rowCount: number;
   owner: boolean;
 }) {
   const [state, action, pending] = useActionState(saveThomaxTableAction, null);
@@ -142,7 +144,7 @@ export function ThomaxTableForm({
       )}
       <fieldset>
         <legend>Field(s) that identify one row</legend>
-        <span className="meta">So a re-read updates the row instead of adding a copy. {k === "MASTER" ? "Optional for full re-reads." : "Required."}</span>
+        <span className="meta">So a re-read updates the row instead of adding a copy. Required — pick a field that is unique per row (an ID).</span>
         <div className="chips-wrap">
           {fields.map((f) => (
             <label key={f} className="chip-check">
@@ -162,6 +164,11 @@ export function ThomaxTableForm({
           ))}
         </div>
       </fieldset>
+      {owner && confirmed && rowCount > 0 && (
+        <label className="row small">
+          <input type="checkbox" name="confirmKeyChange" /> I understand: if I change the key fields, the {rowCount.toLocaleString("en-AU")} copied rows are deleted and the table is copied again.
+        </label>
+      )}
       {owner ? (
         <div className="row">
           <button className="btn primary" disabled={pending}>

@@ -1,6 +1,7 @@
 /** Menu pin preference is remembered per user — runs only when DATABASE_URL is set. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
 const me = { id: "", email: "pin-test@example.com", name: "Pin Test", role: "USER" as const };
 vi.mock("@/lib/auth/session", () => ({
@@ -10,7 +11,7 @@ vi.mock("@/lib/auth/session", () => ({
   }),
 }));
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("setMenuPinned (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;

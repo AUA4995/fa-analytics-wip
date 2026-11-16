@@ -1,8 +1,9 @@
 /** WMS file import against the test database: plan → apply → duplicate file → overlap replace / keep. */
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { isTestDatabase } from "@/lib/test-db";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDb = isTestDatabase();
 
 describe.skipIf(!hasDb)("WMS import (integration)", () => {
   let prisma: typeof import("@/lib/db").prisma;
