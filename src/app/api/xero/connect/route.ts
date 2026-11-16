@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getCurrentUser();
   // Batch 2 item 15: connect / reconnect is owner-only.
-  if (user?.role !== "OWNER") return new Response("Only the owner can connect Xero.", { status: 403 });
+  if (user?.role !== "OWNER") return new Response("Only an owner can connect Xero.", { status: 403 });
   assertReadOnlyScopes(XERO_SCOPES);
   const { clientId, redirectUri } = xeroEnv();
   const state = randomToken();

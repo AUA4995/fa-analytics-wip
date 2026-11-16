@@ -108,7 +108,7 @@ describe.skipIf(!hasDb)("sessions (integration)", () => {
   it("OWNER passes admin checks; assertOwner rejects an ADMIN", async () => {
     await signInForTest(userId);
     await prisma.user.update({ where: { id: userId }, data: { role: "ADMIN" } });
-    await expect(auth.assertOwner()).rejects.toThrow(/Only the owner/);
+    await expect(auth.assertOwner()).rejects.toThrow(/Only an owner/);
     const owner = await prisma.user.findFirst({ where: { role: "OWNER" } });
     if (!owner) {
       await prisma.user.update({ where: { id: userId }, data: { role: "OWNER" } });

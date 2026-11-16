@@ -31,16 +31,16 @@ export function codeForTest(secret: string, steps = 0): string {
 }
 
 /**
- * The database allows one owner. Tests that need their own owner park any existing one as ADMIN and put it back after.
+ * The database allows one primary owner. Tests that need their own park any existing one as ADMIN and put it back after.
  */
 export async function parkExistingOwner(): Promise<() => Promise<void>> {
   testsOnly("parkExistingOwner");
-  const existing = await prisma.user.findFirst({ where: { role: "OWNER" } });
+  const existing = await prisma.user.findFirst({ where: { role: "OWNER", extraOwner: false } });
   if (existing) await prisma.user.update({ where: { id: existing.id }, data: { role: "ADMIN" } });
   return async () => {
     if (!existing) return;
-    await prisma.user.updateMany({ where: { role: "OWNER", id: { not: existing.id } }, data: { role: "ADMIN" } });
-    await prisma.user.update({ where: { id: existing.id }, data: { role: "OWNER" } }).catch(() => {});
+    await prisma.user.updateMany({ where: { role: "OWNER", extraOwner: false, id: { not: existing.id } }, data: { role: "ADMIN" } });
+    await prisma.user.update({ where: { id: existing.id }, data: { role: "OWNER", extraOwner: false } }).catch(() => {});
   };
 }
 

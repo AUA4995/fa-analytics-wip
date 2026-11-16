@@ -4,18 +4,21 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/auth/password";
-import { AuthError, assertAdmin, assertOwner, assertUser, type CurrentUser } from "@/lib/auth/session";
-import { isOwnerRole } from "@/lib/auth/roles";
+import { AuthError, assertAdmin, assertOwner, assertPrimaryOwner, assertUser, type CurrentUser } from "@/lib/auth/session";
+import { isOwnerRole, isPrimaryOwner } from "@/lib/auth/roles";
 import { approveAccessRequest, declineAccessRequest, inviteUser, sendInvite, sendResetLink, type LinkOutcome } from "@/lib/auth/flows";
 import { forgetThisDevice, regenerateBackupCodes, resetTwoFactor, verifySecondFactor } from "@/lib/auth/two-factor";
 import { hitRateLimit, tooManyMessage } from "@/lib/auth/rate-limit";
 import { setAccessDomain } from "@/lib/auth/domain";
 
 /**
- * Users (Batch 2 items 1, 2, 31, 32). Every rule is enforced here, whatever the screen shows:
- *   • nobody changes the owner's role, resets the owner's password/2FA or deactivates the owner
- *   • only the owner makes or removes admins, resets 2FA, approves access requests and transfers ownership
- *   • admins add, deactivate and reset USERs only
+ * Users (Batch 2 items 1, 2, 31, 32; four roles batch 3, 16/11/2026 — same rules as the Accounts Hub).
+ * Every rule is enforced here, whatever the screen shows. Primary owner > owners > admins > users:
+ *   • nobody changes the primary owner's role, resets their password/2FA or deactivates them
+ *   • only the primary owner makes or removes owners, manages another owner's account and transfers "primary owner"
+ *     (confirmed with their own 2FA code)
+ *   • owners make or remove admins, reset 2FA, approve access requests
+ *   • admins add, deactivate and reset USERs only (never another admin)
  *   • no temporary passwords: invites and resets are one-time email links
  */
 
@@ -47,9 +50,10 @@ async function target(userId: string) {
 }
 
 /** Can `me` manage this person's account (reset, invite again, deactivate)? null = yes, else why not. */
-function manageProblem(me: CurrentUser, t: { id: string; role: string; name: string }, what: string): string | null {
-  if (isOwnerRole(t.role)) return `No one can ${what} the owner.`;
-  if (t.role === "ADMIN" && !isOwnerRole(me.role)) return `Only the owner can ${what} an admin.`;
+function manageProblem(me: CurrentUser, t: { id: string; role: string; extraOwner: boolean; name: string }, what: string): string | null {
+  if (isPrimaryOwner(t)) return `No one can ${what} the primary owner.`;
+  if (isOwnerRole(t.role) && !me.primary) return `Only the primary owner can ${what} an owner.`;
+  if (t.role === "ADMIN" && !isOwnerRole(me.role)) return `Only an owner can ${what} an admin.`;
   return null;
 }
 
@@ -75,7 +79,7 @@ export async function addUser(_prev: UserActionState, formData: FormData): Promi
     const me = await assertAdmin();
     const parsed = AddUser.safeParse(values);
     if (!parsed.success) return { ...fail(parsed.error.issues[0]?.message ?? "Check the form."), values };
-    if (parsed.data.role === "ADMIN" && !isOwnerRole(me.role)) return { ...fail("Only the owner can add admins."), values };
+    if (parsed.data.role === "ADMIN" && !isOwnerRole(me.role)) return { ...fail("Only an owner can add admins."), values };
     if (await prisma.user.findUnique({ where: { email: parsed.data.email } })) return { ...fail("A user with that email already exists."), values };
     const out = await inviteUser({ ...parsed.data, byId: me.id, byName: me.name });
     revalidatePath("/settings");
@@ -84,14 +88,14 @@ export async function addUser(_prev: UserActionState, formData: FormData): Promi
   });
 }
 
-/** Emails a 2-hour reset link (never on the owner). */
+/** Emails a 2-hour reset link (never on the primary owner). */
 export async function resetUserPassword(userId: string): Promise<UserActionState> {
   return run(async () => {
     const me = await assertAdmin();
     const t = await target(userId);
     if (t.id === me.id) return fail("Use My password below to change your own password.");
     const problem = manageProblem(me, t, "reset the password of");
-    if (problem) return fail(isOwnerRole(t.role) ? "No one can reset the owner's password. The owner can use Forgot password? on the sign-in page." : problem);
+    if (problem) return fail(isPrimaryOwner(t) ? "No one can reset the primary owner's password. They can use Forgot password? on the sign-in page." : problem);
     if (!t.active) return fail(`Re-activate ${t.name} first.`);
     if (!t.passwordSetAt) return fail(`${t.name} hasn't set a password yet — use Send invite again.`);
     const out = await sendResetLink(t.id, me.id, me.name);
@@ -127,55 +131,73 @@ export async function setUserActive(userId: string, active: boolean): Promise<Us
   });
 }
 
-/** Owner only: make someone an admin or a user. */
-export async function setUserRole(userId: string, role: "ADMIN" | "USER"): Promise<UserActionState> {
+const ROLE_WORD = { OWNER: "an owner", ADMIN: "an admin", USER: "a user" } as const;
+
+/** Owners make someone an admin or a user; only the primary owner makes someone an (extra) owner or removes one. */
+export async function setUserRole(userId: string, role: "OWNER" | "ADMIN" | "USER"): Promise<UserActionState> {
   return run(async () => {
     const me = await assertOwner().catch(() => {
-      throw new AuthError("Only the owner can make or remove admins.");
+      throw new AuthError("Only an owner can make or remove admins.");
     });
-    if (role !== "ADMIN" && role !== "USER") return fail("Pick User or Admin.");
+    if (role !== "OWNER" && role !== "ADMIN" && role !== "USER") return fail("Pick User, Admin or Owner.");
     if (userId === me.id) return fail("You can't change your own role.");
     const t = await target(userId);
-    if (isOwnerRole(t.role)) return fail("No one can change the owner's role.");
-    await prisma.user.update({ where: { id: userId }, data: { role } });
+    if (isPrimaryOwner(t)) return fail("No one can change the primary owner's role.");
+    if ((role === "OWNER" || isOwnerRole(t.role)) && !me.primary) return fail("Only the primary owner can make or remove owners.");
+    if (role === t.role) return { ok: true, message: `${t.name} is already ${ROLE_WORD[role]}.` };
+    if (role === "OWNER" && !t.active) return fail(`Re-activate ${t.name} first.`);
+    if (role === "OWNER" && !t.passwordSetAt) return fail(`${t.name} needs to set a password and sign in once first.`);
+    // extraOwner is true only while someone is an extra owner (the primary owner never changes here)
+    await prisma.user.update({ where: { id: userId }, data: { role, extraOwner: role === "OWNER" } });
+    if (isOwnerRole(t.role) || role === "OWNER") revalidatePath("/", "layout");
     revalidatePath("/settings");
-    return { ok: true, message: `${t.name} is now ${role === "ADMIN" ? "an admin" : "a user"}.` };
+    return { ok: true, message: `${t.name} is now ${ROLE_WORD[role]}.` };
   });
 }
 
-/** Owner only: turn off someone's 2FA so they set it up again at their next sign-in. */
+/** Owners: turn off someone's 2FA so they set it up again at their next sign-in (another owner's: primary owner only). */
 export async function resetUserTwoFactor(userId: string): Promise<UserActionState> {
   return run(async () => {
     const me = await assertOwner();
     const t = await target(userId);
-    if (t.id === me.id || isOwnerRole(t.role)) return fail("You can't reset your own two-step sign-in here — use a backup code, or the emergency command (npm run owner:recover).");
+    if (t.id === me.id) return fail("You can't reset your own two-step sign-in here — use a backup code, or the emergency command (npm run owner:recover).");
+    if (isPrimaryOwner(t)) return fail("No one can reset the primary owner's two-step sign-in. The primary owner can use a backup code, or the emergency command (npm run owner:recover).");
+    const problem = manageProblem(me, t, "reset two-step sign-in for");
+    if (problem) return fail(problem);
     await resetTwoFactor(t.id);
     revalidatePath("/settings");
     return { ok: true, message: `${t.name}'s two-step sign-in was reset and they were signed out. They'll set it up again next time they sign in.` };
   });
 }
 
-/** Owner only: hand the owner role to an active admin, confirmed with the owner's own 2FA code. */
-export async function transferOwnership(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
+/**
+ * Primary owner only: hand "primary owner" to an active admin or owner, confirmed with their own 2FA code.
+ * Afterwards the old primary owner is an admin (default) or stays an owner ("then" = OWNER).
+ */
+export async function transferPrimaryOwner(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   return run(async () => {
-    const me = await assertOwner();
+    const me = await assertPrimaryOwner();
     const userId = String(formData.get("userId") ?? "");
     const code = String(formData.get("code") ?? "");
+    const then = formData.get("then") === "OWNER" ? "OWNER" : "ADMIN";
     const t = await target(userId);
-    if (t.id === me.id) return fail("You're already the owner.");
-    if (t.role !== "ADMIN" || !t.active) return fail("Ownership can only go to an active admin. Make them an admin first.");
+    if (t.id === me.id) return fail("You're already the primary owner.");
+    if ((t.role !== "ADMIN" && t.role !== "OWNER") || !t.active) return fail("Primary owner can only go to an active admin or owner. Make them an admin first.");
     if (!t.totpEnabledAt) return fail(`${t.name} needs to set up two-step sign-in first (at their next sign-in).`);
     const limit = await hitRateLimit("code", `user:${me.id}`);
     if (!limit.ok) return fail(tooManyMessage(limit));
     if (!(await verifySecondFactor(me.id, code))) return fail("That code didn't work. Use the newest code in your authenticator app.");
     await prisma.$transaction(async (tx) => {
-      // Demote first: the database allows only one owner at a time.
-      const demoted = await tx.user.updateMany({ where: { id: me.id, role: "OWNER" }, data: { role: "ADMIN" } });
-      if (demoted.count !== 1) throw new AuthError("You're no longer the owner.");
-      await tx.user.update({ where: { id: t.id }, data: { role: "OWNER" } });
+      // Step down first: the database allows only one primary owner at a time.
+      const down = await tx.user.updateMany({
+        where: { id: me.id, role: "OWNER", extraOwner: false },
+        data: then === "OWNER" ? { extraOwner: true } : { role: "ADMIN", extraOwner: false },
+      });
+      if (down.count !== 1) throw new AuthError("You're no longer the primary owner.");
+      await tx.user.update({ where: { id: t.id }, data: { role: "OWNER", extraOwner: false } });
     });
     revalidatePath("/", "layout");
-    return { ok: true, message: `${t.name} is now the owner. You're an admin.` };
+    return { ok: true, message: `${t.name} is now the primary owner. You're ${then === "OWNER" ? "an owner" : "an admin"}.` };
   });
 }
 
@@ -184,7 +206,7 @@ export async function transferOwnership(_prev: UserActionState, formData: FormDa
 export async function decideAccessRequest(requestId: string, decision: "approve" | "decline", role: "USER" | "ADMIN" = "USER"): Promise<UserActionState> {
   return run(async () => {
     const me = await assertOwner().catch(() => {
-      throw new AuthError("Only the owner can approve or decline access requests.");
+      throw new AuthError("Only an owner can approve or decline access requests.");
     });
     const r = decision === "approve" ? await approveAccessRequest(requestId, role === "ADMIN" ? "ADMIN" : "USER", me) : await declineAccessRequest(requestId, me);
     revalidatePath("/settings");

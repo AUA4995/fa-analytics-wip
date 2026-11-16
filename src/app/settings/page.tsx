@@ -15,7 +15,7 @@ import { isFrontConfigured } from "@/lib/front/client";
 import { XERO_SCOPES, isXeroConfigured } from "@/lib/xero/config";
 import { getConnection } from "@/lib/xero/auth";
 import { ownerName as getOwnerName, requireUser } from "@/lib/auth/session";
-import { isAdminRole, isOwnerRole } from "@/lib/auth/roles";
+import { isAdminRole, isOwnerRole, roleRank } from "@/lib/auth/roles";
 import { getAccessDomain } from "@/lib/auth/domain";
 import { getConnectionStatuses } from "@/lib/integrations/status";
 import { AccessDomainForm, AccessRequestsList, MyAccount, UsersCard } from "./users-card";
@@ -106,7 +106,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       </>
     );
   } else if (section === "users") {
-    const users = (await prisma.user.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] })).sort((a, b) => Number(b.role === "OWNER") - Number(a.role === "OWNER"));
+    const users = (await prisma.user.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] })).sort((a, b) => roleRank(b) - roleRank(a));
     const [accessRequests, accessDomain] = company.dbOk
       ? await Promise.all([prisma.accessRequest.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" } }), getAccessDomain()])
       : [[], ""];
@@ -114,7 +114,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       <>
         <Card title="Users" sub={`${ownerName} is the owner and can't be changed or removed here.`}>
           <UsersCard
-            me={{ id: me.id, role: me.role }}
+            me={{ id: me.id, role: me.role, primary: me.primary }}
             ownerName={ownerName}
             tz={company.timezone}
             users={users.map((u) => ({
@@ -122,6 +122,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
               name: u.name,
               email: u.email,
               role: u.role,
+              extraOwner: u.extraOwner,
               active: u.active,
               lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
               invited: !u.passwordSetAt,

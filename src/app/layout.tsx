@@ -60,7 +60,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {user ? (
           <AppShell
             initialPinned={pinned}
-            user={{ name: user.name, roleLabel: roleLabel(user.role), isAdmin: isAdminRole(user.role) }}
+            user={{ name: user.name, roleLabel: roleLabel(user.role, !user.primary), isAdmin: isAdminRole(user.role) }}
             companyName={company.name}
             logos={{ light: logoUrl(company, "light"), dark: logoUrl(company, "dark"), mark: logoUrl(company, "mark") }}
             counts={counts}

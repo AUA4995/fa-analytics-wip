@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { isAdminRole, isOwnerRole, type Role } from "./roles";
+import { PRIMARY_OWNER, isAdminRole, isOwnerRole, isPrimaryOwner, type Role } from "./roles";
 
 /**
  * Database-backed sessions. The cookie holds a random token; only its SHA-256 is stored.
@@ -35,6 +35,8 @@ export interface CurrentUser {
   email: string;
   name: string;
   role: Role;
+  /** The primary owner (OWNER with extraOwner = false) */
+  primary: boolean;
 }
 
 export interface PendingLogin {
@@ -101,7 +103,7 @@ async function sessionFromCookie() {
   try {
     const session = await prisma.session.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: { user: { select: { id: true, email: true, name: true, role: true, active: true, totpEnabledAt: true } } },
+      include: { user: { select: { id: true, email: true, name: true, role: true, extraOwner: true, active: true, totpEnabledAt: true } } },
     });
     const now = new Date();
     if (!session || session.expiresAt < now || !session.user.active) return null;
@@ -113,7 +115,7 @@ async function sessionFromCookie() {
         const locked = await prisma.session.update({
           where: { id: session.id },
           data: { twoFactorAt: null, twoFactorMethod: IDLE_LOCK, capAt: cap, expiresAt: new Date(Math.min(cap.getTime(), now.getTime() + PENDING_MINUTES * 60_000)) },
-          include: { user: { select: { id: true, email: true, name: true, role: true, active: true, totpEnabledAt: true } } },
+          include: { user: { select: { id: true, email: true, name: true, role: true, extraOwner: true, active: true, totpEnabledAt: true } } },
         });
         return locked;
       }
@@ -129,16 +131,16 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await sessionFromCookie();
   // A session counts only once the 2FA step is done.
   if (!session || !session.twoFactorAt) return null;
-  const { id, email, name, role } = session.user;
-  return { id, email, name, role };
+  const { id, email, name, role, extraOwner } = session.user;
+  return { id, email, name, role, primary: isPrimaryOwner({ role, extraOwner }) };
 }
 
 /** Password accepted, 2FA step (or set-up) still to do. */
 export async function getPendingLogin(): Promise<PendingLogin | null> {
   const session = await sessionFromCookie();
   if (!session || session.twoFactorAt) return null;
-  const { id, email, name, role, totpEnabledAt } = session.user;
-  return { sessionId: session.id, idleLocked: session.twoFactorMethod === IDLE_LOCK, capAt: session.capAt, user: { id, email, name, role, totpEnabled: !!totpEnabledAt }, enrolledNow: !!totpEnabledAt && session.twoFactorMethod === ENROLLED_MARK };
+  const { id, email, name, role, extraOwner, totpEnabledAt } = session.user;
+  return { sessionId: session.id, idleLocked: session.twoFactorMethod === IDLE_LOCK, capAt: session.capAt, user: { id, email, name, role, primary: isPrimaryOwner({ role, extraOwner }), totpEnabled: !!totpEnabledAt }, enrolledNow: !!totpEnabledAt && session.twoFactorMethod === ENROLLED_MARK };
 }
 
 /** 2FA done: swap the pending session for a full one (fresh token, so the pre-2FA cookie is worthless). */
@@ -181,9 +183,15 @@ export async function assertAdmin(): Promise<CurrentUser> {
   return user;
 }
 
+export async function assertPrimaryOwner(): Promise<CurrentUser> {
+  const user = await assertUser();
+  if (!user.primary) throw new AuthError("Only the primary owner can do that.");
+  return user;
+}
+
 export async function assertOwner(): Promise<CurrentUser> {
   const user = await assertUser();
-  if (!isOwnerRole(user.role)) throw new AuthError("Only the owner can do that.");
+  if (!isOwnerRole(user.role)) throw new AuthError("Only an owner can do that.");
   return user;
 }
 
@@ -205,6 +213,6 @@ export async function userCount(): Promise<number> {
 
 /** Name of the owner, for "ask <owner> to connect". */
 export async function ownerName(): Promise<string> {
-  const owner = await prisma.user.findFirst({ where: { role: "OWNER" }, select: { name: true } }).catch(() => null);
+  const owner = await prisma.user.findFirst({ where: PRIMARY_OWNER, select: { name: true } }).catch(() => null);
   return owner?.name ?? "the owner";
 }

@@ -83,8 +83,9 @@ model Setting {
 enum UserRole {
   ADMIN
   USER
-  /// Exactly one (Batch 2 item 1): above ADMIN — only the owner makes/removes admins, connects Xero/Front/AI,
-  /// resets 2FA and transfers ownership. Enforced in src/app/settings/user-actions.ts + a partial unique index.
+  /// Above ADMIN. Four levels (batch 3, 16/11/2026, same as the Accounts Hub): one primary owner
+  /// (User.extraOwner = false, partial unique index "User_single_primary_owner") > owners (extraOwner = true) > ADMIN > USER.
+  /// Each level manages only the levels below it; the primary owner can only be transferred.
   OWNER
 }
 
@@ -112,6 +113,8 @@ model User {
   totpLastStep  Int?
   /// Hashed single-use backup codes (10 at enrolment; used ones are removed)
   backupCodes   String[]  @default([])
+  /// Batch 3: true = an extra Owner. The primary owner is the OWNER with extraOwner = false (only one).
+  extraOwner    Boolean   @default(false)
 
   sessions   Session[]
   authTokens AuthToken[]

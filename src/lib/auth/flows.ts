@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PRIMARY_OWNER } from "@/lib/auth/roles";
 import { getCompany } from "@/lib/company";
 import type { AuthTokenPurpose } from "@/generated/prisma/enums";
 import { hashPassword, passwordProblem } from "./password";
@@ -155,7 +156,7 @@ export async function submitAccessRequest(input: AccessRequestInput): Promise<{ 
 export async function emailOwnerAboutRequest(requestId: string): Promise<MailResult> {
   const [req, owner] = await Promise.all([
     prisma.accessRequest.findUniqueOrThrow({ where: { id: requestId } }),
-    prisma.user.findFirst({ where: { role: "OWNER", active: true } }),
+    prisma.user.findFirst({ where: { ...PRIMARY_OWNER, active: true } }),
   ]);
   if (!owner) return { sent: false, reason: "there is no owner" };
   const ch = await frontSendChannel();
@@ -224,7 +225,7 @@ export function maskEmail(email: string): string {
  * no password is set, nothing secret is printed. Without Front nothing happens at all.
  */
 export async function sendOwnerRecovery(): Promise<RecoveryResult> {
-  const owner = await prisma.user.findFirst({ where: { role: "OWNER" } });
+  const owner = await prisma.user.findFirst({ where: PRIMARY_OWNER });
   if (!owner) return { sent: false, message: "No owner found — nothing changed." };
   const ch = await frontSendChannel();
   if (!ch.ok) return { sent: false, message: "Front not connected — cannot send; nothing changed." };

@@ -78,9 +78,9 @@ describe.skipIf(!hasDb)("users: owner rules and email links (integration)", () =
     await prisma.$disconnect();
   });
 
-  it("only the owner makes or removes admins; nobody changes their own role", async () => {
+  it("only an owner makes or removes admins; nobody changes their own role", async () => {
     await as(ids.admin);
-    expect(await act.setUserRole(ids.user, "ADMIN")).toEqual({ ok: false, message: "Only the owner can make or remove admins." });
+    expect(await act.setUserRole(ids.user, "ADMIN")).toEqual({ ok: false, message: "Only an owner can make or remove admins." });
     await as(ids.owner);
     expect(await act.setUserRole(ids.owner, "USER")).toEqual({ ok: false, message: "You can't change your own role." });
     expect(await act.setUserRole(ids.user, "ADMIN")).toMatchObject({ ok: true, message: "Uma User is now an admin." });
@@ -88,27 +88,29 @@ describe.skipIf(!hasDb)("users: owner rules and email links (integration)", () =
     expect(await act.setUserRole(ids.user, "USER")).toMatchObject({ ok: true });
   });
 
-  it("nobody changes the owner's role, resets the owner's password or 2FA, or deactivates the owner", async () => {
+  it("nobody changes the primary owner's role, resets their password or 2FA, or deactivates them", async () => {
     await as(ids.admin);
-    expect((await act.setUserActive(ids.owner, false)).message).toBe("No one can deactivate the owner.");
-    expect((await act.resetUserPassword(ids.owner)).message).toMatch(/^No one can reset the owner's password/);
-    expect((await act.resendInvite(ids.owner)).message).toBe("No one can invite the owner.");
-    expect((await act.resetUserTwoFactor(ids.owner)).message).toBe("Only the owner can do that.");
+    expect((await act.setUserActive(ids.owner, false)).message).toBe("No one can deactivate the primary owner.");
+    expect((await act.resetUserPassword(ids.owner)).message).toMatch(/^No one can reset the primary owner's password/);
+    expect((await act.resendInvite(ids.owner)).message).toBe("No one can invite the primary owner.");
+    expect((await act.resetUserTwoFactor(ids.owner)).message).toBe("Only an owner can do that.");
     await as(ids.owner);
     expect((await act.resetUserTwoFactor(ids.owner)).message).toMatch(/You can't reset your own two-step sign-in here/);
     const o = await prisma.user.findUniqueOrThrow({ where: { id: ids.owner } });
     expect(o).toMatchObject({ role: "OWNER", active: true });
   });
 
-  it("the database refuses a second owner", async () => {
+  it("the database refuses a second primary owner (extra owners are allowed)", async () => {
     await expect(prisma.user.update({ where: { id: ids.admin }, data: { role: "OWNER" } })).rejects.toThrow();
+    await prisma.user.update({ where: { id: ids.admin }, data: { role: "OWNER", extraOwner: true } });
+    await prisma.user.update({ where: { id: ids.admin }, data: { role: "ADMIN", extraOwner: false } });
   });
 
   it("admins add, deactivate and reset users only", async () => {
     await as(ids.admin);
-    expect(await act.addUser(empty, form({ name: "Ned", email: mail("ned"), role: "ADMIN" }))).toMatchObject({ ok: false, message: "Only the owner can add admins." });
-    expect((await act.setUserActive(ids.admin2, false)).message).toBe("Only the owner can deactivate an admin.");
-    expect((await act.resetUserPassword(ids.admin2)).message).toBe("Only the owner can reset the password of an admin.");
+    expect(await act.addUser(empty, form({ name: "Ned", email: mail("ned"), role: "ADMIN" }))).toMatchObject({ ok: false, message: "Only an owner can add admins." });
+    expect((await act.setUserActive(ids.admin2, false)).message).toBe("Only an owner can deactivate an admin.");
+    expect((await act.resetUserPassword(ids.admin2)).message).toBe("Only an owner can reset the password of an admin.");
 
     await prisma.session.create({ data: { tokenHash: `t-${stamp}`, userId: ids.user, expiresAt: new Date(Date.now() + 86_400_000), twoFactorAt: new Date() } });
     expect(await act.setUserActive(ids.user, false)).toMatchObject({ ok: true, message: "Uma User deactivated and signed out." });
@@ -166,10 +168,10 @@ describe.skipIf(!hasDb)("users: owner rules and email links (integration)", () =
     expect((await prisma.user.findUniqueOrThrow({ where: { id: ids.admin } })).passwordHash).toBe("x"); // unchanged until they use the link
   });
 
-  it("only the owner resets someone's 2FA — they set it up again and are signed out", async () => {
+  it("only an owner resets someone's 2FA — they set it up again and are signed out", async () => {
     await h.enrolForTest(ids.user);
     await as(ids.admin);
-    expect((await act.resetUserTwoFactor(ids.user)).message).toBe("Only the owner can do that.");
+    expect((await act.resetUserTwoFactor(ids.user)).message).toBe("Only an owner can do that.");
     await as(ids.owner);
     await prisma.session.create({ data: { tokenHash: `t2-${stamp}`, userId: ids.user, expiresAt: new Date(Date.now() + 86_400_000), twoFactorAt: new Date() } });
     expect(await act.resetUserTwoFactor(ids.user)).toMatchObject({ ok: true });
@@ -178,28 +180,52 @@ describe.skipIf(!hasDb)("users: owner rules and email links (integration)", () =
     expect(await prisma.session.count({ where: { userId: ids.user } })).toBe(0);
   });
 
-  it("transfer ownership: to an active admin only, confirmed with the owner's own code", async () => {
+  it("four roles: extra owners manage admins and users, only the primary owner makes owners or manages them", async () => {
+    await as(ids.owner);
+    expect(await act.setUserRole(ids.admin, "OWNER")).toMatchObject({ ok: true, message: "Adam Admin is now an owner." });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: ids.admin } })).toMatchObject({ role: "OWNER", extraOwner: true });
+    // the extra owner: manages admins and users, never owners or the primary owner
+    await as(ids.admin);
+    expect(await act.setUserRole(ids.admin2, "OWNER")).toEqual({ ok: false, message: "Only the primary owner can make or remove owners." });
+    expect(await act.setUserRole(ids.owner, "ADMIN")).toEqual({ ok: false, message: "No one can change the primary owner's role." });
+    expect(await act.setUserRole(ids.admin2, "USER")).toMatchObject({ ok: true });
+    expect(await act.setUserRole(ids.admin2, "ADMIN")).toMatchObject({ ok: true });
+    expect((await act.setUserActive(ids.owner, false)).message).toBe("No one can deactivate the primary owner.");
+    // a second extra owner can't touch the first one
+    await prisma.user.update({ where: { id: ids.admin2 }, data: { role: "OWNER", extraOwner: true } });
+    await as(ids.admin2);
+    expect((await act.setUserActive(ids.admin, false)).message).toBe("Only the primary owner can deactivate an owner.");
+    expect((await act.resetUserTwoFactor(ids.admin)).message).toBe("Only the primary owner can reset two-step sign-in for an owner.");
+    expect((await act.transferPrimaryOwner(empty, form({ userId: ids.admin2, code: "000000" }))).message).toBe("Only the primary owner can do that.");
+    // back to admins
+    await as(ids.owner);
+    expect(await act.setUserRole(ids.admin, "ADMIN")).toMatchObject({ ok: true, message: "Adam Admin is now an admin." });
+    expect(await act.setUserRole(ids.admin2, "ADMIN")).toMatchObject({ ok: true });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: ids.admin } })).toMatchObject({ role: "ADMIN", extraOwner: false });
+  });
+
+  it("transfer primary owner: to an active admin or owner, confirmed with the primary owner's own code", async () => {
     const ownerSecret = await h.enrolForTest(ids.owner);
     await h.enrolForTest(ids.admin2);
     await as(ids.owner);
-    expect((await act.transferOwnership(empty, form({ userId: ids.user, code: h.codeForTest(ownerSecret) }))).message).toMatch(/only go to an active admin/);
-    expect((await act.transferOwnership(empty, form({ userId: ids.admin2, code: "000000" }))).message).toMatch(/That code didn't work/);
+    expect((await act.transferPrimaryOwner(empty, form({ userId: ids.user, code: h.codeForTest(ownerSecret) }))).message).toMatch(/only go to an active admin or owner/);
+    expect((await act.transferPrimaryOwner(empty, form({ userId: ids.admin2, code: "000000" }))).message).toMatch(/That code didn't work/);
     await as(ids.admin);
-    expect((await act.transferOwnership(empty, form({ userId: ids.admin2, code: h.codeForTest(ownerSecret) }))).message).toBe("Only the owner can do that.");
+    expect((await act.transferPrimaryOwner(empty, form({ userId: ids.admin2, code: h.codeForTest(ownerSecret) }))).message).toBe("Only the primary owner can do that.");
     await as(ids.owner);
-    const r = await act.transferOwnership(empty, form({ userId: ids.admin2, code: h.codeForTest(ownerSecret) }));
-    expect(r).toEqual({ ok: true, message: "Abby Admin is now the owner. You're an admin." });
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: ids.owner } })).role).toBe("ADMIN");
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: ids.admin2 } })).role).toBe("OWNER");
+    const r = await act.transferPrimaryOwner(empty, form({ userId: ids.admin2, code: h.codeForTest(ownerSecret), then: "OWNER" }));
+    expect(r).toEqual({ ok: true, message: "Abby Admin is now the primary owner. You're an owner." });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: ids.owner } })).toMatchObject({ role: "OWNER", extraOwner: true });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: ids.admin2 } })).toMatchObject({ role: "OWNER", extraOwner: false });
     // and back, for the rest of the file
-    await prisma.user.update({ where: { id: ids.admin2 }, data: { role: "ADMIN" } });
-    await prisma.user.update({ where: { id: ids.owner }, data: { role: "OWNER" } });
+    await prisma.user.update({ where: { id: ids.admin2 }, data: { role: "ADMIN", extraOwner: false } });
+    await prisma.user.update({ where: { id: ids.owner }, data: { role: "OWNER", extraOwner: false } });
   });
 
-  it("access requests in Settings: only the owner approves or declines, once", async () => {
+  it("access requests in Settings: only an owner approves or declines, once", async () => {
     const req = await prisma.accessRequest.create({ data: { name: "Rita Request", email: mail("rita"), reason: "Covering accounts" } });
     await as(ids.admin);
-    expect((await act.decideAccessRequest(req.id, "approve", "ADMIN")).message).toBe("Only the owner can approve or decline access requests.");
+    expect((await act.decideAccessRequest(req.id, "approve", "ADMIN")).message).toBe("Only an owner can approve or decline access requests.");
     await as(ids.owner);
     const r = await act.decideAccessRequest(req.id, "approve", "ADMIN");
     expect(r).toMatchObject({ ok: true, message: "Approved — Rita Request is an admin and has been emailed an invitation." });

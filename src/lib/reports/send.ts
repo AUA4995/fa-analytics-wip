@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PRIMARY_OWNER } from "@/lib/auth/roles";
 import { getCompany } from "@/lib/company";
 import { createTask } from "@/lib/tasks";
 import { isFrontConfigured, sendWithAttachment } from "@/lib/front/client";
@@ -126,7 +127,7 @@ export async function runReportTick(now = new Date()): Promise<Array<{ id: strin
   // Project steps (Improvements): late steps' tasks go to the top of their owner's list
   await prisma.task.updateMany({ where: { source: { startsWith: "improve-step:" }, status: { not: "DONE" }, due: { lt: day }, priority: { not: "High" } }, data: { priority: "High" } });
   const reps = await prisma.report.findMany({ where: { schedule: { not: "OFF" } } });
-  const owner = await prisma.user.findFirst({ where: { role: "OWNER" }, select: { name: true, email: true } });
+  const owner = await prisma.user.findFirst({ where: PRIMARY_OWNER, select: { name: true, email: true } });
   if (!owner) return [];
   const since = new Date(now.getTime() - 20 * 3600000);
   const out: Array<{ id: string; result: SendResult }> = [];

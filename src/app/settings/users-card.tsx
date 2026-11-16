@@ -15,7 +15,7 @@ import {
   saveAccessDomain,
   setUserActive,
   setUserRole,
-  transferOwnership,
+  transferPrimaryOwner,
   type UserActionState,
 } from "./user-actions";
 
@@ -26,6 +26,8 @@ export interface UserRow {
   name: string;
   email: string;
   role: Role;
+  /** OWNER only: true = extra owner, false = the primary owner */
+  extraOwner: boolean;
   active: boolean;
   lastLoginAt: string | null;
   /** Invited, hasn't set a password yet */
@@ -63,17 +65,26 @@ function Message({ m }: { m: UserActionState | null }) {
   );
 }
 
-/** Settings → Company & users → Users (Batch 2 items 1, 2, 32). The server enforces every rule; this only hides what you can't do. */
-export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: { id: string; role: Role }; ownerName: string; tz: string }) {
+const rank = (u: { role: Role; extraOwner?: boolean }) => (u.role === "OWNER" ? (u.extraOwner ? 3 : 4) : u.role === "ADMIN" ? 2 : 1);
+const LABEL = (u: { role: Role; extraOwner?: boolean }) => (u.role === "OWNER" ? (u.extraOwner ? "Owner" : "Primary owner") : u.role === "ADMIN" ? "Admin" : "User");
+
+/**
+ * Settings → Company & users → Users (Batch 2 items 1, 2, 32; four roles batch 3). The server enforces every rule;
+ * this only hides what you can't do: each level manages only the levels below it.
+ */
+export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: { id: string; role: Role; primary: boolean }; ownerName: string; tz: string }) {
   const [state, action, pending] = useActionState(addUser, { ok: false, message: "" } as UserActionState);
   const [msg, setMsg] = useState<UserActionState | null>(null);
   const [busy, start] = useTransition();
   const [transferTo, setTransferTo] = useState<string | null>(null);
   const isOwner = me.role === "OWNER";
+  const myRank = rank({ role: me.role, extraOwner: !me.primary });
   const shown = msg ?? (state.message ? state : null);
   const act = (fn: () => Promise<UserActionState>) => start(async () => setMsg(await fn()));
-  /** Admins manage users only; the owner manages admins and users; nobody manages the owner. */
-  const canManage = (u: UserRow) => u.role !== "OWNER" && (isOwner || u.role === "USER");
+  /** Strictly below me: users < admins < owners < primary owner. Nobody manages the primary owner. */
+  const canManage = (u: UserRow) => rank(u) < myRank && rank(u) < 4;
+  /** Roles I may give: owners give admin/user; the primary owner also gives owner. */
+  const canSetRole = (u: UserRow) => isOwner && canManage(u);
 
   return (
     <div className="space-y-4 text-sm">
@@ -99,20 +110,23 @@ export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: 
                     <div className="meta">{u.email}</div>
                   </td>
                   <td>
-                    {u.role === "OWNER" ? (
-                      <Pill tone="blue">Owner</Pill>
-                    ) : isOwner && !mine ? (
+                    {u.role === "OWNER" && !u.extraOwner ? (
+                      <Pill tone="blue">Primary owner</Pill>
+                    ) : canSetRole(u) && !mine ? (
                       <select
                         value={u.role}
                         disabled={busy}
                         aria-label={`Role for ${u.name}`}
-                        onChange={(e) => act(() => setUserRole(u.id, e.target.value as "ADMIN" | "USER"))}
+                        onChange={(e) => act(() => setUserRole(u.id, e.target.value as "OWNER" | "ADMIN" | "USER"))}
                       >
                         <option value="USER">User</option>
                         <option value="ADMIN">Admin</option>
+                        {me.primary && <option value="OWNER">Owner</option>}
                       </select>
+                    ) : u.role === "OWNER" ? (
+                      <Pill tone="blue">Owner</Pill>
                     ) : (
-                      <span>{u.role === "ADMIN" ? "Admin" : "User"}</span>
+                      <span>{LABEL(u)}</span>
                     )}
                     {mine && <div className="meta">You can&apos;t change your own role</div>}
                   </td>
@@ -145,7 +159,7 @@ export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: 
                           Reset password
                         </button>
                       )}
-                      {isOwner && !mine && u.role !== "OWNER" && u.twoFactor && (
+                      {isOwner && !mine && canManage(u) && u.twoFactor && (
                         <button
                           className="lnk"
                           disabled={busy}
@@ -156,9 +170,9 @@ export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: 
                           Reset 2FA
                         </button>
                       )}
-                      {isOwner && u.role === "ADMIN" && u.active && u.twoFactor && (
+                      {me.primary && !mine && (u.role === "ADMIN" || u.role === "OWNER") && u.active && u.twoFactor && (
                         <button className="lnk" disabled={busy} onClick={() => setTransferTo(transferTo === u.id ? null : u.id)}>
-                          Make owner
+                          Make primary owner
                         </button>
                       )}
                       {canManage(u) && !mine && (
@@ -205,7 +219,12 @@ export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: 
       <p className="meta" style={{ margin: 0 }}>
         Adding someone emails them a link to set their password (valid 7 days); then they set up two-step sign-in. Users can work every screen. Admins
         can also add users and change settings.{" "}
-        {isOwner ? "Only you (owner) can add or remove admins, connect Xero, Front and AI, and reset two-step sign-in." : `Only ${ownerName} (owner) can add admins, connect Xero, Front and AI, and reset two-step sign-in.`}
+        Four levels: primary owner &gt; owners &gt; admins &gt; users — each manages only the levels below.{" "}
+        {me.primary
+          ? "You (primary owner) also make or remove owners and can hand over primary owner."
+          : isOwner
+            ? `Owners add or remove admins, connect Xero, Front and AI, and reset two-step sign-in. Only ${ownerName} (primary owner) makes or removes owners.`
+            : `Only an owner can add admins, connect Xero, Front and AI, and reset two-step sign-in (primary owner: ${ownerName}).`}
       </p>
     </div>
   );
@@ -213,7 +232,7 @@ export function UsersCard({ users, me, ownerName, tz }: { users: UserRow[]; me: 
 
 function TransferOwnership({ user, onDone }: { user: UserRow; onDone: (m: UserActionState) => void }) {
   const [state, action, pending] = useActionState(async (p: UserActionState, fd: FormData) => {
-    const r = await transferOwnership(p, fd);
+    const r = await transferPrimaryOwner(p, fd);
     onDone(r);
     return r;
   }, { ok: false, message: "" } as UserActionState);
@@ -221,11 +240,18 @@ function TransferOwnership({ user, onDone }: { user: UserRow; onDone: (m: UserAc
     <form action={action} className="mt-2 grid gap-2 rounded border border-border p-2" style={{ maxWidth: 300 }}>
       <input type="hidden" name="userId" value={user.id} />
       <span className="meta">
-        Make {user.name} the owner? You become an admin. Enter your 6-digit code to confirm.
+        Make {user.name} the primary owner? Enter your 6-digit code to confirm.
       </span>
+      <label className="meta">
+        Afterwards I&apos;m{" "}
+        <select name="then" defaultValue="OWNER">
+          <option value="OWNER">an owner</option>
+          <option value="ADMIN">an admin</option>
+        </select>
+      </label>
       <input type="text" name="code" inputMode="numeric" autoComplete="one-time-code" placeholder="123456" required maxLength={7} />
       <button className="btn danger" disabled={pending}>
-        {pending ? "Checking…" : `Make ${user.name.split(" ")[0]} the owner`}
+        {pending ? "Checking…" : `Make ${user.name.split(" ")[0]} the primary owner`}
       </button>
       {!state.ok && state.message && <span className="msg-err">{state.message}</span>}
     </form>
@@ -283,7 +309,7 @@ export function AccessRequestsList({ requests, isOwner, ownerName, tz }: { reque
                         </button>
                       </div>
                     ) : (
-                      <span className="meta">Only {ownerName} (owner) can approve</span>
+                      <span className="meta">Only an owner can approve</span>
                     )}
                   </td>
                 </tr>

@@ -1,5 +1,6 @@
 "use server";
 
+import { PRIMARY_OWNER } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db";
 import { approveAccessRequest, declineAccessRequest } from "@/lib/auth/flows";
 import { checkAuthToken, consumeAuthToken, tokenProblemMessage } from "@/lib/auth/tokens";
@@ -25,7 +26,7 @@ export async function decideAccessWithLink(_prev: AccessDecisionState, formData:
   const req = check.token.accessRequest;
   if (!req || req.status !== "PENDING") return { error: "This request has already been dealt with." };
 
-  const owner = await prisma.user.findFirst({ where: { role: "OWNER", active: true } });
+  const owner = await prisma.user.findFirst({ where: { ...PRIMARY_OWNER, active: true } });
   if (!owner) return { error: "There's no owner account to confirm with." };
   if (!owner.totpEnabledAt) return { error: "Set up two-step sign-in first (sign in to the app), then open this link again." };
   if (!code) return { error: "Enter the 6-digit code from your authenticator app." };
