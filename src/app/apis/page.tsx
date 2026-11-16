@@ -10,6 +10,7 @@ import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { getConnectionStatuses } from "@/lib/integrations/status";
 import { SCOPES } from "@/lib/apikeys/scopes";
+import { SOURCES } from "@/lib/sources/registry";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "API connections" };
@@ -30,7 +31,7 @@ export default async function ApisPage({ searchParams }: { searchParams: Promise
 }
 
 async function Connected() {
-  const [statuses, sales, pnl, orders, lastImport, payRuns, tickets, bal, bills] = await Promise.all([
+  const [statuses, sales, pnl, orders, lastImport, payRuns, tickets, bal, bills, thomax, thomaxRows, thomaxLast] = await Promise.all([
     getConnectionStatuses(),
     prisma.xeroSale.aggregate({ _min: { date: true }, _max: { date: true }, _count: true }),
     prisma.xeroPnl.aggregate({ _min: { month: true }, _max: { month: true } }),
@@ -40,6 +41,9 @@ async function Connected() {
     prisma.frontTicketMonth.aggregate({ _min: { month: true }, _max: { month: true } }),
     prisma.xeroBalance.aggregate({ _min: { month: true }, _max: { month: true } }),
     prisma.xeroBill.aggregate({ _count: true }),
+    prisma.thomaxConnection.findUnique({ where: { id: "thomax" }, select: { cluster: true, username: true } }),
+    prisma.thomaxRow.aggregate({ _count: true, _min: { at: true }, _max: { at: true } }),
+    prisma.sourceRun.findFirst({ where: { source: "THOMAX" }, orderBy: { startedAt: "desc" } }),
   ]);
   const st = (k: string) => statuses.find((s) => s.key === k);
   const tone = (s?: { state: string }) => (!s ? "grey" : s.state === "connected" ? "green" : s.state === "error" ? "red" : "grey");
@@ -48,10 +52,16 @@ async function Connected() {
     { name: "Xero Payroll (AU)", what: "Employees, pay runs, payslips (hours, gross, super) — labour cost only", state: <Pill tone={payRuns._count ? "green" : "grey"}>{payRuns._count ? "reading" : "no data yet"}</Pill>, last: payRuns._max.paymentDate ? `last pay run ${ad(payRuns._max.paymentDate)}` : "—", period: payRuns._min.paymentDate ? `${ad(payRuns._min.paymentDate)} → ${ad(payRuns._max.paymentDate)}` : "—", manage: <Link href="/data?section=xero">Data sources → Xero</Link> },
     { name: "Front", what: "Ticket counts per client; sends report emails and drafts (the only write)", state: <Pill tone={tone(st("front"))}>{st("front")?.state ?? "not set up"}</Pill>, last: st("front")?.headline ?? "—", period: tickets._min.month ? `${tickets._min.month} → ${tickets._max.month}` : "—", manage: <Link href="/settings?section=company">Settings → Company</Link> },
     { name: "WMS files (Thomax, 3PLWMS, Logiwa)", what: "Orders and charge volumes by client, uploaded as files", state: <Pill tone={orders._count ? "green" : "grey"}>{orders._count ? "loaded" : "no files yet"}</Pill>, last: lastImport ? `last file ${au(lastImport.createdAt)} · ${lastImport.fileName}` : "—", period: orders._min.date ? `orders ${ad(orders._min.date)} → ${ad(orders._max.date)}` : "—", manage: <Link href="/data?section=wms">Data sources → WMS</Link> },
-    { name: "Thomax API", what: "Automatic daily pull instead of files", state: <Pill tone="grey">waiting for Thomax</Pill>, last: "Needs the base address / cluster code, key method and query names (support@thomax.com)", period: "Ends 31/05/2027 — data kept as archive", manage: "—" },
+    { name: "Thomax API (.wms Query API)", what: "Full copy of every Thomax table — history from 2021, then nightly", state: <Pill tone={thomax ? (thomaxLast?.status === "FAILED" ? "red" : "green") : "grey"}>{thomax ? (thomaxLast?.status === "FAILED" ? "problem" : "connected") : "not connected"}</Pill>, last: thomaxLast ? `${thomaxLast.label} ${au(thomaxLast.startedAt)}` : thomax ? "connected, not synced yet" : "Owner connects it on Data sources → WMS", period: thomaxRows._count ? `${thomaxRows._count.toLocaleString("en-AU")} rows · ${ad(thomaxRows._min.at)} → ${ad(thomaxRows._max.at)} · Thomax ends 31/05/2027 — kept as archive` : "Ends 31/05/2027 — data kept as archive", manage: <Link href="/data?section=wms">Data sources → WMS</Link> },
     { name: "Claude (AI)", what: "Report summaries — figures only, never names of people", state: <Pill tone={tone(st("ai"))}>{st("ai")?.state ?? "not set up"}</Pill>, last: st("ai")?.headline ?? "—", period: "—", manage: <Link href="/data?section=ai">Data sources → AI</Link> },
-    { name: "CLM (contracts & rates)", what: "Client rates, renewal dates, schedule of rates", state: <Pill tone="grey">not connected yet</Pill>, last: "Rates and renewal dates entered in Settings → Clients until then", period: "—", manage: <Link href="/data?section=contracts">Data sources → Contracts</Link> },
-    { name: "Dyspatch", what: "Billing rates for the rate checks", state: <Pill tone="grey">export files</Pill>, last: "API details to come (Varun)", period: "—", manage: <Link href="/leakage?section=rates">Leakage → Rate checks</Link> },
+    ...SOURCES.map((d) => ({
+      name: d.name,
+      what: `${d.reads} Affects: ${d.affects.map((a) => `${a.where} (until then: ${a.until})`).join("; ")}.`,
+      state: <Pill tone="amber">not connected</Pill>,
+      last: d.needs,
+      period: "—",
+      manage: d.key === "dyspach" ? <Link href="/leakage?section=ratechecks">Leakage → Rate checks</Link> : d.key === "clm" ? <Link href="/data?section=contracts">Data sources → Contracts</Link> : <>—</>,
+    })),
   ];
   return (
     <>

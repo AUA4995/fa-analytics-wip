@@ -25,6 +25,9 @@ connected, a page says "no data yet".
 
 ## Local setup (Windows work laptop — no Docker)
 
+> For running it to **use** (UAT and daily), follow **docs/INSTALL-LOCAL.md** (build + start, auto-start, updates,
+> encrypted backups). The steps below are for development (`npm run dev`).
+
 Prerequisites: Node 22+, PostgreSQL 16 (already installed for the Accounts Hub), Git.
 
 > PowerShell blocks `.ps1` scripts on this laptop, so use `npm.cmd` / `npx.cmd` instead of `npm` / `npx`.

@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { NotConnected } from "@/components/ui/not-connected";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
 import { PageHeader } from "@/components/ui/page-header";
 import { parsePanel } from "@/components/ui/panel";
-import { Pill } from "@/components/ui/pill";
 import { parseSection } from "@/components/ui/sections";
 import { WithSubNav } from "@/components/ui/sub-nav";
 import { Workbench, type WbLine } from "@/components/work/workbench";
@@ -74,7 +74,7 @@ function Calendar({ clients, reviews }: { clients: Awaited<ReturnType<typeof pri
             <i className="mc" style={{ background: col }} /> {l}
           </span>
         ))}
-        <Pill tone="amber">CLM dates: coming soon</Pill>
+        <NotConnected source="clm" until="reviews started here and renewal dates in Settings → Clients" />
       </div>
       <Card>
         <div className="tw">

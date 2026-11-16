@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotConnected } from "@/components/ui/not-connected";
 import { Card } from "@/components/ui/card";
 import { ClickableRow } from "@/components/ui/clickable-row";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
@@ -90,6 +91,9 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
         {tile("mism", "Rate mismatches", String(mism.length), "CLM vs Dyspatch vs WMS")}
         {tile("rate", "Recovery rate", pc(s.rate), s.days != null ? `avg ${Math.round(s.days)} days to recover` : "no recoveries yet")}
       </div>
+      <p className="meta" style={{ margin: "4px 0 10px" }}>
+        <NotConnected source="clm" until="rates entered in Settings → Clients" /> <NotConnected source="dyspach" until="Dyspach rate export files" />
+      </p>
       {card === "found" && <ItemsTable items={s.found} cn={cn} title="All findings" />}
       {card === "rec" && (
         <Card title="Recovered" sub="Billed by hand in Xero after a finding. The work was already done and paid for, so recovered money goes straight to profit.">

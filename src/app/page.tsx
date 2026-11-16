@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotConnected } from "@/components/ui/not-connected";
 import { ComboChart, Sparkline, TargetLine } from "@/components/charts/charts";
 import { Card, EmptyState } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -266,7 +267,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             </li>
           </ul>
         </Card>
-        <Card title="Renewals and reviews" sub="Contract renewals in the next 90 days and rate reviews in progress.">
+        <Card title="Renewals and reviews" sub={<>Contract renewals in the next 90 days and rate reviews in progress. <NotConnected source="clm" until="renewal dates in Settings → Clients" /></>}>
           {!renewals.length && !reviews.length ? (
             <p className="empty">None — renewal dates come from CLM once connected (Settings → Clients until then).</p>
           ) : (

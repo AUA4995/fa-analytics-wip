@@ -1,5 +1,9 @@
 # FA Analytics — hosting notes (for Marcus)
 
+> **Current decision (02/11/2026, confirmed 11/11/2026):** Analytics runs locally — Asal's laptop for testing, then
+> the office Mac Mini behind a private connection (Sophos VPN or Tailscale). Not on Vercel, not on the internet.
+> Step-by-step: **docs/INSTALL-LOCAL.md**. The Docker notes below stay as an option for a server later.
+
 Same pattern as the Accounts Hub: one Next.js app + one PostgreSQL database, deployed from GitHub
 (`AUA4995/FA-Analytics`, branch `main`). Its **own database** — not the Hub's.
 
@@ -12,6 +16,8 @@ The app runs background jobs inside the server process (pg-boss, stored in the s
 | `xero-sync` | 05:30 daily | read-only Xero read (accounts, contacts, sales, bills, P&L, balance sheet, AU Payroll), then leakage detection, notifications, task re-checks |
 | `front-tickets` | 05:45 daily | Front ticket counts per client |
 | `report-tick` | every hour at :05 | scheduled report emails that are due; late project steps raised |
+| `thomax-nightly` | 02:15 daily | Thomax copy: master tables in full + the last N days of every other table |
+| `thomax-history` | 20:05, then step by step until 06:00 | Thomax history load, month by month, until it reaches today |
 
 Serverless hosting (Vercel) stops the process between requests, so these would never run. Use Docker on the FA
 server / a VM (or any host that keeps one container running). **Run exactly one container** — two would both send
