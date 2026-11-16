@@ -1113,3 +1113,92 @@ model ApiKey {
   revokedAt  DateTime?
   revokedBy  String?
 }
+
+// =====================================================================================
+// Batch 1 (16/11/2026) — Thomax (.wms) Query API: a full raw copy of every table, kept in Analytics
+// (decision 11/11/2026: only Analytics connects to Thomax; the Hub reads results from the Analytics API).
+// Field names are not hard-coded: rows are stored as JSON exactly as Thomax returns them.
+// =====================================================================================
+
+/// The one Thomax connection (row id "thomax"). The password is AES-GCM encrypted (TOKEN_ENCRYPTION_KEY).
+model ThomaxConnection {
+  id          String    @id @default("thomax")
+  /// Cluster sub-domain: https://<cluster>.dotwms.com (FA = "e")
+  cluster     String    @default("e")
+  username    String
+  passwordEnc String
+  /// History load starts here (Thomax started at FA in 2021)
+  historyFrom DateTime  @default(dbgenerated("'2021-01-01'::date")) @db.Date
+  /// Nightly re-read of the last N days for transactional tables, to pick up status changes
+  recheckDays Int       @default(14)
+  enabled     Boolean   @default(true)
+  updatedBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+/// One Query API table and how it is copied. Fields are discovered with "Explore" (a Limit=5 call).
+model ThomaxTable {
+  /// Thomax table code, e.g. PCK, PCK1, CON, RCPA, ULD, ITM, TNT
+  name          String    @id
+  enabled       Boolean   @default(true)
+  /// TRANSACTIONAL (copied by date window) | MASTER (re-read in full each night)
+  kind          String    @default("TRANSACTIONAL")
+  /// Field names found by Explore, in Thomax order
+  fields        Json?
+  /// Up to 5 sample rows from Explore (owners only; shown on Data sources → WMS)
+  sample        Json?
+  exploredAt    DateTime?
+  /// Date field used for history windows and nightly pulls (e.g. JobCreateTime); null → treated as MASTER
+  dateField     String?
+  /// Field(s) that identify one row, so a re-read updates it instead of adding a copy. Empty → whole-row hash.
+  keyFields     String[]  @default([])
+  /// Fields indexed for Operations → Order lookup (order no, consignment no, reference …)
+  lookupFields  String[]  @default([])
+  /// Set when an owner saves the table settings; nothing is copied before that (keys must be confirmed)
+  confirmedAt   DateTime?
+  confirmedBy   String?
+  /// History load: windows done up to (exclusive). null = not started.
+  historyDoneTo DateTime? @db.Date
+  /// Newest dateField value seen
+  maxSeen       DateTime?
+  lastSyncAt    DateTime?
+  lastError     String?
+  rowCount      Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  rows ThomaxRow[]
+}
+
+/// One Thomax row, stored as returned. `key` is built from keyFields (or a hash of the whole row).
+model ThomaxRow {
+  id        BigInt      @id @default(autoincrement())
+  table     String
+  tbl       ThomaxTable @relation(fields: [table], references: [name], onDelete: Cascade)
+  key       String
+  data      Json
+  /// sha256 of data — unchanged rows are not rewritten
+  hash      String
+  /// Value of the table's dateField, for windows and time charts
+  at        DateTime?
+  firstSeen DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  refs ThomaxRef[]
+
+  @@unique([table, key])
+  @@index([table, at])
+}
+
+/// Lookup index: one row per (row, lookup field value), so Order lookup is an indexed exact match.
+model ThomaxRef {
+  id    BigInt    @id @default(autoincrement())
+  rowId BigInt
+  row   ThomaxRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  /// Upper-cased, trimmed value
+  value String
+  field String
+
+  @@index([value])
+  @@index([rowId])
+}

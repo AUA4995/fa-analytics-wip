@@ -12,6 +12,8 @@ import { prisma } from "@/lib/db";
 import { isFrontConfigured } from "@/lib/front/client";
 import { getConnection } from "@/lib/xero/auth";
 import { WMS_SOURCES } from "@/lib/wms/import";
+import { ThomaxPanel } from "@/components/data/thomax-panel";
+import { isOwnerRole } from "@/lib/auth/roles";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Data sources" };
@@ -27,11 +29,13 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 export default async function DataPage({ searchParams }: { searchParams: SP }) {
   const me = await requireUser();
   const admin = isAdminRole(me.role);
-  const section = parseSection("data", (await searchParams).section);
+  const sp = await searchParams;
+  const section = parseSection("data", sp.section);
+  const openTable = typeof sp.t === "string" ? sp.t : undefined;
   return (
     <WithSubNav page="data" current={section}>
       <PageHeader title="Data sources" subtitle="Everything here is read-only: the app copies data in, never changes the source." />
-      {section === "wms" && <WmsSection admin={admin} />}
+      {section === "wms" && <WmsSection admin={admin} owner={isOwnerRole(me.role)} openTable={openTable} />}
       {section === "xero" && <XeroSection admin={admin} />}
       {section === "front" && <FrontSection admin={admin} />}
       {section === "contracts" && <ContractsSection />}
@@ -40,7 +44,7 @@ export default async function DataPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-async function WmsSection({ admin }: { admin: boolean }) {
+async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: boolean; openTable?: string }) {
   const [imports, coverage, orderCoverage, clients, maps] = await Promise.all([
     prisma.volumeImport.findMany({ orderBy: { createdAt: "desc" }, take: 30, include: { _count: { select: { lines: true, orders: true } } } }),
     prisma.volumeLine.groupBy({ by: ["source", "tenant"], _min: { date: true }, _max: { date: true }, _count: { _all: true } }),
@@ -61,14 +65,8 @@ async function WmsSection({ admin }: { admin: boolean }) {
   const rows = [...keys.values()].sort((a, b) => a.source.localeCompare(b.source) || a.tenant.localeCompare(b.tenant));
   return (
     <>
+      <ThomaxPanel admin={admin} owner={owner} open={openTable} />
       <div className="grid2">
-        <Card title="Thomax (dotWMS) · API">
-          <p className="small" style={{ marginTop: 0 }}>
-            <Pill tone="amber">waiting for Thomax</Pill> The API pull (history from 2021, a few months per night, then daily) needs the API details from Thomax: the base address / cluster code, how the key is sent, and the
-            query names for orders and charges (support@thomax.com). Contract ends 31/05/2027 — about a month to export after that.
-          </p>
-          <p className="meta" style={{ marginBottom: 0 }}>Until then, load Thomax exports as files below; the API later fills the same tables and doesn&apos;t double-count.</p>
-        </Card>
         <Card title="Logiwa · API">
           <p className="small" style={{ marginTop: 0 }}>
             <Pill tone="grey">not live yet</Pill> Connects with an API key once Logiwa is live; it then becomes the only live WMS source. Its client and charge codes join through Settings → Clients and Cost pools & mapping.

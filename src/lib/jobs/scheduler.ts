@@ -8,12 +8,16 @@ import { jobsSchema, pgConnectionString } from "@/lib/db-url";
  *   xero-sync     — nightly incremental Xero read (05:30 Sydney) + "Sync now" / "Full re-read" buttons
  *   front-tickets — nightly Front ticket counts per client (05:45), current + previous month
  *   report-tick   — hourly: scheduled report emails that are due (Sydney day + send time), once per day each
- * Later: the Thomax API pull (when Thomax sends the API details).
+ *   thomax-nightly — 02:15 Sydney: master tables in full + the last N days of transactional tables
+ *   thomax-history — the history load, one step (a few month windows) at a time, re-queued until done;
+ *                    runs only 20:00–06:00 Sydney so it doesn't slow Thomax for Power BI / daily emails
  */
 
 export const QUEUE_XERO_SYNC = "xero-sync";
 export const QUEUE_FRONT_TICKETS = "front-tickets";
 export const QUEUE_REPORT_TICK = "report-tick";
+export const QUEUE_THOMAX_NIGHTLY = "thomax-nightly";
+export const QUEUE_THOMAX_HISTORY = "thomax-history";
 const TZ = "Australia/Sydney";
 
 let boss: PgBoss | null = null;
@@ -46,6 +50,11 @@ export async function startScheduler(): Promise<void> {
   await b.schedule(QUEUE_XERO_SYNC, "30 5 * * *", { kind: "INCREMENTAL" }, { tz: TZ });
   await b.schedule(QUEUE_FRONT_TICKETS, "45 5 * * *", { months: 2 }, { tz: TZ });
   await b.schedule(QUEUE_REPORT_TICK, "5 * * * *", {}, { tz: TZ });
+  await b.createQueue(QUEUE_THOMAX_NIGHTLY);
+  await b.createQueue(QUEUE_THOMAX_HISTORY);
+  await b.schedule(QUEUE_THOMAX_NIGHTLY, "15 2 * * *", {}, { tz: TZ });
+  // Picks the history load up again each evening (a no-op once it's done).
+  await b.schedule(QUEUE_THOMAX_HISTORY, "5 20 * * *", {}, { tz: TZ });
   await b.work<{ kind?: "FULL" | "INCREMENTAL"; by?: string }>(QUEUE_XERO_SYNC, async ([job]) => {
     const { getConnection } = await import("@/lib/xero/auth");
     if (!(await getConnection())) return;
@@ -69,6 +78,19 @@ export async function startScheduler(): Promise<void> {
   await b.work(QUEUE_REPORT_TICK, async () => {
     const { runReportTick } = await import("@/lib/reports/send");
     await runReportTick();
+  });
+  await b.work(QUEUE_THOMAX_NIGHTLY, async () => {
+    const { getCreds, nightly } = await import("@/lib/thomax/sync");
+    if (!(await getCreds())) return;
+    await nightly();
+  });
+  await b.work<{ anyTime?: boolean }>(QUEUE_THOMAX_HISTORY, async ([job]) => {
+    const { getCreds, historyStep } = await import("@/lib/thomax/sync");
+    if (!(await getCreds())) return;
+    const { thomaxWindowOpen } = await import("@/lib/thomax/window");
+    if (!job.data?.anyTime && !thomaxWindowOpen(new Date())) return; // tonight's 20:05 run picks it up
+    const r = await historyStep(6);
+    if (r.remaining > 0) await b.send(QUEUE_THOMAX_HISTORY, { anyTime: job.data?.anyTime ?? false }, { startAfter: 30, singletonKey: "thomax-history-next" });
   });
   console.log("[jobs] scheduler started");
 }

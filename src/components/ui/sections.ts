@@ -5,6 +5,7 @@
 
 export type PageKey =
   | "overview"
+  | "operations"
   | "cost"
   | "leakage"
   | "improve"
@@ -28,6 +29,12 @@ export interface PageDef {
 /** FA Analytics menu (docs/BRIEF.md §5). */
 export const PAGES: Record<PageKey, PageDef> = {
   overview: { key: "overview", label: "Overview", href: "/", sections: [] },
+  operations: {
+    key: "operations",
+    label: "Operations",
+    href: "/operations",
+    sections: [["lookup", "Order lookup"], ["receiving", "Receiving"], ["sla", "SLA"], ["returns", "Returns"], ["trends", "Trends & forecast"]],
+  },
   cost: { key: "cost", label: "Cost & margin", href: "/cost", sections: [["base", "Base cost"], ["serve", "Cost to serve"]] },
   leakage: {
     key: "leakage",
@@ -74,7 +81,7 @@ export const PAGES: Record<PageKey, PageDef> = {
 };
 
 /** Main menu order; Data sources, API connections and Settings sit at the bottom of the menu. */
-export const MAIN_MENU: PageKey[] = ["overview", "cost", "leakage", "improve", "rates", "reports", "kpi", "finance", "tasks"];
+export const MAIN_MENU: PageKey[] = ["overview", "operations", "cost", "leakage", "improve", "rates", "reports", "kpi", "finance", "tasks"];
 export const BOTTOM_MENU: PageKey[] = ["data", "apis", "settings"];
 
 /** Which page a pathname belongs to (null for login/setup/unknown). */

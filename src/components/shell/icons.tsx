@@ -4,6 +4,7 @@ import type { PageKey } from "@/components/ui/sections";
 /** Line icons on a 24px grid (stroke 1.8, round caps), same style as the confirmed demo. */
 const PATHS: Partial<Record<PageKey, string>> = {
   overview: "M3 13h8V3H3z|M13 21h8V11h-8z|M3 21h8v-6H3z|M13 3v6h8V3z",
+  operations: "M3 9l9-6 9 6v12H3z|M7 21v-8h10v8|M7 17h10",
   cost: "M4 6c0 1.7 3.6 3 8 3s8-1.3 8-3-3.6-3-8-3-8 1.3-8 3z|M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6|M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6",
   leakage: "M12 2.7s-6 6.6-6 11.3a6 6 0 0 0 12 0C18 9.3 12 2.7 12 2.7z",
   improve: "M3 17l6-6 4 4 8-8|M14 7h7v7",
