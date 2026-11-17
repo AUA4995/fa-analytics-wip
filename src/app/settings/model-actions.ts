@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { assertAdmin, assertUser } from "@/lib/auth/session";
+import { isAdminRole } from "@/lib/auth/roles";
 import { formatFieldValue, logSafe } from "@/lib/model/fields";
 import { ENTITY_FIELDS } from "@/lib/model/specs";
 import { getLogs, logChange, updateValue, type Actor, type LogLine } from "@/lib/model/store";
@@ -30,8 +31,14 @@ export async function updateValueAction(entity: string, id: string, field: strin
   }
 }
 
+/** History of who changed access, connections or setup: admins only (it holds names, emails, the Thomax user name). */
+const ADMIN_ONLY_LOGS = new Set(["user", "accessRequest", "thomax", "ops", "company"]);
+
 export async function logsAction(entity: string, id: string, field?: string): Promise<LogLine[]> {
-  await assertUser();
+  const me = await assertUser();
+  // One record (or one record's sub-rows, "<id>|*") at a time — never "everything of this kind"
+  if (!id || id.startsWith("*") || (id.endsWith("*") && !id.endsWith("|*"))) return [];
+  if (ADMIN_ONLY_LOGS.has(entity) && !isAdminRole(me.role)) return [];
   return getLogs(entity, id, field);
 }
 
