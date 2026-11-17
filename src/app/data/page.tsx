@@ -14,6 +14,7 @@ import { getConnection } from "@/lib/xero/auth";
 import { WMS_SOURCES } from "@/lib/wms/import";
 import { ThomaxPanel } from "@/components/data/thomax-panel";
 import { isOwnerRole } from "@/lib/auth/roles";
+import { plainError } from "@/lib/plain-error";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Data sources" };
@@ -352,7 +353,7 @@ function RunsCard({ runs }: { runs: Array<{ id: string; label: string; status: s
                 <td>
                   <Pill tone={r.status === "SUCCESS" ? "green" : r.status === "FAILED" ? "red" : "blue"}>{r.status === "SUCCESS" ? "done" : r.status === "FAILED" ? "failed" : "running"}</Pill>
                 </td>
-                <td className="small meta">{r.error ?? summary(r.stats)}</td>
+                <td className="small meta">{r.error ? plainError(r.error, { log: false }) : summary(r.stats)}</td>
                 <td className="small">{r.startedBy ?? "schedule"}</td>
               </tr>
             ))}

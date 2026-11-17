@@ -14,7 +14,7 @@ Authorization: Bearer fa_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Errors are JSON `{ "error": "...", "detail": "..." }` (`detail` only when there is more to say): 401 = no / unknown /
 revoked / expired key, 403 = the key lacks the scope, 400 = a parameter is wrong (the message says which), 409 = not
 set up yet in Analytics (`detail` says what to set), 429 = more than 120 calls a minute with one key (wait for
-`Retry-After` seconds).
+`Retry-After` seconds; also after 30 calls with a wrong key from one address in 15 minutes).
 
 | Method | Path | Scope | Returns |
 |---|---|---|---|

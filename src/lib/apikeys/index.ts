@@ -29,14 +29,23 @@ export interface ApiCaller {
  * Every successful call is counted (last used, IP).
  */
 export async function authorise(req: Request, scope: string): Promise<ApiCaller | NextResponse> {
+  const ipOf = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // Too many bad keys from one place → stop before the database lookup
+  const bad = await prisma.authRateLimit.findUnique({ where: { key: `apiBadIp:${ipOf.toLowerCase()}` } });
+  if (bad && bad.count >= LIMITS.apiBadIp.limit && bad.windowStart.getTime() > Date.now() - LIMITS.apiBadIp.windowSec * 1000)
+    return NextResponse.json({ error: "Too many calls with a wrong key", detail: "Wait 15 minutes" }, { status: 429, headers: { "Retry-After": String(LIMITS.apiBadIp.windowSec) } });
+  const fail = async (body: { error: string }) => {
+    await hitRateLimit("apiBadIp", ipOf);
+    return NextResponse.json(body, { status: 401 });
+  };
   const h = req.headers.get("authorization") ?? "";
   const m = h.match(/^Bearer\s+(fa_live_[0-9A-Za-z]{32})$/);
-  if (!m) return NextResponse.json({ error: "Missing or malformed API key (Authorization: Bearer fa_live_…)" }, { status: 401 });
+  if (!m) return fail({ error: "Missing or malformed API key (Authorization: Bearer fa_live_…)" });
   const hash = hashKey(m[1]);
   const row = await prisma.apiKey.findUnique({ where: { hash } });
-  if (!row || !timingSafeEqual(Buffer.from(row.hash), Buffer.from(hash))) return NextResponse.json({ error: "Unknown API key" }, { status: 401 });
-  if (row.revokedAt) return NextResponse.json({ error: "This API key was revoked" }, { status: 401 });
-  if (row.expiresAt && row.expiresAt < new Date()) return NextResponse.json({ error: "This API key has expired" }, { status: 401 });
+  if (!row || !timingSafeEqual(Buffer.from(row.hash), Buffer.from(hash))) return fail({ error: "Unknown API key" });
+  if (row.revokedAt) return fail({ error: "This API key was revoked" });
+  if (row.expiresAt && row.expiresAt < new Date()) return fail({ error: "This API key has expired" });
   if (!row.scopes.includes(scope)) return NextResponse.json({ error: `This key doesn't have the ${scope} scope` }, { status: 403 });
   const limit = await hitRateLimit("apiKey", row.id);
   if (!limit.ok) return NextResponse.json({ error: "Too many requests for this key", detail: `At most ${LIMITS.apiKey.limit} calls a minute — try again in ${limit.retryAfterSec} s` }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } });

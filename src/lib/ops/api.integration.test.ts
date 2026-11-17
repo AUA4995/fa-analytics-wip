@@ -109,4 +109,16 @@ describe.skipIf(!isTestDatabase())("Operations API (integration)", () => {
     expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
     await prisma.authRateLimit.deleteMany({ where: { key: `apiKey:${keyId}` } });
   });
+
+  it("too many bad keys from one place → 429 before any key lookup", async () => {
+    const { GET } = await import("@/app/api/v1/workload/daily/route");
+    const url = "http://x/api/v1/workload/daily?from=2026-11-16&to=2026-11-17";
+    const bad = () => GET(new Request(url, { headers: { authorization: "Bearer fa_live_" + "x".repeat(32), "x-forwarded-for": "10.9.9.9" } }));
+    expect((await bad()).status).toBe(401);
+    await prisma.authRateLimit.update({ where: { key: "apiBadIp:10.9.9.9" }, data: { count: 30 } });
+    expect((await bad()).status).toBe(429);
+    expect((await GET(new Request(url, { headers: { authorization: `Bearer ${key}`, "x-forwarded-for": "10.9.9.9" } }))).status).toBe(429);
+    expect((await GET(req(url))).status).toBe(200); // another place is not affected
+    await prisma.authRateLimit.deleteMany({ where: { key: "apiBadIp:10.9.9.9" } });
+  });
 });

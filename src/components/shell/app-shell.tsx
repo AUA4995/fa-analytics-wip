@@ -121,14 +121,14 @@ export function AppShell({ initialPinned, user, companyName, logos, counts, sign
               className="notif"
               // Close when clicking anywhere else
               onToggle={(e) => {
-                const d = e.currentTarget;
+                const d = e.currentTarget as HTMLDetailsElement & { _close?: (ev: MouseEvent) => void };
+                if (d._close) document.removeEventListener("mousedown", d._close);
+                d._close = undefined;
                 if (!d.open) return;
                 const close = (ev: MouseEvent) => {
-                  if (!d.contains(ev.target as Node)) {
-                    d.open = false;
-                    document.removeEventListener("mousedown", close);
-                  }
+                  if (!d.contains(ev.target as Node)) d.open = false; // onToggle runs again and removes the listener
                 };
+                d._close = close;
                 document.addEventListener("mousedown", close);
               }}
             >

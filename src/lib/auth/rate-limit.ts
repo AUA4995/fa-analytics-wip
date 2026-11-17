@@ -17,6 +17,8 @@ export const LIMITS = {
   tokenIp: { limit: 30, windowSec: 15 * 60 },
   /** Per API key, all /api/v1 routes together */
   apiKey: { limit: 120, windowSec: 60 },
+  /** Calls with a missing, unknown, revoked or expired key, per IP */
+  apiBadIp: { limit: 30, windowSec: 15 * 60 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

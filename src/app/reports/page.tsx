@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { TEMPLATES, buildReport } from "@/lib/reports/build";
 import type { WorkloadFilter } from "@/lib/reports/data";
 import { allowedFor } from "@/lib/reports/recipients";
+import { plainError } from "@/lib/plain-error";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Reports" };
@@ -103,7 +104,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                         <td>{MODE[s.mode] ?? s.mode}</td>
                         <td className="small">{s.to.join(", ") || "—"}</td>
                         <td>{s.ok ? <Pill tone="green">sent</Pill> : <Pill tone="red">blocked</Pill>}</td>
-                        <td className="small">{s.error ?? s.by}</td>
+                        <td className="small">{s.error ? plainError(s.error, { log: false }) : s.by}</td>
                       </tr>
                     ))}
                   </tbody>
