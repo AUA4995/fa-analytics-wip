@@ -127,6 +127,13 @@ describe.skipIf(!hasDb)("Thomax copy (integration)", () => {
     expect(t.rowCount).toBe(0);
     expect(t.historyDoneTo).toBeNull();
     expect(await prisma.thomaxRow.count({ where: { table: "PCK" } })).toBe(0);
+    // Logged: who changed what, and that rows were deleted
+    const log = await prisma.changeLog.findFirstOrThrow({ where: { entity: "thomax", entityId: "PCK", field: "tableSettings" }, orderBy: { at: "desc" } });
+    expect(log.actorName).toBe("Test");
+    expect(log.reason).toMatch(/key changed — 3 copied rows deleted/);
+    expect((log.newValue as { keyFields: string[] }).keyFields).toEqual(["OrderNo"]);
+    const conn = await prisma.changeLog.findFirstOrThrow({ where: { entity: "thomax", entityId: "connection" } });
+    expect(JSON.stringify(conn.newValue)).not.toContain("s3cret");
   });
 
   it("rows without a key value are skipped and counted, never merged; masters need a key too", async () => {

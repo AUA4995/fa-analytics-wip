@@ -3,6 +3,7 @@ import { decrypt, encrypt } from "@/lib/crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { queryAll, queryPage, ThomaxError, type ClientOptions, type ThomaxCreds } from "./client";
 import { THOMAX_TABLES } from "./tables";
+import { logChange } from "@/lib/model/store";
 import {
   assertCluster,
   assertName,
@@ -109,11 +110,21 @@ export async function saveConnection(input: ConnectionInput, by: string): Promis
     if (historyFrom && historyFrom < existing.historyFrom) await prisma.thomaxTable.updateMany({ data: { historyDoneTo: null } });
   }
   else await prisma.thomaxConnection.create({ data: { ...data, passwordEnc: encrypt(password) } });
+  // History of who changed the connection (never the password itself)
+  await logChange({
+    entity: "thomax",
+    entityId: "connection",
+    field: "connection",
+    oldValue: existing ? { cluster: existing.cluster, username: existing.username, historyFrom: existing.historyFrom, recheckDays: existing.recheckDays } : null,
+    newValue: { cluster, username, ...(historyFrom ? { historyFrom } : {}), ...(recheckDays !== undefined ? { recheckDays } : {}), passwordChanged: !!password },
+    actor: { type: "USER", name: by },
+  });
   await ensureTables();
 }
 
-export async function disconnect(): Promise<void> {
-  await prisma.thomaxConnection.deleteMany({ where: { id: "thomax" } });
+export async function disconnect(by: string): Promise<void> {
+  const n = await prisma.thomaxConnection.deleteMany({ where: { id: "thomax" } });
+  if (n.count) await logChange({ entity: "thomax", entityId: "connection", field: "connection", oldValue: "connected", newValue: "disconnected", actor: { type: "USER", name: by } });
 }
 
 /** Test: one row from TNT (tenants). The result is kept on the connection and shown on the panel. */
@@ -251,6 +262,16 @@ export async function saveTableSettings(name: string, s: TableSettings, by: stri
     });
   });
   if (!keyChanged && t.confirmedAt && t.lookupFields.join("|") !== s.lookupFields.join("|")) await rebuildRefs(name, s.lookupFields);
+  // Which fields are copied and searchable decides what personal data is kept, so every change is logged
+  await logChange({
+    entity: "thomax",
+    entityId: name,
+    field: "tableSettings",
+    oldValue: t.confirmedAt ? { enabled: t.enabled, kind: t.kind, dateField: t.dateField, keyFields: t.keyFields, lookupFields: t.lookupFields, excludeFields: t.excludeFields } : null,
+    newValue: { enabled: s.enabled, kind: s.kind, dateField: s.kind === "MASTER" ? null : s.dateField, keyFields: s.keyFields, lookupFields: s.lookupFields, excludeFields: exclude },
+    actor: { type: "USER", name: by },
+    reason: keyChanged ? `key changed — ${t.rowCount} copied rows deleted` : null,
+  });
   return { cleared: keyChanged };
 }
 

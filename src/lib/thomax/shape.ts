@@ -152,8 +152,11 @@ export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string 
  */
 const SECRET_FIELD =
   /password|passwd|passcode|passphrase|credential|secret|(^|[_a-z0-9])(pwd|token)$|(api|access|private|auth|account|licen[cs]e|signing|encryption|client|consumer)_?key$|(^|_|password)salt$|^(pin|pincode|pinnumber|pinno|hash)$|(user|login|security|access|staff|employee)_?pin(code|number|no)?$|(pin|password)hash$/i;
+/** Word-shaped secrets that need case to tell apart: "WebPass", "Pass", "PASS" go; "Compass", "QCPassed" stay. */
+const SECRET_WORD = /(^|[a-z0-9_])Pass(Hash)?$|^PASS$|(^|[a-z0-9_])T?(OTP|Otp)([A-Z_0-9]|$)/;
+const SECRET_FIELD_2 = /pwd|^pass(hash)?$|passhash|tokens$|^t?otp|(otp|mfa|2fa|auth|totp)_?seed|(security|secret)_?(question|answer)|^answer$/i;
 export function isSecretField(f: string): boolean {
-  return SECRET_FIELD.test(f);
+  return SECRET_FIELD.test(f) || SECRET_WORD.test(f) || SECRET_FIELD_2.test(f);
 }
 export function withoutSecrets(row: ThomaxRecord, exclude: readonly string[] = []): ThomaxRecord {
   const out: ThomaxRecord = {};

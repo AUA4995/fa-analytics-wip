@@ -43,9 +43,9 @@ export async function saveThomaxConnectionAction(_: DataActionState | null, form
 
 export async function disconnectThomaxAction(): Promise<DataActionState> {
   try {
-    await assertOwner();
+    const me = await assertOwner();
     const { disconnect } = await import("@/lib/thomax/sync");
-    await disconnect();
+    await disconnect(me.name);
     revalidatePath("/data");
     return ok("Disconnected. The copied rows are kept.");
   } catch (err) {
