@@ -151,11 +151,11 @@ export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string 
  * "Compass…", "Shipping…" stay. The table page lists what was left out.
  */
 const SECRET_FIELD =
-  /password|passwd|passcode|passphrase|credential|secret|(^|[_a-z0-9])(pwd|token)$|(api|access|private|auth|account|licen[cs]e|signing|encryption|client|consumer)_?key$|(^|_|password)salt$|^(pin|pincode|pinnumber|pinno|hash)$|(user|login|security|access|staff|employee)_?pin(code|number|no)?$|(pin|password)hash$/i;
+  /password|passwd|passcode|passphrase|credential|secret|(^|[_a-z0-9])(pwd|token)$|(api|access|private|auth|licen[cs]e|signing|encryption|consumer|secret)_?key$|client_?secret|(^|_|password)salt$|^(pin|pincode|pinnumber|pinno|hash)$|(user|login|security|access|staff|employee)_?pin(code|number|no)?$|(pin|password)hash$/i;
 /** Word-shaped secrets that need case to tell apart: "WebPass", "Pass", "PASS" go; "Compass", "QCPassed" stay. */
 const SECRET_WORD = /(^|[a-z0-9_])Pass(Hash|Key)?$|(^|[a-z0-9_])Pw(Hash)?$/;
 const SECRET_FIELD_2 =
-  /pwd|^pass(hash)?$|passhash|pass_?(word|key)|(^|_)pw(hash)?$|userpw$|tokens$|^totp|t?otp_?(secret|seed|key|code|hash)|(mfa|2fa|auth|totp)_?seed|(security|secret|sec)_?(question|answer)|^answer$|(backup|recovery)_?codes|session_?(id|key|token)|cookie|two_?factor|2fa/i;
+  /pwd|^pass(hash)?$|passhash|pass_?(word|key)|(^|_)pw(hash)?$|userpw$|tokens$|^totp|t?otp_?(secret|seed|key|code|hash)|(mfa|2fa|auth|totp)_?seed|(security|secret|sec)_?(question|answer)|^answer$|(backup|recovery)_?codes|session_?(id|key|token)|^cookie$|cookies?_?(id|value|data)$|two_?factor_?(key|secret|seed|code)|2fa_?(key|secret|seed|code)|_pin(_?(code|number|no))?$|^pin_(code|number|no)$|(reset|verification|verify|one_?time|auth|login)_?code$|(login|user)_?hash$|^pass\d$|^jwt$|jwt_?token/i;
 /** All-lower or all-upper names ending in "pass" ("webpass", "USERPASS"), except ordinary words */
 const lowerPass = (f: string) => (f === f.toLowerCase() || f === f.toUpperCase()) && /pass$/i.test(f) && !/(com|by|sur|over|under|tres)pass$/i.test(f);
 // "OTP" alone stays: in a 3PL it usually means on-time performance

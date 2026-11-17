@@ -34,6 +34,9 @@ describe.skipIf(!isTestDatabase())("logsAction (integration)", () => {
     expect(await logsAction("site", "*")).toEqual([]);
     expect(await logsAction("thomax", "connection")).toEqual([]);
     expect(await logsAction("user", "*")).toEqual([]);
+    for (const id of ["%|*", "_|*", "a*", "|*", "%"]) expect(await logsAction("allocation", id), id).toEqual([]);
+    expect(await logsAction("setting", "internalDomains")).toEqual([]);
+    expect(await logsAction("staff", "x")).toEqual([]);
   });
   it("admins see connection history of one record, still never a bare *", async () => {
     role = "ADMIN";

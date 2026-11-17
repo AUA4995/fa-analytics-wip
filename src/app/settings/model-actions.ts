@@ -31,14 +31,18 @@ export async function updateValueAction(entity: string, id: string, field: strin
   }
 }
 
-/** History of who changed access, connections or setup: admins only (it holds names, emails, the Thomax user name). */
-const ADMIN_ONLY_LOGS = new Set(["user", "accessRequest", "thomax", "ops", "company"]);
+/**
+ * Change history users (not only admins) may open: the business records they can see on their pages. Everything else
+ * — users and access, connections, settings, staff, API keys, report recipients, lookups — is for admins.
+ */
+const USER_LOGS = new Set(["client", "supplier", "service", "site", "pool", "rate", "rule", "tickettype", "itemmap", "wmsmap", "xeromap", "allocation", "improve", "leakage", "review", "ratecheck", "revenuecase", "task", "report", "debt"]);
 
 export async function logsAction(entity: string, id: string, field?: string): Promise<LogLine[]> {
   const me = await assertUser();
-  // One record (or one record's sub-rows, "<id>|*") at a time — never "everything of this kind"
-  if (!id || id.startsWith("*") || (id.endsWith("*") && !id.endsWith("|*"))) return [];
-  if (ADMIN_ONLY_LOGS.has(entity) && !isAdminRole(me.role)) return [];
+  // One record, or one record's sub-rows as "<id>|*" — never "everything of this kind" (no wildcards in the id)
+  const ok = id.endsWith("|*") ? /^[A-Za-z0-9-]{1,64}\|\*$/.test(id) : !!id && !id.includes("*");
+  if (!ok) return [];
+  if (!USER_LOGS.has(entity) && !isAdminRole(me.role)) return [];
   return getLogs(entity, id, field);
 }
 
