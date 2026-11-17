@@ -29,6 +29,8 @@ describe.skipIf(!isTestDatabase())("updateReportAction (integration)", () => {
   it("refuses approval, class or template changes; keeps ordinary edits", async () => {
     expect(await act.updateReportAction(id, { approvedAt: "2026-11-17T00:00:00Z", approvedBy: "Mark" })).toMatchObject({ ok: false });
     expect(await act.updateReportAction(id, { cls: "INTERNAL" })).toMatchObject({ ok: false });
+    expect(await act.updateReportAction(id, { mode: "SEND" })).toMatchObject({ ok: false });
+    expect(await act.sendNowAction(id, "SEND")).toMatchObject({ ok: false, message: "Unknown send mode." });
     expect(await act.updateReportAction(id, { name: "Bank pack Nov" })).toMatchObject({ ok: true });
     const r = await prisma.report.findUniqueOrThrow({ where: { id } });
     expect([r.approvedAt, r.cls, r.name]).toEqual([null, "EXTERNAL", "Bank pack Nov"]);

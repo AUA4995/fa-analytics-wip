@@ -32,9 +32,9 @@ export async function createReportAction(_p: RepState | null, fd: FormData): Pro
 const Update = z
   .object({
     forecast: z.boolean(),
-    costing: z.string().max(40),
-    schedule: z.string().max(40),
-    mode: z.string().max(20),
+    costing: z.enum(["T", "F", "B"]),
+    schedule: z.enum(["OFF", "WEEKLY", "MONTHLY", "QUARTERLY"]),
+    mode: z.enum(["DRY_RUN", "DRAFT", "AUTO"]),
     sendTime: z.string().regex(/^\d{2}:\d{2}$/),
     recipients: z.array(z.string().trim().toLowerCase().email().max(200)).max(50),
     name: z.string().trim().min(2).max(80),
@@ -73,6 +73,7 @@ export async function deleteReportAction(id: string): Promise<RepState> {
 
 export async function sendNowAction(id: string, mode: string): Promise<RepState> {
   const me = await assertUser();
+  if (mode !== "DRY_RUN" && mode !== "DRAFT" && mode !== "AUTO") return { ok: false, message: "Unknown send mode." };
   const r = await sendReport(id, { name: me.name, email: me.email }, { mode });
   revalidatePath("/reports");
   revalidatePath("/tasks");
