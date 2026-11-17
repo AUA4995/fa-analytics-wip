@@ -155,7 +155,7 @@ const SECRET_FIELD =
 /** Word-shaped secrets that need case to tell apart: "WebPass", "Pass", "PASS" go; "Compass", "QCPassed" stay. */
 const SECRET_WORD = /(^|[a-z0-9_])Pass(Hash|Key)?$|(^|[a-z0-9_])Pw(Hash)?$/;
 const SECRET_FIELD_2 =
-  /pwd|^pass(hash)?$|passhash|pass_?(word|key)|(^|_)pw(hash)?$|userpw$|tokens$|^totp|t?otp_?(secret|seed|key|code|hash)|(mfa|2fa|auth|totp)_?seed|(security|secret|sec)_?(question|answer)|^answer$|(backup|recovery)_?codes|session_?(id|key|token)|^cookie$|cookies?_?(id|value|data)$|two_?factor_?(key|secret|seed|code)|2fa_?(key|secret|seed|code)|_pin(_?(code|number|no))?$|^pin_(code|number|no)$|(reset|verification|verify|one_?time|auth|login)_?code$|(login|user)_?hash$|^pass\d$|^jwt$|jwt_?token/i;
+  /pwd|^pass(hash)?$|passhash|pass_?(word|key)|(^|_)pw(hash)?$|userpw$|tokens$|^totp|t?otp_?(secret|seed|key|code|hash)|(mfa|2fa|auth|totp)_?seed|(security|secret|sec)_?(question|answer)|^answer$|(backup|recovery)_?codes|session_?(id|key|token)|^cookie$|cookies?_?(id|value|data)$|two_?factor_?(key|secret|seed|code)|2fa_?(key|secret|seed|code)|_pin(_?(code|number|no))?$|^pin_(code|number|no)$|(reset|verification|verify|one_?time|auth|login)_?code$|(login|user)_?hash$|^pass_?\d$|^jwt$|jwt_?token|pw_?hash|(mfa|sms|activation|confirm|security|door|alarm)_?code$|(emp|employee|driver|staff|user)_?pin$|(priv|enc|master)_?key$|token_?value/i;
 /** All-lower or all-upper names ending in "pass" ("webpass", "USERPASS"), except ordinary words */
 const lowerPass = (f: string) => (f === f.toLowerCase() || f === f.toUpperCase()) && /pass$/i.test(f) && !/(com|by|sur|over|under|tres)pass$/i.test(f);
 // "OTP" alone stays: in a 3PL it usually means on-time performance

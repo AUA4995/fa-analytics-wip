@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { getCompany } from "@/lib/company";
 import { isFrontConfigured, sendEmail } from "@/lib/front/client";
@@ -20,18 +19,13 @@ export async function frontSendChannel(): Promise<{ ok: true; channelId: string 
   return { ok: true, channelId };
 }
 
-/** Absolute base URL for links in emails: APP_URL, else the address this request came in on. */
+/**
+ * Absolute base URL for links in emails: APP_URL only. Never the request's Host header — a caller could set it and
+ * make a password-reset link point somewhere else (security review).
+ */
 export async function appBaseUrl(): Promise<string> {
   const env = (process.env.APP_URL ?? "").trim().replace(/\/$/, "");
-  if (env) return env;
-  try {
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host");
-    if (host) return `${h.get("x-forwarded-proto") ?? "http"}://${host}`;
-  } catch {
-    /* not in a request (CLI) */
-  }
-  return "http://localhost:3002";
+  return env || "http://localhost:3002";
 }
 
 export interface AuthEmail {

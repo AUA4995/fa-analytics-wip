@@ -62,7 +62,9 @@ export function tooManyMessage(r: RateResult): string {
  */
 export function ipFromHeaders(get: (name: string) => string | null): string {
   if (process.env.TRUST_PROXY !== "1") return "";
-  return ((get("x-forwarded-for")?.split(",")[0] ?? get("x-real-ip") ?? "local").trim() || "local").slice(0, 100);
+  // The proxy appends the address it saw on the right; anything to its left was typed by the caller
+  const hops = (get("x-forwarded-for") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  return (hops.at(-1) ?? get("x-real-ip")?.trim() ?? "local").slice(0, 100);
 }
 
 export async function clientIp(): Promise<string> {

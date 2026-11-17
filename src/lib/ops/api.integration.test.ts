@@ -16,6 +16,7 @@ describe.skipIf(!isTestDatabase())("Operations API (integration)", () => {
     keyId = (await prisma.apiKey.create({ data: { name: "ops-api-test", prefix: k.prefix, hash: k.hash, scopes: ["operations:read"], createdBy: "test" } })).id;
     key = k.key;
     await prisma.setting.deleteMany({ where: { key: "ops:config" } });
+    await prisma.authRateLimit.deleteMany({ where: { key: { startsWith: "apiBadIp:" } } });
     await prisma.site.upsert({ where: { key: "smi" }, create: { key: "smi", name: "Smithfield", wmsCodes: ["SYD02"] }, update: { wmsCodes: ["SYD02"] } });
     for (const [name, fields] of [
       ["PCK", ["JobID", "TenantID", "Created", "Shipped", "Wh"]],

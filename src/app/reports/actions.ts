@@ -28,15 +28,35 @@ export async function createReportAction(_p: RepState | null, fd: FormData): Pro
   return { ok: true, message: "Report added.", id: r.id };
 }
 
-export async function updateReportAction(id: string, data: { forecast?: boolean; costing?: string; schedule?: string; mode?: string; sendTime?: string; recipients?: string[]; name?: string }): Promise<RepState> {
+/** Only these fields can be changed here — never the approval, template, class, client or author (security review). */
+const Update = z
+  .object({
+    forecast: z.boolean(),
+    costing: z.string().max(40),
+    schedule: z.string().max(40),
+    mode: z.string().max(20),
+    sendTime: z.string().regex(/^\d{2}:\d{2}$/),
+    recipients: z.array(z.string().trim().toLowerCase().email().max(200)).max(50),
+    name: z.string().trim().min(2).max(80),
+  })
+  .partial()
+  .strict();
+
+export async function updateReportAction(id: string, raw: unknown): Promise<RepState> {
   const me = await assertUser();
+  const parsed = Update.safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That change isn't allowed here." };
+  const data = parsed.data;
   const cur = await prisma.report.findUniqueOrThrow({ where: { id } });
   if (data.recipients) {
     const bad = (await checkRecipients({ ...cur, approvedAt: cur.approvedAt ?? new Date() }, data.recipients)).filter((c) => !c.ok);
     if (bad.length) return { ok: false, message: `Not allowed: ${bad.map((b) => `${b.email} (${b.why})`).join(", ")}. Add them in Settings → Contacts & recipients first.` };
   }
   if (data.mode === "AUTO" && cur.cls === "CLIENT_SAFE" && !(await prisma.reportSend.count({ where: { reportId: id, mode: "DRAFT", ok: true } }))) return { ok: false, message: "The first client send is always a draft — save one as a draft first." };
-  const upd = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  const upd: Record<string, unknown> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  // New recipients for a lender pack need the owner's approval again
+  const recipientsChanged = data.recipients && JSON.stringify([...data.recipients].sort()) !== JSON.stringify([...(cur.recipients ?? [])].sort());
+  if (cur.cls === "EXTERNAL" && recipientsChanged && cur.approvedAt) Object.assign(upd, { approvedAt: null, approvedBy: null });
   await prisma.report.update({ where: { id }, data: upd });
   for (const [k, v] of Object.entries(upd)) await logChange({ entity: "report", entityId: id, field: k, oldValue: (cur as Record<string, unknown>)[k] ?? null, newValue: v as never, actor: actor(me) });
   revalidatePath("/reports");
