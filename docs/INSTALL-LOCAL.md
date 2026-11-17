@@ -22,7 +22,7 @@ running and the computer is awake. On a laptop that sleeps at night, press the *
    ```
 2. Create the database (open **SQL Shell (psql)** as `postgres`). Its own database — never the Hub's or CLM's:
    ```sql
-   CREATE USER fa_analytics WITH PASSWORD 'choose-a-long-password' CREATEDB;
+   CREATE USER fa_analytics WITH PASSWORD 'choose-a-long-password';
    CREATE DATABASE fa_analytics OWNER fa_analytics;
    ```
 3. Settings file: `copy .env.example .env`, then open `.env` in Notepad and fill in:
@@ -41,8 +41,8 @@ running and the computer is awake. On a laptop that sleeps at night, press the *
    npm.cmd run db:seed
    npm.cmd run build
    ```
-   If the build stops with a "security" notice, just run `npm.cmd run build` again.
 5. Start: double-click `scripts\windows\start.cmd` (keep that window open), then open http://localhost:3002.
+   It only answers on this laptop (127.0.0.1), not to other computers on the office or home Wi-Fi.
    The first visit goes to **/setup** to create the owner account, then two-step sign-in — have an authenticator app
    (Microsoft or Google Authenticator) on your phone ready to scan the QR code.
 
@@ -65,6 +65,8 @@ Keys go into `.env` on your computer only — never into the repo or a chat. Res
 
 ## 5. Updating to a new release
 
+Set up the backups (section 6) first — `update.cmd` refuses to update without a working backup.
+
 1. Close the app window.
 2. Run `scripts\windows\update.cmd` (pulls `main`, updates packages, updates the database, rebuilds).
 3. Start again with `start.cmd`.
@@ -76,24 +78,29 @@ If a step fails, the script stops and nothing is started; send the message it sh
 The data that can't be re-read from Xero / Thomax is the cost-model settings, rates, targets, improvements, revenue
 protection cases, reports and logs — and, after Thomax ends on 31/05/2027, the **Thomax archive itself**.
 
-1. Database password file (so the password isn't kept in an environment variable): create the folder
-   `%APPDATA%\postgresql` and in it a text file `pgpass.conf` with one line:
-   `localhost:5432:*:fa_analytics:THE-DATABASE-PASSWORD`
+1. Database password file (so the password isn't kept in an environment variable): press **Win + R**, type
+   `%APPDATA%` and Enter; make a folder `postgresql`; in it, save from Notepad a file named `pgpass.conf` with one
+   line `localhost:5432:*:fa_analytics:THE-DATABASE-PASSWORD`. In Notepad's Save dialog choose "All files", or it is
+   saved as `pgpass.conf.txt`, which doesn't work.
 2. Set three Windows user environment variables (Start → "Edit environment variables for your account"):
    - `FA_BACKUP_DIR` — a folder inside OneDrive (the off-site copy).
    - `FA_BACKUP_NAS_DIR` — a folder on the office NAS (the on-site copy), e.g. `\\SMITHFIELD-NAS\Backups\Analytics`.
    - `FA_BACKUP_PASSPHRASE` — a long passphrase; keep it in the password manager (Asal + Marcus). Without it a backup
      can't be opened.
 3. Task Scheduler → Create Basic Task → Daily (e.g. 13:00, when the laptop is on) → `scripts\windows\backup.cmd`.
-   Run it once by hand first and check both copies appear.
+   Then the task's Properties → Settings → tick **"Run task as soon as possible after a scheduled start is missed"**
+   (a day the laptop was off at 13:00 still gets a backup). Run it once by hand first and check both copies appear.
+   Each run adds a line to `backup-log.txt` in the backup folder — glance at it now and then.
 4. Backups older than 30 days are deleted. `update.cmd` also takes a backup before every update.
 
 ### Monthly test restore (into a spare database — never the live one)
 
 Do this in **Command Prompt** (cmd), not PowerShell. The app can keep running; the live database isn't touched.
 
-1. Open SQL Shell (psql) as `postgres` and run: `CREATE DATABASE fa_restore_test OWNER fa_analytics;`
-2. In Command Prompt, go to the backup folder and decrypt the newest backup:
+1. Open SQL Shell (psql) as `postgres` and run:
+   `DROP DATABASE IF EXISTS fa_restore_test;` then `CREATE DATABASE fa_restore_test OWNER fa_analytics;`
+2. In Command Prompt, go to the backup folder; `dir /o-d fa_analytics_*.dump.enc` lists the newest first — use its
+   name in the next line:
    ```bat
    cd /d "%FA_BACKUP_DIR%"
    "C:\Program Files\Git\usr\bin\openssl.exe" enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in fa_analytics_YYYY-MM-DD_HHMMSS.dump.enc -out "%TEMP%\restore.dump" -pass env:FA_BACKUP_PASSPHRASE
@@ -102,13 +109,24 @@ Do this in **Command Prompt** (cmd), not PowerShell. The app can keep running; t
    ```
    (`del` matters: the decrypted file isn't encrypted.)
 3. Check it worked: in psql, `\c fa_restore_test` then `SELECT count(*) FROM "Client";` — it should match the app.
-4. Clean up: `DROP DATABASE fa_restore_test;`
+4. Clean up: `\c postgres` (leave the test database first), then `DROP DATABASE fa_restore_test;`
 
 ### Real restore (only if the live database is lost or broken)
 
 1. **Close the app window first.**
-2. Same as above, but restore into `fa_analytics` with `--clean --if-exists` added to `pg_restore`. This **replaces**
-   everything in the live database with the backup — anything entered after that backup is lost. Ask Claude if unsure.
+2. If the database is gone (new computer): in psql as `postgres`, `CREATE DATABASE fa_analytics OWNER fa_analytics;`
+   — and use the **same** `.env` values (`TOKEN_ENCRYPTION_KEY`, `AUTH_SECRET`) from the password manager, or Xero
+   and Thomax must be connected again and everyone sets up 2FA again.
+3. Decrypt the backup as in step 2 above, then:
+   `"C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" -h localhost -U fa_analytics -d fa_analytics --clean --if-exists "%TEMP%\restore.dump"`
+   then `del "%TEMP%\restore.dump"`. This **replaces** everything in the live database with the backup — anything
+   entered after that backup is lost. Ask Claude if unsure.
+
+### If an update stops half way
+
+`update.cmd` takes a backup first. If it stops after "updating the database" but before the build finished, run
+`update.cmd` again once; if it still fails, restore the backup taken just before (real restore above) and go back to
+the previous version with `git checkout <previous commit>` — ask Claude for the exact line.
 
 ## 7. Tests (developers only)
 

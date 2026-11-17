@@ -5,16 +5,25 @@ setlocal
 cd /d "%~dp0\..\.."
 netstat -ano | findstr /r /c:":3002 .*LISTENING" >nul && (echo The app is still running - close the "FA Analytics" window first, then run this again. & exit /b 1)
 echo Taking a backup before updating...
-call "%~dp0backup.cmd" || (echo The backup failed, so nothing was updated. & exit /b 1)
+call "%~dp0backup.cmd"
+if errorlevel 3 goto :nobackup
+if errorlevel 2 (echo The NAS copy failed, but the OneDrive backup is fine - carrying on.) else if errorlevel 1 goto :nobackup
 git checkout main || goto :fail
 git pull --ff-only || goto :fail
 call npm.cmd ci || goto :fail
 call npm.cmd run db:deploy || goto :fail
-call npm.cmd run build || (echo Build stopped once - trying again... & call npm.cmd run build) || goto :fail
+call npm.cmd run build || goto :nobackup
+echo The backup failed, so nothing was updated.
+exit /b 1
+:fail
 echo.
 echo Updated. Start the app again with scripts\windows\start.cmd
 exit /b 0
+:nobackup
+echo The backup failed, so nothing was updated.
+exit /b 1
 :fail
 echo.
-echo Update stopped because a step failed (see above). Nothing was started. The backup taken before the update is in your backup folder. Send the message above to Claude.
+echo Update stopped because a step failed (see above). Nothing was started. If the database was already updated, the
+echo backup taken just before is in your backup folder (restore steps: docs\INSTALL-LOCAL.md section 6). Send the message above to Claude.
 exit /b 1

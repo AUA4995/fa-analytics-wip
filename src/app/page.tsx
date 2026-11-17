@@ -2,6 +2,7 @@ import Link from "next/link";
 import { NotConnected } from "@/components/ui/not-connected";
 import { ComboChart, Sparkline, TargetLine } from "@/components/charts/charts";
 import { Card, EmptyState } from "@/components/ui/card";
+import { leakageInputs } from "@/lib/leakage/inputs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { requireUser } from "@/lib/auth/session";
@@ -95,13 +96,16 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const renewals = clients.filter((c) => c.renewalDate && c.status !== "INACTIVE" && c.renewalDate.getTime() - today.getTime() <= 90 * DAY && c.renewalDate >= new Date(today.getTime() - 30 * DAY)).sort((a, b) => a.renewalDate!.getTime() - b.renewalDate!.getTime());
   const soon = renewals.filter((c) => c.renewalDate!.getTime() - today.getTime() <= 60 * DAY);
 
+  const li = await leakageInputs();
+  const leakKnown = li.canDetect || leaks.length > 0;
+  const belowKnown = li.hasRates && hasMargin;
   return (
     <div className="page">
       <PageHeader title="Overview" subtitle={`${monthLabel(run.month)} · click a card for its detail; click it again for everything.`} />
       <div className="kpis tabtiles ovtiles">
         {tile("margin", "Services margin · TDABC", hasMargin ? pc(marginT) : "no data yet", hasMargin ? <>Full absorption {pc(marginF)} · floor {pc(floor, 0)}</> : "needs volumes + Xero revenue", marginT != null && marginT < floor ? "red" : "", trend.map((t) => t.v))}
-        {tile("leakage", "Leakage found · open", aud(leakOpen), `${leaks.length} findings to bill or explain`, leaks.length ? "red" : "")}
-        {tile("below", "Priced below cost", aud(belowTot), below.length ? `${below.length} client services a month` : "no rated services below cost", below.length ? "red" : "")}
+        {tile("leakage", "Leakage found · open", leakKnown ? aud(leakOpen) : "no data yet", leakKnown ? `${leaks.length} findings to bill or explain` : `needs ${li.missing}`, leaks.length ? "red" : "")}
+        {tile("below", "Priced below cost", belowKnown ? aud(belowTot) : "no data yet", !belowKnown ? "needs client rates, volumes and Xero revenue" : below.length ? `${below.length} client services a month` : "no rated services below cost", below.length ? "red" : "")}
         {tile("orders", `Orders · ${monthLabel(lastMonth)}`, oLast != null ? n0(oLast) : "no data yet", oLast != null && oPrev ? <span className={oLast >= oPrev ? "delta-pos" : "delta-neg"}>{oLast >= oPrev ? "▲" : "▼"} {pc(Math.abs(oLast - oPrev) / oPrev)} vs last month</span> : "load WMS orders in Data sources", "", months12.map((m) => om.get(m) ?? null))}
         {tile("breakeven", "Break-even · revenue / month", be?.beRevenue != null ? aud(be.beRevenue) : "no data yet", be?.headroom != null ? <span className={be.headroom >= 0 ? "delta-pos" : "delta-neg"}>{be.headroom >= 0 ? `${aud(be.headroom)} above` : `${aud(-be.headroom)} below`} · {be.beOrders != null ? `${n0(be.beOrders)} orders` : "orders n/a"}</span> : "needs the Xero P&L", be?.headroom != null && be.headroom < 0 ? "red" : "")}
       </div>
@@ -134,7 +138,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </Card>
       )}
       {show("leakage") && (
-        <Card title={`Open leakage · ${aud(leakOpen)}`} sub="Biggest first. Recovered money is ≈ 100% profit — the work was already done.">
+        <Card title={leakKnown ? `Open leakage · ${aud(leakOpen)}` : "Open leakage · no data yet"} sub="Biggest first. Recovered money is ≈ 100% profit — the work was already done.">
           {leaks.length ? (
             <div className="tw">
               <table>
@@ -162,7 +166,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </Card>
       )}
       {show("below") && (
-        <Card title={`Priced below cost · ${aud(belowTot)} a month`} sub="Client rate below the TDABC unit cost — candidates for a rate review.">
+        <Card title={belowKnown ? `Priced below cost · ${aud(belowTot)} a month` : "Priced below cost · no data yet"} sub="Client rate below the TDABC unit cost — candidates for a rate review.">
           {below.length ? (
             <div className="tw">
               <table>
@@ -246,7 +250,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <Card title="Needs attention" tone={leaks.length || soon.length || tasks.length ? "warn" : "normal"}>
           <ul className="attn">
             <li>
-              <Link href="/leakage?section=log">{leaks.length} open leakage findings</Link> · {aud(leakOpen)}
+              {leakKnown ? (
+                <>
+                  <Link href="/leakage?section=log">{leaks.length} open leakage findings</Link> · {aud(leakOpen)}
+                </>
+              ) : (
+                <>Leakage: no data yet — needs {li.missing}</>
+              )}
             </li>
             <li>
               {soon.length} renewal{soon.length === 1 ? "" : "s"} in the next 60 days{soon.length ? ": " : ""}

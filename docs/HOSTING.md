@@ -79,7 +79,7 @@ Migrations apply on start.
    (24 months; takes a few minutes).
 3. Settings → Contacts & recipients: internal domains and who may receive reports.
 
-Lost owner access: `npm run owner:recover` on a machine with the repo and the server's `.env` — it emails the owner a
+Lost owner access: `npm run owner:recover` (`npm.cmd run owner:recover` on the Windows laptop) on a machine with the repo and the server's `.env` — it emails the owner a
 reset link through Front, nothing else.
 
 ## 5. Other apps

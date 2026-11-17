@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { leakageInputs } from "@/lib/leakage/inputs";
 import { NotConnected } from "@/components/ui/not-connected";
 import { Card } from "@/components/ui/card";
 import { ClickableRow } from "@/components/ui/clickable-row";
@@ -49,12 +50,23 @@ export default async function LeakagePage({ searchParams }: { searchParams: SP }
     <WithSubNav page="leakage" current={section}>
       <PageHeader title={section === "overview" ? "Leakage" : (({ underbilling: "Under-billing", underpricing: "Under-pricing", ratechecks: "Rate checks", log: "Leakage log" }) as Record<string, string>)[section]} subtitle="Revenue not collected. A person decides; fixes in Xero, Dyspach or the WMS are tasks done by hand." actions={<DetectButton />} />
       {section === "overview" && <Overview items={items} cn={cn} card={one(sp.card) ?? null} />}
+      {section === "underbilling" && <UnderBillingNote />}
       {section === "underbilling" && <ItemsTable items={items.filter((i) => i.kind !== "RATE_MISMATCH" && !i.imported)} cn={cn} title="Under-billing and weekly minimums" sub="WMS volume × rate vs what was billed in Xero, per client per service per month; weekly invoice totals under the client's minimum." />}
       {section === "underpricing" && <UnderPricing />}
       {section === "ratechecks" && <RateChecks />}
       {section === "log" && <LogSection items={items} cn={cn} />}
       {panel?.kind === "leak" && <LeakPanel item={items.find((i) => i.id === panel.id) ?? null} cn={cn} people={people} />}
     </WithSubNav>
+  );
+}
+
+async function UnderBillingNote() {
+  const li = await leakageInputs();
+  if (li.canDetect) return null;
+  return (
+    <p className="meta" style={{ margin: "0 0 10px" }}>
+      <strong>No data yet</strong> — under-billing needs {li.missing}. <NotConnected source="clm" until="rates entered in Settings → Clients" />
+    </p>
   );
 }
 
@@ -73,10 +85,7 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
   const checks = await rateChecks();
   const mism = checks.filter((r) => !r.match);
   // Batch 2 review: a 0 must not read as "checked, nothing wrong" when the inputs aren't there yet
-  const [rates, sales, vols, ords, snaps] = await Promise.all([prisma.clientRate.count(), prisma.xeroSale.count(), prisma.volumeLine.count(), prisma.orderFact.count(), prisma.rateSnapshot.count()]);
-  const canDetect = rates > 0 && sales > 0 && vols + ords > 0;
-  const canCompare = rates > 0 && snaps > 0;
-  const missing = [!rates && "client rates (CLM / Settings → Clients)", !sales && "Xero sales", !(vols + ords) && "WMS volumes"].filter(Boolean).join(", ");
+  const { canDetect, canCompare, missing } = await leakageInputs();
   const tile = (k: string, l: string, v: string, sub: string, tone = "") => (
     <Link href={card === k ? "/leakage" : `/leakage?card=${k}`} className={"kpi clickable " + tone + (card === k ? " on" : "")} aria-pressed={card === k} scroll={false}>
       <div className="l">{l}</div>
@@ -92,13 +101,13 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
     <>
       <div className="kpis tabtiles ovtiles">
         {tile("found", "Found", canDetect || s.found.length ? aud(s.foundTot, 0) : "no data yet", canDetect || s.found.length ? `${s.found.length} findings` : `needs ${missing}`)}
-        {tile("rec", "Recovered", aud(s.recTot, 0), `${s.rec.length} · ≈ 100% to profit`, "green")}
+        {tile("rec", "Recovered", canDetect || s.rec.length ? aud(s.recTot, 0) : "no data yet", canDetect || s.rec.length ? `${s.rec.length} · ≈ 100% to profit` : "nothing checked yet", s.rec.length ? "green" : "")}
         {tile("open", "Open", canDetect || s.found.length ? String(s.open.length) : "no data yet", canDetect || s.found.length ? `${aud(s.openTot, 0)} still to bill` : "nothing checked yet", s.open.length ? "red" : "")}
         {tile("mism", "Rate mismatches", canCompare ? String(mism.length) : "no data yet", canCompare ? "CLM vs Dyspach vs WMS" : "needs client rates + a Dyspach or WMS rate export")}
         {tile("rate", "Recovery rate", pc(s.rate), s.days != null ? `avg ${Math.round(s.days)} days to recover` : "no recoveries yet")}
       </div>
       <p className="meta" style={{ margin: "4px 0 10px" }}>
-        <NotConnected source="clm" until="rates entered in Settings → Clients" /> <NotConnected source="dyspach" until="Dyspach rate export files" />
+        <NotConnected source="clm" until="rates entered in Settings → Clients" /> <NotConnected source="dyspach" until="Dyspach rate export files" /> <NotConnected source="hub" until="payment terms in Settings → Clients" />
       </p>
       {card === "found" && <ItemsTable items={s.found} cn={cn} title="All findings" />}
       {card === "rec" && (

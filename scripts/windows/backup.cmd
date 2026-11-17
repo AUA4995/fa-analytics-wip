@@ -7,8 +7,8 @@ rem   FA_BACKUP_PASSPHRASE a long passphrase, kept in the password manager (Asal
 rem The database password is read from %APPDATA%\postgresql\pgpass.conf (see docs\INSTALL-LOCAL.md section 6).
 rem Deletes backups older than 30 days. Run daily from Task Scheduler.
 setlocal
-if "%FA_BACKUP_DIR%"=="" (echo FA_BACKUP_DIR is not set & exit /b 1)
-if "%FA_BACKUP_PASSPHRASE%"=="" (echo FA_BACKUP_PASSPHRASE is not set & exit /b 1)
+if not defined FA_BACKUP_DIR (echo FA_BACKUP_DIR is not set & exit /b 1)
+if not defined FA_BACKUP_PASSPHRASE (echo FA_BACKUP_PASSPHRASE is not set & exit /b 1)
 set "DEST=%FA_BACKUP_DIR%"
 if "%DEST:~-1%"=="\" set "DEST=%DEST:~0,-1%"
 set "PGBIN=C:\Program Files\PostgreSQL\16\bin"
@@ -25,16 +25,19 @@ set "OUT=%DEST%\fa_analytics_%STAMP%.dump.enc"
 "%OPENSSL%" enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "%TMPFILE%" -out "%OUT%" -pass env:FA_BACKUP_PASSPHRASE || goto :fail
 del "%TMPFILE%"
 echo Backup written: %OUT%
-if not "%FA_BACKUP_NAS_DIR%"=="" (
+set "NASOK=no NAS copy (FA_BACKUP_NAS_DIR not set)"
+if defined FA_BACKUP_NAS_DIR (
   if not exist "%FA_BACKUP_NAS_DIR%" mkdir "%FA_BACKUP_NAS_DIR%"
-  copy /y "%OUT%" "%FA_BACKUP_NAS_DIR%\" >nul && (echo NAS copy written to %FA_BACKUP_NAS_DIR%) || (echo WARNING: the NAS copy failed - the OneDrive copy is fine.)
-  forfiles /p "%FA_BACKUP_NAS_DIR%" /m fa_analytics_*.dump.enc /d -30 /c "cmd /c del @path" 2>nul
-) else (
-  echo Note: FA_BACKUP_NAS_DIR is not set, so there is no NAS copy.
+  copy /y "%OUT%" "%FA_BACKUP_NAS_DIR%\" >nul && (set "NASOK=NAS copy OK") || (set "NASOK=NAS copy FAILED")
 )
-forfiles /p "%DEST%" /m fa_analytics_*.dump.enc /d -30 /c "cmd /c del @path" 2>nul
+echo %NASOK%
+rem Delete backups older than 30 days in both folders (PowerShell works on \\server\share paths, forfiles doesn't)
+powershell -NoProfile -Command "foreach ($d in @($env:DEST, $env:FA_BACKUP_NAS_DIR)) { if ($d -and (Test-Path -LiteralPath $d)) { Get-ChildItem -LiteralPath $d -Filter 'fa_analytics_*.dump.enc' | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Force } }"
+>>"%DEST%\backup-log.txt" echo %STAMP% OK - %NASOK%
+if "%NASOK%"=="NAS copy FAILED" exit /b 2
 exit /b 0
 :fail
 if exist "%TMPFILE%" del "%TMPFILE%"
 echo Backup FAILED.
+if exist "%DEST%" >>"%DEST%\backup-log.txt" echo %STAMP% FAILED
 exit /b 1
