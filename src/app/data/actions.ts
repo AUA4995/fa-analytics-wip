@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth/session";
 import { deleteWmsImport } from "@/lib/wms/import";
+import { plainError } from "@/lib/plain-error";
 
 export type DataActionState = { ok: boolean; message: string };
 
@@ -23,7 +24,7 @@ export async function syncXeroAction(kind: "FULL" | "INCREMENTAL"): Promise<Data
     await enqueue(QUEUE_XERO_SYNC, { kind, by: me.name });
     return { ok: true, message: `${kind === "FULL" ? "Full re-read" : "Sync"} started in the background — refresh this page in a minute or two.${kind === "FULL" ? " The first full read of history since 2021 can take a while (Xero allows 60 calls a minute)." : ""}` };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -34,7 +35,7 @@ export async function recountFrontAction(months: number): Promise<DataActionStat
     await enqueue(QUEUE_FRONT_TICKETS, { months, by: me.name });
     return { ok: true, message: "Counting in the background — refresh in a minute." };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -45,6 +46,6 @@ export async function deleteImportAction(id: string): Promise<DataActionState> {
     revalidatePath("/data");
     return { ok: true, message: `Removed the file and its ${n.toLocaleString("en-AU")} rows.` };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

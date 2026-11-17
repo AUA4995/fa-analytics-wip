@@ -8,6 +8,7 @@ import { formatFieldValue, logSafe } from "@/lib/model/fields";
 import { ENTITY_FIELDS } from "@/lib/model/specs";
 import { getLogs, logChange, updateValue, type Actor, type LogLine } from "@/lib/model/store";
 import { parseCsv, planImport, type ImportEntity, type ImportPlan } from "@/lib/model/csv";
+import { plainError } from "@/lib/plain-error";
 
 const actorOf = (u: { name: string }): Actor => ({ type: "USER", name: u.name });
 
@@ -27,7 +28,7 @@ export async function updateValueAction(entity: string, id: string, field: strin
     if (r.changed) revalidateAll();
     return { ok: true, message: r.changed ? "Saved" : "No change", display: formatFieldValue(ENTITY_FIELDS[entity][field], r.value) };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -118,7 +119,7 @@ export async function createRecord(entity: string, _prev: CreateState | null, fo
     revalidateAll();
     return { ok: true, message: "Added.", id };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -138,7 +139,7 @@ export async function deleteRecord(entity: "xeromap" | "wmsmap" | "service" | "s
     revalidateAll();
     return { ok: true, message: "Removed." };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -160,7 +161,7 @@ export async function setAllocation(staffId: string, clientId: string, raw: stri
     revalidateAll();
     return { ok: true, message: "Saved", display: pct ? `${pct}%` : "" };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -179,6 +180,6 @@ export async function importCsvAction(entity: ImportEntity, text: string, commit
     revalidateAll();
     return { ok: true, done: true, message: `Saved: ${plan.creates.length} new, ${plan.updates.length} updated. Every change is in the logs.`, plan };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

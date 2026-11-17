@@ -1,5 +1,6 @@
 "use client";
 
+import { columnShapes } from "@/lib/wms/shape";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import "@/components/model/model.css";
@@ -27,7 +28,7 @@ interface PlanResp {
 const au = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
 /** Upload a WMS export → map columns (remembered per system and file type) → preview → save. */
-export function WmsUpload({ sources }: { sources: ReadonlyArray<readonly [string, string]> }) {
+export function WmsUpload({ sources, aiReady }: { sources: ReadonlyArray<readonly [string, string]>; aiReady: boolean }) {
   const router = useRouter();
   const [source, setSource] = useState("THOMAX");
   const [kind, setKind] = useState<"CHARGES" | "ORDERS">("ORDERS");
@@ -140,10 +141,17 @@ export function WmsUpload({ sources }: { sources: ReadonlyArray<readonly [string
             <button type="button" className="btn" disabled={pending} onClick={() => plan(mapping)}>
               Check again
             </button>
-            <button type="button" className="btn" disabled={pending} onClick={suggest} title="Claude sees only the column names and the shape of a few values (digits and letters masked), never the data">
-              Suggest with Claude
-            </button>
+            {aiReady && (
+              <button type="button" className="btn" disabled={pending} onClick={suggest} title="Claude sees only the column names and the shape of a few values (digits and letters masked), never the data">
+                Suggest with Claude
+              </button>
+            )}
           </div>
+          {aiReady && (
+            <p className="meta" style={{ marginTop: 6 }}>
+              Claude would see these column names: {columnShapes(resp.header, []).map((c) => c.name).join(" · ")} — plus the shape of a few values (e.g. 9999-99-99), never the values.
+            </p>
+          )}
 
           <h2 style={{ marginTop: 16 }}>Preview</h2>
           {p.duplicateFile && <p className="callout amber">This exact file was already loaded — nothing to do.</p>}

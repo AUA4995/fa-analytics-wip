@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { DEFAULT_COMPANY } from "@/lib/company";
 import { assertAdmin } from "@/lib/auth/session";
+import { plainError } from "@/lib/plain-error";
 
 const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/svg+xml", "image/webp"]);
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -100,7 +101,7 @@ export async function saveCompany(_prev: CompanyActionState, formData: FormData)
       update: data,
     });
   } catch (err) {
-    return { ok: false, message: `Could not save: ${err instanceof Error ? err.message : String(err)}` };
+    return { ok: false, message: `Could not save: ${plainError(err)}` };
   }
 
   revalidatePath("/", "layout");

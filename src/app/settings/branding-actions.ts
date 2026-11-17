@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { DEFAULT_COMPANY, FA_BRAND } from "@/lib/company";
 import { assertAdmin } from "@/lib/auth/session";
 import { HEX_RE } from "@/lib/brand";
+import { plainError } from "@/lib/plain-error";
 
 /** Settings → Branding (brief §12.11b). Colours + logos on the Company row; status colours stay fixed. */
 
@@ -66,7 +67,7 @@ export async function saveBranding(_prev: BrandingActionState, formData: FormDat
     await ensureCompanyRow();
     await prisma.company.update({ where: { id: DEFAULT_COMPANY.id }, data });
   } catch (err) {
-    return { ok: false, message: `Could not save: ${err instanceof Error ? err.message : String(err)}` };
+    return { ok: false, message: `Could not save: ${plainError(err)}` };
   }
   revalidatePath("/", "layout");
   return { ok: true, message: "Branding saved — the app and the digest emails use it from now on." };

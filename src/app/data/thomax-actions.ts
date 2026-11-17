@@ -5,6 +5,7 @@ import { assertAdmin, assertOwner } from "@/lib/auth/session";
 import { THOMAX_TABLE_NAMES } from "@/lib/thomax/tables";
 import { prisma } from "@/lib/db";
 import type { DataActionState } from "./actions";
+import { plainError } from "@/lib/plain-error";
 
 /**
  * Thomax (.wms) copy — buttons on Data sources → WMS.
@@ -12,7 +13,7 @@ import type { DataActionState } from "./actions";
  */
 
 const ok = (message: string): DataActionState => ({ ok: true, message });
-const fail = (err: unknown): DataActionState => ({ ok: false, message: err instanceof Error ? err.message : String(err) });
+const fail = (err: unknown): DataActionState => ({ ok: false, message: plainError(err) });
 
 export async function saveThomaxConnectionAction(_: DataActionState | null, form: FormData): Promise<DataActionState> {
   try {
@@ -34,7 +35,7 @@ export async function saveThomaxConnectionAction(_: DataActionState | null, form
       await testConnection();
       return ok("Saved and tested: Thomax answered. Next: Explore tables.");
     } catch (err) {
-      return { ok: false, message: `Saved, but the test failed: ${err instanceof Error ? err.message : String(err)}` };
+      return { ok: false, message: `Saved, but the test failed: ${plainError(err)}` };
     }
   } catch (err) {
     return fail(err);

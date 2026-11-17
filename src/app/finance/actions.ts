@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { assertAdmin } from "@/lib/auth/session";
 import { logChange } from "@/lib/model/store";
+import { plainError } from "@/lib/plain-error";
 
 export type DebtState = { ok: boolean; message: string };
 const num = (v: FormDataEntryValue | null) => {
@@ -44,7 +45,7 @@ export async function addDebtAction(_p: DebtState | null, fd: FormData): Promise
     revalidatePath("/finance");
     return { ok: true, message: "Added" };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -56,6 +57,6 @@ export async function deleteDebtAction(id: string): Promise<DebtState> {
     revalidatePath("/finance");
     return { ok: true, message: "Removed" };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

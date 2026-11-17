@@ -11,6 +11,7 @@ import { forgetThisDevice, regenerateBackupCodes, resetTwoFactor, verifySecondFa
 import { hitRateLimit, tooManyMessage } from "@/lib/auth/rate-limit";
 import { getAccessDomain, setAccessDomain } from "@/lib/auth/domain";
 import { logChange } from "@/lib/model/store";
+import { plainError } from "@/lib/plain-error";
 
 /** Who changed whose access, kept in the change history (Settings → History). */
 const audit = (me: { name: string }, entityId: string, field: string, oldValue: unknown, newValue: unknown) =>
@@ -44,7 +45,7 @@ async function run(fn: () => Promise<UserActionState>): Promise<UserActionState>
   try {
     return await fn();
   } catch (err) {
-    return fail(err instanceof Error ? err.message : String(err));
+    return fail(plainError(err));
   }
 }
 

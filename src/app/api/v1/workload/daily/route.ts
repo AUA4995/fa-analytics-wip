@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/v1/workload/daily?from=YYYY-MM-DD&to=YYYY-MM-DD[&site=smi] — orders created per client per day, from the
- * Thomax copy (Operations → Setup fields). For normal volume and weekday patterns. Scope volumes:read.
+ * Thomax copy (Operations → Setup fields). For normal volume and weekday patterns. Scope operations:read.
  */
 export async function GET(req: Request) {
-  const who = await authorise(req, "volumes:read");
+  const who = await authorise(req, "operations:read");
   if (isResponse(who)) return who;
   const r = await opsQuery(req.url, ["dispatch"]);
   if (r instanceof NextResponse) return r;

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth/session";
 import { FLOW_INFO, FLOW_KEYS, getOpsConfig, saveOpsConfig, type FlowKey, type RoleKey } from "@/lib/ops/config";
 import { logChange } from "@/lib/model/store";
+import { plainError } from "@/lib/plain-error";
 
 export type OpsActionState = { ok: boolean; message: string };
 
@@ -33,6 +34,6 @@ export async function saveOpsSetupAction(_: OpsActionState | null, form: FormDat
     const missing = FLOW_KEYS.filter((k) => !flowReady(saved, k)).map((k) => FLOW_INFO[k].title);
     return { ok: true, message: missing.length ? `Saved — still needed before numbers show: the required fields for ${missing.join(", ")}.` : "Saved." };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

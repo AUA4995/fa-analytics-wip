@@ -342,11 +342,39 @@ interface XPayRun {
 interface XPayslip {
   Payslip?: { EarningsLines?: Array<{ NumberOfUnits?: number; EarningsRateID?: string }>; TimesheetEarningsLines?: Array<{ NumberOfUnits?: number; EarningsRateID?: string }> };
 }
-interface XPayItems {
-  PayItems?: { EarningsRates?: Array<{ EarningsRateID: string; EarningsType?: string; Name?: string }> };
+export interface XPayItems {
+  PayItems?: { EarningsRates?: Array<{ EarningsRateID: string; EarningsType?: string; Name?: string; RateType?: string; TypeOfUnits?: string }> };
 }
 
-async function syncPayroll(): Promise<{ employees: number; payRuns: number; payslips: number }> {
+/**
+ * Which earnings rates are paid by the hour and which are overtime (batch 6). Hours: units are hours ("Hours", or a
+ * multiple of the ordinary rate). Overtime: Xero type OVERTIMEEARNINGS or "overtime"/"O/T" in the name, and by the hour.
+ * Allowances (km, meals) and fixed amounts are never hours.
+ */
+export function classifyRates(items: XPayItems | null): { hourly: Set<string>; overtime: Set<string> } | null {
+  if (!items) return null;
+  const hourly = new Set<string>();
+  const overtime = new Set<string>();
+  for (const r of items.PayItems?.EarningsRates ?? []) {
+    const isHours = /hour/i.test(r.TypeOfUnits ?? "") || (!r.TypeOfUnits && r.RateType === "MULTIPLE");
+    if (!isHours) continue;
+    hourly.add(r.EarningsRateID);
+    if (r.EarningsType === "OVERTIMEEARNINGS" || /overtime|\bo\/?t\b/i.test(r.Name ?? "")) overtime.add(r.EarningsRateID);
+  }
+  return { hourly, overtime };
+}
+
+type PayLine = { NumberOfUnits?: number; EarningsRateID?: string };
+/** Paid hours and overtime hours of one payslip; overtime null when it can't be told (no overtime rate in Xero). */
+export function payslipHours(lines: PayLine[], rates: ReturnType<typeof classifyRates>): { hours: number; overtimeHours: number | null } {
+  const sum = (ls: PayLine[]) => ls.reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0);
+  if (!rates) return { hours: sum(lines), overtimeHours: null }; // pay items unreadable: as before, and overtime unknown
+  const hours = sum(lines.filter((l) => l.EarningsRateID && rates.hourly.has(l.EarningsRateID)));
+  const overtimeHours = rates.overtime.size ? sum(lines.filter((l) => l.EarningsRateID && rates.overtime.has(l.EarningsRateID))) : null;
+  return { hours, overtimeHours };
+}
+
+async function syncPayroll(): Promise<{ employees: number; payRuns: number; payslips: number; payrollNote?: string }> {
   const conn = await getConnection();
   if (!/payroll\.payruns/.test(conn?.scopes ?? "")) throw new Error("Payroll permission not granted — reconnect Xero (Settings → Company)");
   let employees = 0;
@@ -361,8 +389,14 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
   let payRuns = 0;
   let payslips = 0;
   // Overtime (batch 6): earnings rates whose type is overtime; their hours are kept per payslip
-  const items = await xeroGet<XPayItems>("/PayItems", { api: "payroll" }).catch(() => null);
-  const overtimeRates = items ? new Set((items.PayItems?.EarningsRates ?? []).filter((r) => r.EarningsType === "OVERTIMEEARNINGS").map((r) => r.EarningsRateID)) : null;
+  let payrollNote: string | undefined;
+  const items = await xeroGet<XPayItems>("/PayItems", { api: "payroll" }).catch((err: unknown) => {
+    payrollNote = `Xero pay items couldn't be read (${err instanceof Error ? err.message.slice(0, 120) : "error"}) — paid hours may include allowance units, overtime not read`;
+    return null;
+  });
+  const rates = classifyRates(items);
+  if (rates && !rates.overtime.size) payrollNote = "No overtime earnings rate found in Xero (type Overtime, or “overtime” in the name) — overtime shows no data";
+  const overtimeRates = rates && rates.overtime.size ? rates.overtime : null;
   const known = new Map((await prisma.payRun.findMany({ select: { xeroId: true, status: true } })).map((r) => [r.xeroId, r.status]));
   // Posted runs never change — except to read overtime on payslips stored before it was kept
   const needsOvertime = new Set(overtimeRates ? (await prisma.payslip.findMany({ where: { overtimeHours: null }, select: { payRunId: true }, distinct: ["payRunId"] })).map((x) => x.payRunId) : []);
@@ -378,13 +412,12 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
       for (const s of detail.Payslips ?? []) {
         const slip = await xeroGet<XPayslip>(`/Payslip/${s.PayslipID}`, { api: "payroll" });
         const lines = [...(slip.Payslip?.EarningsLines ?? []), ...(slip.Payslip?.TimesheetEarningsLines ?? [])];
-        const hours = lines.reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0);
-        const overtimeHours = overtimeRates ? lines.filter((l) => l.EarningsRateID && overtimeRates.has(l.EarningsRateID)).reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0) : null;
+        const { hours, overtimeHours } = payslipHours(lines, rates);
         const data2 = { payRunId: r.PayRunID, employeeId: s.EmployeeID, gross: s.Wages ?? 0, super: s.Super ?? 0, hours, overtimeHours };
         await prisma.payslip.upsert({ where: { xeroId: s.PayslipID }, update: data2, create: { xeroId: s.PayslipID, ...data2 } });
         payslips++;
       }
     }
   }
-  return { employees, payRuns, payslips };
+  return { employees, payRuns, payslips, ...(payrollNote ? { payrollNote } : {}) };
 }

@@ -75,7 +75,7 @@ async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: 
       </div>
       {admin && (
         <Card title="Load a WMS file" sub="Thomax exports now, 3PLWMS exports (a few months in 2026), Logiwa files if ever needed. The same file can't be loaded twice; overlaps are shown before anything is saved.">
-          <WmsUpload sources={WMS_SOURCES} />
+          <WmsUpload sources={WMS_SOURCES} aiReady={!!process.env.ANTHROPIC_API_KEY} />
         </Card>
       )}
       <Card title="What's loaded" sub="Per WMS and tenant: dates covered, day lines (charges) and orders.">

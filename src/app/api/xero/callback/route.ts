@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/lib/auth/session";
 import { exchangeCode, listTenants, saveConnection } from "@/lib/xero/auth";
+import { plainError } from "@/lib/plain-error";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,6 @@ export async function GET(request: Request) {
     const note = tenants.length > 1 ? ` (${tenants.length} organisations authorised — connected the first; reconnect and pick only one to change)` : "";
     return back(request, { xero: "connected", message: `Connected to ${chosen.tenantName}${note}` });
   } catch (err) {
-    return back(request, { xero: "error", message: err instanceof Error ? err.message : String(err) });
+    return back(request, { xero: "error", message: plainError(err) });
   }
 }

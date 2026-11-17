@@ -117,13 +117,27 @@ export function AppShell({ initialPinned, user, companyName, logos, counts, sign
             <Crumb page={current} pageLabel={current ? label(current) : ""} noSections={current === "settings" && !user.isAdmin} />
           </Suspense>
           <span className="right">
-            <details className="notif">
+            <details
+              className="notif"
+              // Close when clicking anywhere else
+              onToggle={(e) => {
+                const d = e.currentTarget;
+                if (!d.open) return;
+                const close = (ev: MouseEvent) => {
+                  if (!d.contains(ev.target as Node)) {
+                    d.open = false;
+                    document.removeEventListener("mousedown", close);
+                  }
+                };
+                document.addEventListener("mousedown", close);
+              }}
+            >
               <summary aria-label="Notifications (coming soon)" title="Notifications (coming soon)">
                 <BellIcon />
               </summary>
               <div className="notif-pop" role="dialog" aria-label="Notifications">
                 <b>Notifications — coming soon</b>
-                <p>Urgent things Analytics notices (for example something serious from the Accounts Hub) will show here. Not designed yet — to discuss with Asal. Until then: Tasks → “New since the last sync”.</p>
+                <p>Urgent things Analytics notices (for example something serious from the Accounts Hub) will show here. Until then: Tasks → “New since the last sync”.</p>
               </div>
             </details>
             <span className="co">{companyName}</span>

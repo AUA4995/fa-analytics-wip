@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { assertAdmin } from "@/lib/auth/session";
 import { generateKey, validScopes } from "@/lib/apikeys";
 import { logChange } from "@/lib/model/store";
+import { plainError } from "@/lib/plain-error";
 
 export type KeyState = { ok: boolean; message: string; key?: string };
 
@@ -24,7 +25,7 @@ export async function createKeyAction(_p: KeyState | null, fd: FormData): Promis
     revalidatePath("/apis");
     return { ok: true, message: "Key created — copy it now; it won't be shown again.", key: k.key };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -36,6 +37,6 @@ export async function revokeKeyAction(id: string): Promise<KeyState> {
     revalidatePath("/apis");
     return { ok: true, message: "Revoked" };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

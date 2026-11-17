@@ -32,5 +32,9 @@ export async function opsQuery(url: string, flows: FlowKey[]): Promise<{ q: OpsQ
   const cfg = await getOpsConfig();
   const missing = flows.filter((k) => !flowReady(cfg, k));
   if (missing.length) return NextResponse.json({ error: "not set up yet", detail: `Operations → Setup in Analytics: choose the Thomax fields for ${missing.join(", ")}` }, { status: 409 });
+  // Never return all-site numbers labelled as one site
+  if (site && !site.codes.length) return NextResponse.json({ error: "site filter not available", detail: `${site.name} has no WMS warehouse codes yet (Analytics → Settings → Sites). Leave out site= for all sites.` }, { status: 409 });
+  const noWarehouse = site ? flows.filter((k) => !cfg.flows[k].roles.warehouse) : [];
+  if (noWarehouse.length) return NextResponse.json({ error: "site filter not available", detail: `Operations → Setup in Analytics: choose the Warehouse field for ${noWarehouse.join(", ")}. Leave out site= for all sites.` }, { status: 409 });
   return { q: { from, to, site: site?.key ?? null, warehouses: site ? site.codes : null, names: await tenantNames() }, cfg };
 }

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { assertAdmin } from "@/lib/auth/session";
 import { logChange } from "@/lib/model/store";
+import { plainError } from "@/lib/plain-error";
 
 export type ContactState = { ok: boolean; message: string };
 
@@ -37,7 +38,7 @@ export async function addRecipientAction(_p: ContactState | null, fd: FormData):
     revalidatePath("/settings");
     return { ok: true, message: `Added ${d.email}` };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -52,7 +53,7 @@ export async function removeRecipientAction(id: string): Promise<ContactState> {
     revalidatePath("/settings");
     return { ok: true, message: `Removed ${r.email}${reps.length ? ` (and from ${reps.length} report${reps.length > 1 ? "s" : ""})` : ""}` };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -68,6 +69,6 @@ export async function saveDomainsAction(raw: string): Promise<ContactState> {
     revalidatePath("/settings");
     return { ok: true, message: "Saved" };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

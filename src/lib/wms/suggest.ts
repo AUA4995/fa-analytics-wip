@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { columnShapes } from "./shape";
 import { KIND_FIELDS, type Mapping, type WmsKind } from "./import";
 
 /**
@@ -7,17 +8,7 @@ import { KIND_FIELDS, type Mapping, type WmsKind } from "./import";
  * values themselves. The person still checks the mapping and the preview before anything is saved.
  */
 
-export function shapeOf(v: string): string {
-  return v
-    .trim()
-    .slice(0, 24)
-    .replace(/[0-9]/g, "9")
-    .replace(/[A-Za-z]/g, "A");
-}
-
-export function columnShapes(header: string[], rows: string[][]): Array<{ index: number; name: string; shapes: string[] }> {
-  return header.map((name, index) => ({ index, name: name.slice(0, 80), shapes: [...new Set(rows.slice(0, 5).map((r) => shapeOf(r[index] ?? "")).filter(Boolean))].slice(0, 3) }));
-}
+export { columnShapes, looksLikeHeader, shapeOf } from "./shape";
 
 /** Keeps only known fields and column numbers that exist; each column used once. */
 export function cleanSuggestion(raw: unknown, kind: WmsKind, columns: number): Mapping {
@@ -43,7 +34,7 @@ export async function suggestMapping(kind: WmsKind, header: string[], rows: stri
     model: HAIKU,
     maxTokens: 400,
     system:
-      "You map columns of a warehouse (WMS) export file to fields. You get the column names and the shape of sample values (9 = a digit, A = a letter). Answer with the column index for each field, or null when no column fits. Never guess when unsure — use null.",
+      "You map columns of a warehouse (WMS) export file to fields. You get the column names and the shape of sample values (9 = a digit, A = a letter, ? = another symbol); a name shown as (hidden: …) was withheld. Answer with the column index for each field, or null when no column fits. Never guess when unsure — use null.",
     messages: [{ role: "user", content: `File type: ${kind}\nFields: ${JSON.stringify(fields)}\nColumns: ${JSON.stringify(cols)}` }],
     tool: {
       name: "column_mapping",
@@ -52,5 +43,7 @@ export async function suggestMapping(kind: WmsKind, header: string[], rows: stri
     },
   });
   await prisma.aiCallLog.create({ data: { job: "wms-column-suggest", model: HAIKU, inputTokens: r.inputTokens, outputTokens: r.outputTokens, ok: true, ref: kind } }).catch(() => {});
-  return cleanSuggestion(r.toolInput, kind, header.length);
+  const m = cleanSuggestion(r.toolInput, kind, header.length);
+  if (Object.values(m).every((i) => i === null)) throw new Error("Claude couldn't match any column with confidence — your current mapping is kept; map the columns by hand.");
+  return m;
 }

@@ -6,6 +6,7 @@ import { assertAdmin, assertUser } from "@/lib/auth/session";
 import { logChange, updateValue } from "@/lib/model/store";
 import { createTask } from "@/lib/tasks";
 import { planRateUpload, saveRateUpload, type RateSource } from "@/lib/rates/checks";
+import { plainError } from "@/lib/plain-error";
 
 export type RateState = { ok: boolean; message: string; id?: string };
 const actor = (u: { name: string }) => ({ type: "USER" as const, name: u.name });
@@ -19,7 +20,7 @@ export async function uploadRatesAction(source: RateSource, text: string, fileNa
     revalidatePath("/leakage");
     return { ok: true, message: `${n} rates saved.${plan.unknownClients.length ? ` Unknown clients: ${plan.unknownClients.slice(0, 6).join(", ")}.` : ""}${plan.unknownCodes.length ? ` Codes not mapped: ${plan.unknownCodes.slice(0, 6).join(", ")}.` : ""}` };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 

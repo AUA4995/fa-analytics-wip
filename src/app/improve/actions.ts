@@ -8,6 +8,7 @@ import { calcSaving, isInitiative, proposeBlocks, proposeSteps, suggestPeople, t
 import { prefill } from "@/lib/improve/data";
 import { logChange } from "@/lib/model/store";
 import { createTask } from "@/lib/tasks";
+import { plainError } from "@/lib/plain-error";
 
 export type ImpState = { ok: boolean; message: string; id?: string };
 const actor = (u: { name: string }) => ({ type: "USER" as const, name: u.name });
@@ -18,7 +19,7 @@ const wrap = async (fn: () => Promise<ImpState>): Promise<ImpState> => {
   try {
     return await fn();
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 };
 

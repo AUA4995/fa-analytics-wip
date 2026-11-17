@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { assertOwner } from "@/lib/auth/session";
 import { isFrontConfigured, listChannels } from "@/lib/front/client";
 import { recordFailure, recordSuccess } from "@/lib/integrations/status";
+import { plainError } from "@/lib/plain-error";
 
 export type FrontActionState = { ok: boolean; message: string };
 
@@ -21,7 +22,7 @@ export async function loadFrontChannels(): Promise<FrontActionState> {
     return { ok: true, message: `${value.length} channels found.` };
   } catch (err) {
     await recordFailure("front", err).catch(() => undefined);
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -34,6 +35,6 @@ export async function setFrontSendChannel(_prev: FrontActionState | null, formDa
     revalidatePath("/settings");
     return { ok: true, message: id ? "Saved." : "Cleared." };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { plainError } from "@/lib/plain-error";
 
 /** Packaging cost method (batch 3): AVERAGE now; PRECISE (real usage from Logiwa pack scans) once Logiwa is connected. */
 export async function setPackagingMode(mode: "AVERAGE" | "PRECISE"): Promise<{ ok: boolean; message: string }> {
@@ -14,6 +15,6 @@ export async function setPackagingMode(mode: "AVERAGE" | "PRECISE"): Promise<{ o
     revalidatePath("/cost");
     return { ok: true, message: mode === "PRECISE" ? "Precise selected — awaiting Logiwa integration, so the average is still used." : "Average per order." };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

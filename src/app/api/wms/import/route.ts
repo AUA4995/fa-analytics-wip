@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminRole } from "@/lib/auth/roles";
 import { parseCsv } from "@/lib/model/csv";
 import { KIND_FIELDS, applyWmsImport, guessMapping, planWmsImport, type Mapping } from "@/lib/wms/import";
+import { plainError } from "@/lib/plain-error";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
       const { suggestMapping } = await import("@/lib/wms/suggest");
       return Response.json({ mapping: await suggestMapping(b.kind, header, rows) });
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+      return Response.json({ error: plainError(err) }, { status: 400 });
     }
   }
   let mapping: Mapping | null = b.mapping ?? null;
@@ -60,6 +61,6 @@ export async function POST(req: Request) {
     void import("@/lib/jobs/after-sync").then((m) => m.afterSync(me.name)).catch(() => {});
     return Response.json({ ok: true, ...r });
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+    return Response.json({ error: plainError(err) }, { status: 400 });
   }
 }

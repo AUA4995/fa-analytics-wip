@@ -8,6 +8,7 @@ import { logChange } from "@/lib/model/store";
 import { createTask } from "@/lib/tasks";
 import { parseCsv } from "@/lib/model/csv";
 import { parseWmsDate } from "@/lib/wms/import";
+import { plainError } from "@/lib/plain-error";
 
 export type LeakState = { ok: boolean; message: string };
 const actor = (u: { name: string }) => ({ type: "USER" as const, name: u.name });
@@ -25,7 +26,7 @@ export async function runDetectionAction(): Promise<LeakState> {
     done();
     return { ok: true, message: `Checked the last 3 months: ${r.found} findings (${r.added} new, ${r.removed} no longer there).` };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 

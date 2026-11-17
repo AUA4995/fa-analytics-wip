@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { reportPdf } from "@/lib/reports/send";
+import { plainError } from "@/lib/plain-error";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -13,6 +14,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const { pdf, fileName } = await reportPdf(id);
     return new Response(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${fileName}"`, "Cache-Control": "no-store" } });
   } catch (err) {
-    return new Response(err instanceof Error ? err.message : String(err), { status: 400 });
+    return new Response(plainError(err), { status: 400 });
   }
 }

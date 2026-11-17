@@ -1,3 +1,4 @@
+import { hitRateLimit, LIMITS } from "@/lib/auth/rate-limit";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -37,6 +38,8 @@ export async function authorise(req: Request, scope: string): Promise<ApiCaller 
   if (row.revokedAt) return NextResponse.json({ error: "This API key was revoked" }, { status: 401 });
   if (row.expiresAt && row.expiresAt < new Date()) return NextResponse.json({ error: "This API key has expired" }, { status: 401 });
   if (!row.scopes.includes(scope)) return NextResponse.json({ error: `This key doesn't have the ${scope} scope` }, { status: 403 });
+  const limit = await hitRateLimit("apiKey", row.id);
+  if (!limit.ok) return NextResponse.json({ error: "Too many requests for this key", detail: `At most ${LIMITS.apiKey.limit} calls a minute — try again in ${limit.retryAfterSec} s` }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   await prisma.apiKey.update({ where: { id: row.id }, data: { lastUsedAt: new Date(), lastUsedIp: ip, uses: { increment: 1 } } });
   return { id: row.id, name: row.name, scopes: row.scopes };

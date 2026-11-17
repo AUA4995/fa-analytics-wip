@@ -5,6 +5,7 @@ import { z } from "zod";
 import { assertAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { logChange } from "@/lib/model/store";
+import { plainError } from "@/lib/plain-error";
 
 /** Revenue protection cases (batch 4): admins add and edit; every change is logged. */
 
@@ -102,7 +103,7 @@ export async function saveCase(_prev: CaseState | null, form: FormData): Promise
     revalidatePath("/revenue");
     return { ok: true, message: "Case added.", id: c.id };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }
 
@@ -116,6 +117,6 @@ export async function deleteCase(id: string): Promise<CaseState> {
     revalidatePath("/revenue");
     return { ok: true, message: "Deleted." };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return { ok: false, message: plainError(err) };
   }
 }

@@ -15,6 +15,8 @@ export const LIMITS = {
   requestIp: { limit: 5, windowSec: 60 * 60 },
   requestEmail: { limit: 3, windowSec: 24 * 60 * 60 },
   tokenIp: { limit: 30, windowSec: 15 * 60 },
+  /** Per API key, all /api/v1 routes together */
+  apiKey: { limit: 120, windowSec: 60 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

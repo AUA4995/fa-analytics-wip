@@ -37,7 +37,7 @@ function fieldParams(flow: Flow) {
 }
 
 /** Rows whose "created" falls in [from, to). Returns rows and whether the cap was hit. */
-export async function loadFlow(flow: Flow, from: Date, to: Date, filter: FlowFilter = {}): Promise<{ rows: FlowRow[]; capped: boolean }> {
+export async function loadFlow(flow: Flow, from: Date, to: Date, filter: FlowFilter = {}, maxRows = MAX_ROWS): Promise<{ rows: FlowRow[]; capped: boolean }> {
   const r = fieldParams(flow);
   if (!r.tenant || !r.created) return { rows: [], capped: false };
   const params: unknown[] = [flow.table, r.tenant, r.created, r.done ?? null, r.ref ?? null, r.type ?? null, r.warehouse ?? null, ts(from), ts(to)];
@@ -50,7 +50,7 @@ export async function loadFlow(flow: Flow, from: Date, to: Date, filter: FlowFil
     params.push(filter.warehouses.map((w) => w.toUpperCase()));
     where += ` AND upper(data->>$7) = ANY($${params.length}::text[])`;
   }
-  params.push(MAX_ROWS + 1);
+  params.push(maxRows + 1);
   const sql = `
     SELECT data->>$2 AS tenant,
            to_char(fa_try_ts(data->>$3), 'YYYY-MM-DD"T"HH24:MI:SS') AS created,
@@ -62,9 +62,9 @@ export async function loadFlow(flow: Flow, from: Date, to: Date, filter: FlowFil
      WHERE ${where}
      LIMIT $${params.length}`;
   const raw = await prisma.$queryRawUnsafe<Array<{ tenant: string | null; created: string | null; done: string | null; ref: string | null; type: string | null; warehouse: string | null }>>(sql, ...params);
-  const capped = raw.length > MAX_ROWS;
+  const capped = raw.length > maxRows;
   const rows: FlowRow[] = [];
-  for (const x of raw.slice(0, MAX_ROWS)) {
+  for (const x of raw.slice(0, maxRows)) {
     const created = wall(x.created);
     if (!created) continue;
     rows.push({ tenant: x.tenant ?? "", created, done: wall(x.done), ref: x.ref, type: x.type, warehouse: x.warehouse });
