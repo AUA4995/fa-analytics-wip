@@ -393,7 +393,11 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
   // Overtime (batch 6): earnings rates whose type is overtime; their hours are kept per payslip
   let payrollNote: string | undefined;
   const items = await xeroGet<XPayItems>("/PayItems", { api: "payroll" }).catch((err: unknown) => {
-    payrollNote = `Xero pay items couldn't be read (${err instanceof Error ? err.message.slice(0, 120) : "error"}) — paid hours and overtime show no data`;
+    const status = /\((\d{3})\)/.exec(err instanceof Error ? err.message : "")?.[1];
+    payrollNote =
+      status === "401" || status === "403"
+        ? "Xero refused access to pay items — reconnect Xero (Settings → Company) and allow payroll settings; until then paid hours and overtime show no data"
+        : "Xero pay items couldn't be read this time — paid hours and overtime show no data until the next sync";
     return null;
   });
   const rates = classifyRates(items);

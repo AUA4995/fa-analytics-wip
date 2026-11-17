@@ -98,6 +98,13 @@ export async function planWmsImport(source: WmsSource, kind: WmsKind, text: stri
   const plan: WmsPlan = { source, kind, checksum, duplicateFile: false, rowsRead: Math.max(0, rows.length - 1), errors: [], dateFrom: null, dateTo: null, tenants: [], charges: [], orders: [], overlap: 0, unmappedCodes: [] };
   plan.duplicateFile = !!(await prisma.volumeImport.findUnique({ where: { checksum } }));
   for (const f of KIND_FIELDS[kind]) if (f.required && (mapping[f.key] == null || mapping[f.key]! < 0)) plan.errors.push({ line: 1, message: `Pick the column for “${f.label}”` });
+  // One column can't mean two things (e.g. the client column picked as the order number would merge orders)
+  const byCol = new Map<number, string[]>();
+  for (const f of KIND_FIELDS[kind]) {
+    const i = mapping[f.key];
+    if (i != null && i >= 0) byCol.set(i, [...(byCol.get(i) ?? []), f.label]);
+  }
+  for (const [i, labels] of byCol) if (labels.length > 1) plan.errors.push({ line: 1, message: `Column ${i + 1} is picked for ${labels.map((l) => `“${l}”`).join(" and ")} — each column can be used once` });
   if (kind === "ORDERS" && mapping.sku == null && mapping.skus == null) plan.errors.push({ line: 1, message: "Pick either the SKU column (one row per order line) or the number-of-SKUs column (one row per order)" });
   if (plan.errors.length) return plan;
   const get = (r: string[], k: string) => (mapping[k] != null ? (r[mapping[k]!] ?? "").trim() : "");

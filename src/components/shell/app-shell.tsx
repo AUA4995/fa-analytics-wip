@@ -119,6 +119,10 @@ export function AppShell({ initialPinned, user, companyName, logos, counts, sign
           <span className="right">
             <details
               className="notif"
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") e.currentTarget.open = false;
+              }}
               // Close when clicking anywhere else
               onToggle={(e) => {
                 const d = e.currentTarget as HTMLDetailsElement & { _close?: (ev: MouseEvent) => void };
@@ -130,6 +134,7 @@ export function AppShell({ initialPinned, user, companyName, logos, counts, sign
                 };
                 d._close = close;
                 document.addEventListener("mousedown", close);
+                d.focus();
               }}
             >
               <summary aria-label="Notifications (coming soon)" title="Notifications (coming soon)">

@@ -20,6 +20,14 @@ describe.skipIf(!hasDb)("WMS import (integration)", () => {
     await prisma.$disconnect();
   });
 
+  it("one column can't be picked for two fields", async () => {
+    const csv = `Charge Date,Tenant ID,Charge Code,Qty\n01/09/2026,${T},PICK,5\n`;
+    const m = { ...w.guessMapping("CHARGES", ["Charge Date", "Tenant ID", "Charge Code", "Qty"]) };
+    m.wmsCode = m.tenant;
+    const p = await w.planWmsImport("THOMAX", "CHARGES", csv, m);
+    expect(p.errors.some((e) => /Column 2 is picked for/.test(e.message))).toBe(true);
+  });
+
   it("charges: sums per day / tenant / code, blocks the same file twice, replaces on overlap", async () => {
     const csv = `Charge Date,Tenant ID,Charge Code,Qty\n01/09/2026,${T},PICK,5\n01/09/2026,${T},PICK,3\n02/09/2026,${T},ORDER FEE,4\n`;
     const m = w.guessMapping("CHARGES", ["Charge Date", "Tenant ID", "Charge Code", "Qty"]);

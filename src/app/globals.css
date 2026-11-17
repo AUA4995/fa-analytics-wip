@@ -29,7 +29,7 @@
   --blue-deep: color-mix(in srgb, var(--blue) 75%, black);
   --surface: #f6f5f9;
   --border: #e6e4ee;
-  --app-bg: #f6f5f9;
+  --app-bg: #F5F3F5;
   --side-bg: #f3f2f7;
   --side-w: 248px;
   --rail-w: 68px;
