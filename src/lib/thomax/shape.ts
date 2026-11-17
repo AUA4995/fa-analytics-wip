@@ -153,10 +153,14 @@ export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string 
 const SECRET_FIELD =
   /password|passwd|passcode|passphrase|credential|secret|(^|[_a-z0-9])(pwd|token)$|(api|access|private|auth|account|licen[cs]e|signing|encryption|client|consumer)_?key$|(^|_|password)salt$|^(pin|pincode|pinnumber|pinno|hash)$|(user|login|security|access|staff|employee)_?pin(code|number|no)?$|(pin|password)hash$/i;
 /** Word-shaped secrets that need case to tell apart: "WebPass", "Pass", "PASS" go; "Compass", "QCPassed" stay. */
-const SECRET_WORD = /(^|[a-z0-9_])Pass(Hash)?$|^PASS$|(^|[a-z0-9_])T?(OTP|Otp)([A-Z_0-9]|$)/;
-const SECRET_FIELD_2 = /pwd|^pass(hash)?$|passhash|tokens$|^t?otp|(otp|mfa|2fa|auth|totp)_?seed|(security|secret)_?(question|answer)|^answer$/i;
+const SECRET_WORD = /(^|[a-z0-9_])Pass(Hash|Key)?$|(^|[a-z0-9_])Pw(Hash)?$/;
+const SECRET_FIELD_2 =
+  /pwd|^pass(hash)?$|passhash|pass_?(word|key)|(^|_)pw(hash)?$|userpw$|tokens$|^totp|t?otp_?(secret|seed|key|code|hash)|(mfa|2fa|auth|totp)_?seed|(security|secret|sec)_?(question|answer)|^answer$|(backup|recovery)_?codes|session_?(id|key|token)|cookie|two_?factor|2fa/i;
+/** All-lower or all-upper names ending in "pass" ("webpass", "USERPASS"), except ordinary words */
+const lowerPass = (f: string) => (f === f.toLowerCase() || f === f.toUpperCase()) && /pass$/i.test(f) && !/(com|by|sur|over|under|tres)pass$/i.test(f);
+// "OTP" alone stays: in a 3PL it usually means on-time performance
 export function isSecretField(f: string): boolean {
-  return SECRET_FIELD.test(f) || SECRET_WORD.test(f) || SECRET_FIELD_2.test(f);
+  return SECRET_FIELD.test(f) || SECRET_WORD.test(f) || SECRET_FIELD_2.test(f) || lowerPass(f);
 }
 export function withoutSecrets(row: ThomaxRecord, exclude: readonly string[] = []): ThomaxRecord {
   const out: ThomaxRecord = {};

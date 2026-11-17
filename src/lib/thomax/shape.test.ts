@@ -91,9 +91,9 @@ describe("Thomax values", () => {
     expect(withoutSecrets({ UserID: 1, Name: "Jo", PasswordHash: "x", PIN: "1234", ApiToken: "t", Pinned: true })).toEqual({ UserID: 1, Name: "Jo", Pinned: true });
     expect(fieldsOf([{ UserID: 1, Password: "x" }])).toEqual(["UserID"]);
     // Names that only contain those letters are kept (the copy is the archive after Thomax ends)
-    for (const f of ["PwdHash", "PassHash", "WebPass", "Pass", "PASS", "Tokens", "OTP", "TotpSeed", "MfaSeed", "SecurityAnswer", "SecretQuestion", "UserOtp", "OtpCode"])
+    for (const f of ["PwdHash", "PassHash", "WebPass", "Pass", "PASS", "Tokens", "TotpSeed", "MfaSeed", "SecurityAnswer", "SecretQuestion", "OtpCode", "webpass", "ftppass", "USERPASS", "pass_word", "PassKey", "PwHash", "UserPW", "RecoveryCodes", "BackupCodes", "TwoFactorKey", "SessionKey", "SessionId", "Cookie", "SecQuestion"])
       expect(isSecretField(f), f).toBe(true);
-    for (const f of ["Compass", "QCPassed", "ContactPassport", "Bypassed", "Footprint", "Hotpack", "SeedQty", "AnswerBy", "Notes", "Passenger"])
+    for (const f of ["Compass", "QCPassed", "ContactPassport", "Bypassed", "Footprint", "Hotpack", "SeedQty", "AnswerBy", "Notes", "Passenger", "OTP", "OTPDate", "OtpPct", "compass", "BYPASS", "Powder", "Pwr"])
       expect(isSecretField(f), f).toBe(false);
     expect(withoutSecrets({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t", UserPwd: "x", Salt: "s", Basalt: "b" })).toEqual({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t", Basalt: "b" });
     // Credentials under other names
