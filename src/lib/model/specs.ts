@@ -175,7 +175,7 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
     name: { label: "Name", kind: "text" },
     site: { label: "Site", kind: "select", options: STAFF_SITE_OPTIONS },
     position: { label: "Position", kind: "text", optional: true },
-    pool: { label: "Pool", kind: "select", options: [["floor", "Floor"], ["csr", "CSR"], ["supervisor", "Supervisor"], ["admin", "Admin"]] },
+    pool: { label: "Pool", kind: "select", options: [["floor", "Floor"], ["csr", "Support (CSR)"], ["accounts", "Accounts"], ["supervisor", "Supervisor"], ["admin", "Management & office"]] },
     type: { label: "Type", kind: "select", options: [["PERMANENT", "Permanent"], ["CASUAL", "Casual"], ["AGENCY", "Agency"]] },
     xeroEmployeeId: { label: "Xero Payroll ID", kind: "text", optional: true },
     thomaxCode: { label: "Thomax user code", kind: "text", optional: true },

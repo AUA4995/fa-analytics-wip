@@ -200,6 +200,8 @@ export function runEngine(inp: EngineInput): EngineResult {
     const fromVol = c.volumes.filter((v) => svc.get(v.serviceCode)?.role === "ORDER").reduce((a, v) => a + v.qty, 0);
     clientOrders.set(c.id, c.orders ?? fromVol);
   }
+  // Orders actually charged (ORDER-role lines): per-order pools are spread on these, the same lines that carry their cost
+  const chargedOrders = inp.clients.reduce((a, c) => a + c.volumes.filter((v) => svc.get(v.serviceCode)?.role === "ORDER").reduce((x, v) => x + v.qty, 0), 0);
   const packMan = inp.services.find((s) => s.role === "PACK_MANUAL");
   const packCmc = inp.services.find((s) => s.role === "PACK_CMC");
   /** Activity per client: volumes + packing pseudo-volumes (orders × method share), per site */
@@ -259,12 +261,18 @@ export function runEngine(inp: EngineInput): EngineResult {
     const listed = inp.services.some((s) => Object.keys(s.overheads).some((k) => resolve(k, p.site ?? "") === p.key || k === p.key));
     if (listed) continue;
     if (p.driver === "LABOUR_MINUTES") used.set(p.key, labourMinutes);
-    else if (p.driver === "ORDERS" || p.driver === "ORDERS_PACKED") used.set(p.key, totalOrders);
+    else if (p.driver === "ORDERS") used.set(p.key, chargedOrders || totalOrders);
+    else if (p.driver === "ORDERS_PACKED") used.set(p.key, totalOrders);
     else if (p.driver === "REVENUE") used.set(p.key, totalRevenue);
-    else if (p.driver === "MACHINE_ORDERS" && p.key.includes("cmc")) used.set(p.key, inp.clients.reduce((a, c) => a + (clientOrders.get(c.id) ?? 0) * (c.cmcShare ?? 0), 0));
+    else if (p.driver === "MACHINE_ORDERS" && p.key.includes("cmc")) {
+      // Orders through the CMC: each client's share typed in Settings → Clients until the WMS records which orders went through it
+      used.set(p.key, inp.clients.reduce((a, c) => a + (clientOrders.get(c.id) ?? 0) * (c.cmcShare ?? 0), 0));
+      const blank = inp.clients.filter((c) => c.cmcShare == null && (clientOrders.get(c.id) ?? 0) > 0);
+      if (inp.accounts[p.key] && blank.length) warnings.push(`${p.name}: ${blank.length} client${blank.length === 1 ? " has" : "s have"} no "Orders packed on the CMC" share — counted as 0% (Settings → Clients). It's an estimate until the WMS records which orders went through the machine.`);
+    }
     else if (p.driver === "MACHINE_ORDERS") {
-      // Other machines (e.g. the sorter): which orders go through them isn't recorded yet → every order
-      used.set(p.key, totalOrders);
+      // Other machines (e.g. the sorter): which orders go through them isn't recorded yet → every charged order
+      used.set(p.key, chargedOrders || totalOrders);
       if (inp.accounts[p.key]) warnings.push(`${p.name}: which orders go through it isn't recorded yet — spread over every order for now.`);
     }
     else if (isClientDriver(p.driver)) used.set(p.key, 1); // 100% of the pool, spread by client share (step 5)
@@ -353,6 +361,9 @@ export function runEngine(inp: EngineInput): EngineResult {
 
   // ---- 5. clients
   const revPoolRate = (v: Variant) => revenuePools.reduce((a, p) => a + rate(p.key, v), 0);
+  const totRevAll = inp.clients.reduce((a, c) => a + (c.revenue ?? 0), 0);
+  const revCost = (k: string) => pr.get(k)?.cost ?? 0;
+  if (!totRevAll && revenuePools.some((p) => revCost(p.key) > 0)) warnings.push(`No Xero revenue for ${inp.month} — ${revenuePools.filter((p) => revCost(p.key) > 0).map((p) => p.name).join(", ")} spread by orders instead.`);
   // Client-level pools (batch 3 office split): each client's share of the pool
   const sum = (f: (c: EngineClient) => number) => inp.clients.reduce((a, c) => a + f(c), 0);
   const totSupport = sum((c) => c.supportScore ?? 0);
@@ -431,6 +442,18 @@ export function runEngine(inp: EngineInput): EngineResult {
     lines.sort((a, b) => b.costT - a.costT);
     let costT = lines.reduce((a, l) => a + l.costT, 0);
     let costF = lines.reduce((a, l) => a + l.costF, 0);
+    if (!totRevAll && revenuePools.length && chargedOrders) {
+      // No Xero revenue this month: revenue pools spread by orders, so their cost isn't lost from the totals
+      const sh = (clientOrders.get(c.id) ?? 0) / (totalOrders || 1);
+      for (const p of revenuePools) {
+        const amt = revCost(p.key) * sh;
+        if (!amt) continue;
+        const part: Part = { label: `${p.name} · ${pct(sh)} share (orders — no Xero revenue this month)`, amount: amt, ref: `pool:${p.key}` };
+        costT += amt;
+        costF += amt;
+        lines.push({ code: `pool:${p.key}`, name: p.name, unit: "share", qty: sh, billable: false, unitT: amt / sh, unitF: amt / sh, costT: amt, costF: amt, partsT: [part], partsF: [part], rate: null, marginPctT: null, marginPctF: null });
+      }
+    }
     if (c.revenue && revenuePools.length) {
       costT += c.revenue * revPoolRate("T");
       costF += c.revenue * revPoolRate("F");

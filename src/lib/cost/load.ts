@@ -82,8 +82,11 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
   const labour: EngineInput["labour"] = {};
   const people = new Map<string, Set<string>>();
   const floorPool = (siteKey: string) => pools.find((p) => p.kind === "LABOUR" && p.site === siteKey)?.key;
-  const csrPool = pools.find((p) => p.kind === "LABOUR" && !p.site)?.key;
-  const adminPool = pools.find((p) => p.driver === "LABOUR_MINUTES")?.key;
+  // Office pools by key (batch 3 review: the drivers changed with the agreed office split)
+  const byKey = (k: string) => pools.find((p) => p.key === k)?.key;
+  const csrPool = byKey("csr") ?? pools.find((p) => p.kind === "LABOUR" && !p.site)?.key;
+  const accountsPool = byKey("accounts");
+  const adminPool = byKey("admin") ?? pools.find((p) => p.driver === "LABOUR_MINUTES")?.key;
   for (const sl of slips) {
     const st = staffByXero.get(sl.employeeId);
     const gross = Number(sl.gross);
@@ -95,7 +98,7 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
       continue;
     }
     const targets: Array<[string | undefined, number]> =
-      st.pool === "csr" ? [[csrPool, 1]] : st.pool === "admin" ? [[adminPool, 1]] : st.site === "both" ? sites.map((s) => [floorPool(s.key), 1 / sites.length]) : [[floorPool(st.site), 1]];
+      st.pool === "csr" ? [[csrPool, 1]] : st.pool === "accounts" ? [[accountsPool ?? adminPool, 1]] : st.pool === "admin" ? [[adminPool, 1]] : st.site === "both" ? sites.map((s) => [floorPool(s.key), 1 / sites.length]) : [[floorPool(st.site), 1]];
     for (const [k, share] of targets) {
       if (!k) continue;
       const l = (labour[k] ??= { gross: 0, super: 0, hours: 0, people: 0 });
@@ -114,7 +117,8 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
   let postageCost = 0;
   for (const row of pnl) {
     const mp = row.accountCode ? byCode.get(row.accountCode) : undefined;
-    const isExpense = !/income|revenue|sales/i.test(row.section);
+    // "Less Cost of Sales" is an expense section (it contains "sales"): same rule as the finance pages
+    const isExpense = /less/i.test(row.section) || !/income|revenue|sales/i.test(row.section);
     if (!isExpense) continue;
     if (!mp || (mp.treatment === "INCLUDE" && !mp.poolKey)) {
       if (Number(row.amount)) notes.unmappedAccounts.push({ code: row.accountCode ?? "?", name: row.accountName, amount: Number(row.amount) });
@@ -184,8 +188,8 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
     const lines = await prisma.xeroSaleLine.findMany({ where: { sale: { contactId: { in: linked.map((c) => c.xeroContactId!) }, date: { gte: from, lt: to }, status: { in: ["AUTHORISED", "PAID"] } } }, select: { amount: true, accountCode: true, sale: { select: { contactId: true } } } });
     for (const c of linked) {
       const rev = lines.filter((l) => l.sale.contactId === c.xeroContactId && l.accountCode && included.has(l.accountCode)).reduce((a, l) => a + Number(l.amount), 0);
-      if (rev || ec.has(c.id)) clientRow(c).revenue = rev;
       const post = lines.filter((l) => l.sale.contactId === c.xeroContactId && l.accountCode && postageAcc.has(l.accountCode)).reduce((a, l) => a + Number(l.amount), 0);
+      if (rev || post || ec.has(c.id)) clientRow(c).revenue = rev;
       if (post) clientRow(c).postageRevenue = post;
     }
   }

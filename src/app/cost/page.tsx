@@ -416,7 +416,7 @@ async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants:
             </Link>
           ))}
         </span>
-        <span className="meta">Margins use Xero processing revenue (postage left out) where the client is linked to Xero. * = not linked: margin on the services that have a rate only.</span>
+        <span className="meta">Margins use Xero revenue — processing, plus postage re-billed (with its carrier cost) — where the client is linked to Xero. * = not linked: margin on the services that have a rate only.</span>
       </div>
       <div className="kpis">
         <div className="kpi">

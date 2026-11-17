@@ -231,4 +231,29 @@ describe("cost engine", () => {
     expect(sort.used).toBe(1000);
     expect(sort.rateT).toBeCloseTo(1, 8);
   });
+
+  it("review 2 — management/software spread by revenue: with no Xero revenue they're spread by orders, totals still add up", () => {
+    const base = input();
+    const r = runEngine({
+      ...base,
+      pools: [...base.pools, { key: "software", name: "Software", kind: "OVERHEAD", site: null, driver: "REVENUE", capacity: null }],
+      accounts: { ...base.accounts, software: 900 },
+      clients: base.clients.map((c) => ({ ...c, revenue: null })),
+    });
+    const sw = (id: string) => r.clients.find((c) => c.id === id)!.lines.find((l) => l.code === "pool:software")?.costT ?? 0;
+    expect(sw("a") + sw("b")).toBeCloseTo(900, 6);
+    expect(r.warnings.some((w) => /spread by orders instead/.test(w))).toBe(true);
+  });
+
+  it("review 2 — per-order pools use the order lines actually charged, even when the orders file differs", () => {
+    const base = input();
+    const r = runEngine({
+      ...base,
+      pools: [...base.pools, { key: "sw_orders", name: "Per order", kind: "OVERHEAD", site: null, driver: "ORDERS", capacity: null }],
+      accounts: { ...base.accounts, sw_orders: 1000 },
+      clients: base.clients.map((c) => ({ ...c, orders: (c.id === "a" ? 800 : 200) * 1.5 })),
+    });
+    const spread = r.clients.reduce((a, c) => a + c.lines.filter((l) => l.code === "ORD").reduce((x, l) => x + l.partsT.filter((p) => p.ref === "pool:sw_orders").reduce((y, p) => y + p.amount, 0) * l.qty, 0), 0);
+    expect(spread).toBeCloseTo(1000, 6);
+  });
 });
