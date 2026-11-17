@@ -12,7 +12,7 @@ git checkout main || goto :fail
 git pull --ff-only || goto :fail
 call npm.cmd ci || goto :fail
 call npm.cmd run db:deploy || goto :fail
-call npm.cmd run build || goto :fail
+call npm.cmd run build || (echo Build stopped once - trying again... & call npm.cmd run build) || goto :fail
 echo.
 echo Updated. Start the app again with scripts\windows\start.cmd
 exit /b 0
