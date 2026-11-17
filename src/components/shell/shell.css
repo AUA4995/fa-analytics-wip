@@ -4,3 +4,10 @@
  * change Tailwind's layer order (base would then beat components).
  */
 .side-nav a svg { width: 20px; height: 20px; }
+
+/* Batch 6 — notifications placeholder (coming soon) */
+.notif { position: relative; display: inline-block; margin-right: 10px; }
+.notif > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; color: inherit; opacity: .85; }
+.notif > summary::-webkit-details-marker { display: none; }
+.notif-pop { position: absolute; right: 0; top: 28px; z-index: 40; width: min(300px, 80vw); background: var(--card); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+.notif-pop p { margin: 6px 0 0; color: var(--grey); }

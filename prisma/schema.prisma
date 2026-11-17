@@ -682,6 +682,8 @@ model Payslip {
   gross      Decimal  @db.Decimal(12, 2)
   super      Decimal  @db.Decimal(12, 2)
   hours      Decimal  @db.Decimal(10, 2)
+  /// Batch 6: hours on overtime earnings rates (Xero earnings type OVERTIMEEARNINGS); null = read before this was added
+  overtimeHours Decimal? @db.Decimal(10, 2)
   updatedAt  DateTime @updatedAt
 
   @@index([employeeId])

@@ -1,6 +1,6 @@
 /** Scopes for keys we give out (brief §12). Read-only by default; pay by person is never available through a key. */
 export const SCOPES: Array<{ key: string; label: string; detail: string; write?: boolean; internal?: boolean }> = [
-  { key: "volumes:read", label: "Orders and volumes", detail: "Orders, units and SKUs per client per month (WMS)" },
+  { key: "volumes:read", label: "Orders and volumes", detail: "Orders, units and SKUs per client per month; orders per client per day; expected and received deliveries (WMS)" },
   { key: "kpi:read", label: "KPIs", detail: "KPI values and targets, by month and site" },
   { key: "leakage:read", label: "Leakage", detail: "Open and recovered leakage findings", internal: true },
   { key: "costs:read", label: "Costs and margins", detail: "Base cost per order and margin per client — internal figures", internal: true },

@@ -1,6 +1,7 @@
 # FA Analytics — API for other apps
 
-Base address: `<APP_URL>/api/v1` (e.g. `https://analytics.fulfilmentaustralia.com.au/api/v1`).
+Base address: `<APP_URL>/api/v1` — Analytics runs inside the office network only (e.g. `http://<mac-mini-address>:3002/api/v1`),
+so the calling app must be on the same machine or the private connection.
 Keys are made in **API connections → Keys we give out** (admins and the owner). A key is shown once; only its first
 16 characters are kept. Each key has scopes and an expiry, and can be revoked at any time.
 
@@ -15,8 +16,10 @@ Errors are JSON `{ "error": "..." }`: 401 = no / unknown / revoked / expired key
 |---|---|---|---|
 | GET | `/me` | — | key name, prefix, scopes, expiry |
 | GET | `/volumes?month=YYYY-MM` | `volumes:read` | orders, units, units / order, SKUs / order per client (default: last complete month) |
+| GET | `/workload/daily?from=YYYY-MM-DD&to=YYYY-MM-DD[&site=smi\|par]` | `volumes:read` | orders created per client per day from the Thomax copy (≤ 93 days per call; 409 until Operations → Setup is done) |
+| GET | `/inbound?from=YYYY-MM-DD&to=YYYY-MM-DD[&site=smi\|par]` | `volumes:read` | expected deliveries (ASN) and receipts with arrived / received times (Sydney wall-clock, no zone) |
 | GET | `/kpi?site=all\|smi\|par` | `kpi:read` | 12 months per KPI, target, status (`green` / `amber` / `red` / `none` / `needs-data`) |
-| GET | `/leakage?status=open\|recovered\|all` | `leakage:read` | findings with their working (internal) |
+| GET | `/leakage?status=open\|recovered\|all` | `leakage:read` | findings with their working (internal) — the Accounts Hub reads missed billing here (decision 11/11/2026) |
 | GET | `/costs?month=YYYY-MM` | `costs:read` | base cost per order (TDABC and Full absorption), unused capacity, cost and margin per client (internal) |
 | GET | `/finance` | `finance:read` | company P&L by month (last 24), bank ratios, cash (internal; no pay by person) |
 | GET | `/improvements` | `improve:read` | ideas and initiatives, savings, steps |
@@ -34,3 +37,6 @@ the key's name as "Where", and Logs record the key's name (plus `by`).
 
 Rules: read-only except `tasks:write`; nothing here writes to Xero, Front, Dyspach or the WMS; pay by person is never
 returned. Every call updates the key's "last used" and call count.
+
+Planned, not built yet (need data Analytics doesn't have): open orders by SKU (`/workload/open`, after the Thomax order-line
+fields are confirmed) and measured minutes per order (`/norms`, after timed activities are mapped).

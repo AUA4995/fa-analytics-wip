@@ -340,7 +340,10 @@ interface XPayRun {
   Payslips?: Array<{ PayslipID: string; EmployeeID: string; Wages?: number; Super?: number }>;
 }
 interface XPayslip {
-  Payslip?: { EarningsLines?: Array<{ NumberOfUnits?: number }>; TimesheetEarningsLines?: Array<{ NumberOfUnits?: number }> };
+  Payslip?: { EarningsLines?: Array<{ NumberOfUnits?: number; EarningsRateID?: string }>; TimesheetEarningsLines?: Array<{ NumberOfUnits?: number; EarningsRateID?: string }> };
+}
+interface XPayItems {
+  PayItems?: { EarningsRates?: Array<{ EarningsRateID: string; EarningsType?: string; Name?: string }> };
 }
 
 async function syncPayroll(): Promise<{ employees: number; payRuns: number; payslips: number }> {
@@ -357,10 +360,15 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
   }
   let payRuns = 0;
   let payslips = 0;
+  // Overtime (batch 6): earnings rates whose type is overtime; their hours are kept per payslip
+  const items = await xeroGet<XPayItems>("/PayItems", { api: "payroll" }).catch(() => null);
+  const overtimeRates = items ? new Set((items.PayItems?.EarningsRates ?? []).filter((r) => r.EarningsType === "OVERTIMEEARNINGS").map((r) => r.EarningsRateID)) : null;
   const known = new Map((await prisma.payRun.findMany({ select: { xeroId: true, status: true } })).map((r) => [r.xeroId, r.status]));
+  // Posted runs never change — except to read overtime on payslips stored before it was kept
+  const needsOvertime = new Set(overtimeRates ? (await prisma.payslip.findMany({ where: { overtimeHours: null }, select: { payRunId: true }, distinct: ["payRunId"] })).map((x) => x.payRunId) : []);
   for await (const page of xeroPages<XPayRun>("/PayRuns", "PayRuns", { api: "payroll" })) {
     for (const r of page) {
-      if (known.get(r.PayRunID) === "POSTED") continue; // posted runs never change
+      if (known.get(r.PayRunID) === "POSTED" && !needsOvertime.has(r.PayRunID)) continue; // posted runs never change
       const detail = (await xeroGet<{ PayRuns?: XPayRun[] }>(`/PayRuns/${r.PayRunID}`, { api: "payroll" })).PayRuns?.[0] ?? r;
       const dd = (s: string) => new Date((xeroDateToISO(s) ?? xeroDateTime(s)?.toISOString().slice(0, 10) ?? "1970-01-01") + "T00:00:00Z");
       const data = { periodStart: dd(detail.PayRunPeriodStartDate), periodEnd: dd(detail.PayRunPeriodEndDate), paymentDate: dd(detail.PaymentDate), status: detail.PayRunStatus };
@@ -369,8 +377,10 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
       if (detail.PayRunStatus !== "POSTED") continue;
       for (const s of detail.Payslips ?? []) {
         const slip = await xeroGet<XPayslip>(`/Payslip/${s.PayslipID}`, { api: "payroll" });
-        const hours = [...(slip.Payslip?.EarningsLines ?? []), ...(slip.Payslip?.TimesheetEarningsLines ?? [])].reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0);
-        const data2 = { payRunId: r.PayRunID, employeeId: s.EmployeeID, gross: s.Wages ?? 0, super: s.Super ?? 0, hours };
+        const lines = [...(slip.Payslip?.EarningsLines ?? []), ...(slip.Payslip?.TimesheetEarningsLines ?? [])];
+        const hours = lines.reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0);
+        const overtimeHours = overtimeRates ? lines.filter((l) => l.EarningsRateID && overtimeRates.has(l.EarningsRateID)).reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0) : null;
+        const data2 = { payRunId: r.PayRunID, employeeId: s.EmployeeID, gross: s.Wages ?? 0, super: s.Super ?? 0, hours, overtimeHours };
         await prisma.payslip.upsert({ where: { xeroId: s.PayslipID }, update: data2, create: { xeroId: s.PayslipID, ...data2 } });
         payslips++;
       }

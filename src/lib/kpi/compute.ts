@@ -36,8 +36,9 @@ export async function computeKpis(site: Site, n = 12, now = new Date()): Promise
     prisma.$queryRaw<Array<{ m: string; wh: string | null; source: string; tenant: string; n: number; u: number }>>`
       SELECT to_char(date, 'YYYY-MM') AS m, warehouse AS wh, source, tenant, count(*)::int AS n, coalesce(sum(units), 0)::float AS u
       FROM "OrderFact" WHERE date >= ${from} AND date < ${to} GROUP BY 1, 2, 3, 4`,
-    prisma.$queryRaw<Array<{ m: string; site: string; gross: number; super: number; hours: number }>>`
-      SELECT to_char(r."paymentDate", 'YYYY-MM') AS m, s.site, sum(p.gross)::float AS gross, sum(p.super)::float AS super, sum(p.hours)::float AS hours
+    prisma.$queryRaw<Array<{ m: string; site: string; gross: number; super: number; hours: number; ot: number | null; otKnown: number; n: number }>>`
+      SELECT to_char(r."paymentDate", 'YYYY-MM') AS m, s.site, sum(p.gross)::float AS gross, sum(p.super)::float AS super, sum(p.hours)::float AS hours,
+             sum(p."overtimeHours")::float AS ot, count(p."overtimeHours")::int AS "otKnown", count(*)::int AS n
       FROM "Payslip" p JOIN "PayRun" r ON r."xeroId" = p."payRunId" JOIN "Staff" s ON s."xeroEmployeeId" = p."employeeId"
       WHERE s.pool = 'floor' AND r."paymentDate" >= ${from} AND r."paymentDate" < ${to} GROUP BY 1, 2`,
     prisma.$queryRaw<Array<{ m: string; wh: string; source: string; tenant: string; code: string; q: number }>>`
@@ -83,6 +84,12 @@ export async function computeKpis(site: Site, n = 12, now = new Date()): Promise
     const has = anyOrders(m);
     const o = ordersIn(m, s);
     switch (id) {
+      case "overtime": {
+        // Only months where overtime was read for every payslip (older payslips stay "no data" until re-read)
+        const rows = slips.filter((p) => p.m === m && (s === "all" || p.site === s));
+        if (!rows.length || rows.some((p) => p.otKnown < p.n)) return null;
+        return div(rows.reduce((a, p) => a + (p.ot ?? 0), 0), rows.reduce((a, p) => a + p.hours, 0));
+      }
       case "ordersPerDay":
         return has ? o / workingDays(m) : null;
       case "unitsPerHour": {

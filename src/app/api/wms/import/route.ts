@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const Body = z.object({
-  action: z.enum(["plan", "apply"]),
+  action: z.enum(["plan", "apply", "suggest"]),
   source: z.enum(["THOMAX", "P3L", "LOGIWA"]),
   kind: z.enum(["CHARGES", "ORDERS"]),
   text: z.string().min(1).max(200_000_000),
@@ -29,6 +29,16 @@ export async function POST(req: Request) {
   if (!parsed.success) return Response.json({ error: "Bad request: " + parsed.error.issues.map((i) => i.message).join("; ") }, { status: 400 });
   const b = parsed.data;
   const header = (parseCsv(b.text.split(/\r?\n/, 1)[0] ?? "")[0] ?? []).map((h) => h.trim());
+  if (b.action === "suggest") {
+    // Claude suggests a mapping from column names + value shapes only; the person still previews before saving
+    try {
+      const rows = parseCsv(b.text.split(/\r?\n/).slice(0, 6).join("\n")).slice(1);
+      const { suggestMapping } = await import("@/lib/wms/suggest");
+      return Response.json({ mapping: await suggestMapping(b.kind, header, rows) });
+    } catch (err) {
+      return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+    }
+  }
   let mapping: Mapping | null = b.mapping ?? null;
   if (!mapping) {
     const saved = await prisma.setting.findUnique({ where: { key: `wmsMapping:${b.source}:${b.kind}` } });

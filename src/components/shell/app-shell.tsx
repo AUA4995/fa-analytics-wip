@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, use, useState, useTransition, type ReactNode } from "react";
 import { setMenuPinned } from "@/lib/actions/shell";
 import { BOTTOM_MENU, MAIN_MENU, PAGES, crumbFor, pageForPath, parseSection, type PageKey } from "@/components/ui/sections";
-import { MenuIcon, PageIcon, PinIcon, SignOutIcon } from "./icons";
+import { BellIcon, MenuIcon, PageIcon, PinIcon, SignOutIcon } from "./icons";
 import { initials } from "./initials";
 import "./shell.css";
 
@@ -117,6 +117,15 @@ export function AppShell({ initialPinned, user, companyName, logos, counts, sign
             <Crumb page={current} pageLabel={current ? label(current) : ""} noSections={current === "settings" && !user.isAdmin} />
           </Suspense>
           <span className="right">
+            <details className="notif">
+              <summary aria-label="Notifications (coming soon)" title="Notifications (coming soon)">
+                <BellIcon />
+              </summary>
+              <div className="notif-pop" role="dialog" aria-label="Notifications">
+                <b>Notifications — coming soon</b>
+                <p>Urgent things Analytics notices (for example something serious from the Accounts Hub) will show here. Not designed yet — to discuss with Asal. Until then: Tasks → “New since the last sync”.</p>
+              </div>
+            </details>
             <span className="co">{companyName}</span>
           </span>
         </header>

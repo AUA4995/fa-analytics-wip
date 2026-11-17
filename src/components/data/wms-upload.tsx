@@ -38,8 +38,10 @@ export function WmsUpload({ sources }: { sources: ReadonlyArray<readonly [string
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
 
-  const call = async (action: "plan" | "apply", m: Mapping | null) => {
-    const res = await fetch("/api/wms/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, source, kind, text: file!.text, fileName: file!.name, mapping: m, onOverlap }) });
+  const call = async (action: "plan" | "apply" | "suggest", m: Mapping | null) => {
+    // "suggest" needs only the first rows; the rest of a big file isn't sent
+    const text = action === "suggest" ? file!.text.split(/\r?\n/).slice(0, 6).join("\n") : file!.text;
+    const res = await fetch("/api/wms/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, source, kind, text, fileName: file!.name, mapping: m, onOverlap }) });
     return res.json();
   };
   const plan = (m: Mapping | null) =>
@@ -51,6 +53,18 @@ export function WmsUpload({ sources }: { sources: ReadonlyArray<readonly [string
         setResp(r);
         setMapping(r.mapping);
       }
+    });
+  const suggest = () =>
+    start(async () => {
+      setMsg(null);
+      const r = (await call("suggest", null)) as { mapping?: Mapping; error?: string };
+      if (r.error || !r.mapping) return setMsg({ ok: false, text: r.error ?? "Claude didn't suggest anything." });
+      const m = r.mapping;
+      const p2 = (await call("plan", m)) as PlanResp;
+      if (p2.error) return setMsg({ ok: false, text: p2.error });
+      setResp(p2);
+      setMapping(p2.mapping);
+      setMsg({ ok: true, text: "Claude's suggestion is filled in below (it saw only the column names and the shape of the values). Check each column and the preview before saving." });
     });
   const apply = () =>
     start(async () => {
@@ -125,6 +139,9 @@ export function WmsUpload({ sources }: { sources: ReadonlyArray<readonly [string
             ))}
             <button type="button" className="btn" disabled={pending} onClick={() => plan(mapping)}>
               Check again
+            </button>
+            <button type="button" className="btn" disabled={pending} onClick={suggest} title="Claude sees only the column names and the shape of a few values (digits and letters masked), never the data">
+              Suggest with Claude
             </button>
           </div>
 
