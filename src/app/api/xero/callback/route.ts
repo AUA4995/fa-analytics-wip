@@ -15,7 +15,7 @@ function back(request: Request, params: Record<string, string>) {
 /** OAuth 2.0 redirect target. Exchanges the code and stores the (encrypted) tokens. */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
-  if (user?.role !== "OWNER") return back(request, { xero: "error", message: "Only the owner can connect Xero — sign in as the owner and try again." });
+  if (user?.role !== "OWNER") return back(request, { xero: "error", message: "Only an owner can connect Xero — sign in as an owner and try again." });
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

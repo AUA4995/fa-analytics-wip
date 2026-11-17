@@ -760,7 +760,7 @@ export async function TicketTypesSection({ canEdit }: { canEdit: boolean }) {
           </table>
         </div>
       </Card>
-      <Card title={latest ? `Client scores · week of ${latest.split("-").reverse().join("/")}` : "Client scores"} sub="Weighted score per client vs the average client that week (1.0 = average). Counted nightly from Front, or with Score tickets on Data sources → Front.">
+      <Card title={latest ? `Client scores · week of ${latest.split("-").reverse().join("/")}` : "Client scores"} sub="Weighted score per client vs the average client that week (1.0 = average). Counted nightly from Front, or with Recount on Data sources → Front.">
         {!thisWeek.length ? (
           <p className="empty">No scores yet.</p>
         ) : (

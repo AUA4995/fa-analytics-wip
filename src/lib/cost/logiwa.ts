@@ -5,7 +5,7 @@ import { getRules } from "@/lib/model/store";
  * Logiwa as a step / semi-variable cost (batch 3, 16/11/2026): a yearly plan of credits (800,000), one credit per
  * order of up to 25 unique lines (26–50 lines = 2 credits …), credits above the plan cost 150% of the plan price.
  * Tracker: credits used this contract year (Logiwa orders), and a projection if all current volume ran on Logiwa.
- * No dollar figure for overage — the plan price per credit isn't known here.
+ * Overage in dollars once the plan fee per year is set in Rules (price per credit = fee ÷ credits).
  */
 
 export function creditsForOrder(lines: number, linesPerCredit: number): number {
@@ -32,7 +32,12 @@ export interface LogiwaTracker {
   linesPerCredit: number;
   overage: number;
   year: { from: Date; to: Date; label: string };
-  usedLogiwa: number;
+  /** null = no Logiwa orders yet (not connected / not live) */
+  usedLogiwa: number | null;
+  /** Plan fee per year (Rules); null = not set */
+  yearFee: number | null;
+  /** Projected overage in dollars (null when the fee isn't set or nothing is projected over) */
+  projectedOverCost: number | null;
   /** Credits a month if all orders (any WMS) ran on Logiwa — average of the last 3 complete months */
   monthlyAllVolume: number | null;
   projectedYear: number | null;
@@ -57,5 +62,10 @@ export async function loadLogiwaTracker(now = new Date()): Promise<LogiwaTracker
     prisma.$queryRaw<Array<{ m: string; c: number }>>`SELECT to_char(date, 'YYYY-MM') AS m, SUM(GREATEST(1, CEIL(skus::numeric / ${lpc})))::float AS c FROM "OrderFact" WHERE date >= ${from3} AND date < ${thisMonth} GROUP BY 1`,
   ]);
   const monthly = recent.length === 3 ? recent.reduce((a, r) => a + Number(r.c), 0) / 3 : null;
-  return { allowance, linesPerCredit: lpc, overage: rules.logiwaOverage ?? 1.5, year, usedLogiwa: Number(used[0]?.c ?? 0), monthlyAllVolume: monthly, ...project(allowance, monthly) };
+  const anyLogiwa = (await prisma.orderFact.count({ where: { source: "LOGIWA" }, take: 1 })) > 0;
+  const overage = rules.logiwaOverage ?? 1.5;
+  const yearFee = (rules as Record<string, number | null | undefined>).logiwaYearFee ?? null;
+  const p = project(allowance, monthly);
+  const projectedOverCost = yearFee && allowance && p.projectedOver ? p.projectedOver * (yearFee / allowance) * overage : null;
+  return { allowance, linesPerCredit: lpc, overage, year, usedLogiwa: anyLogiwa ? Number(used[0]?.c ?? 0) : null, yearFee, projectedOverCost, monthlyAllVolume: monthly, ...p };
 }

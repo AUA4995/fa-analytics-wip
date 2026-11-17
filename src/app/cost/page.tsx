@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui/card";
 import { ClickableRow } from "@/components/ui/clickable-row";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
+import { NotConnected } from "@/components/ui/not-connected";
 import { PageHeader } from "@/components/ui/page-header";
 import { parsePanel } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
@@ -510,11 +511,20 @@ async function PackagingAndSoftware({ admin }: { admin: boolean }) {
 
 function LogiwaCard({ t }: { t: LogiwaTracker }) {
   const n0 = (x: number) => Math.round(x).toLocaleString("en-AU");
-  const usedPct = t.allowance ? t.usedLogiwa / t.allowance : null;
+  const usedPct = t.allowance && t.usedLogiwa != null ? t.usedLogiwa / t.allowance : null;
   return (
     <Card title="Logiwa credits (step cost)" sub={`Plan ${n0(t.allowance)} credits a year · 1 credit per order up to ${t.linesPerCredit} unique lines · above the plan ${pc(t.overage)} of the plan price · year: ${t.year.label}`}>
       <div className="formula">
-        Used on Logiwa this year: <strong>{n0(t.usedLogiwa)}</strong> credits{usedPct != null ? ` (${pc(usedPct)} of the plan)` : ""}
+        Used on Logiwa this year:{" "}
+        {t.usedLogiwa == null ? (
+          <>
+            <strong>no data yet</strong> <NotConnected source="logiwa" until="Logiwa isn't live" />
+          </>
+        ) : (
+          <>
+            <strong>{n0(t.usedLogiwa)}</strong> credits{usedPct != null ? ` (${pc(usedPct)} of the plan)` : ""}
+          </>
+        )}
         <br />
         {t.monthlyAllVolume != null ? (
           <>
@@ -523,6 +533,14 @@ function LogiwaCard({ t }: { t: LogiwaTracker }) {
               <>
                 {" "}
                 — <span className="delta-neg">{n0(t.projectedOver)} over the plan</span> (charged at {pc(t.overage)})
+                {t.projectedOverCost != null ? (
+                  <>
+                    {" "}
+                    ≈ <strong>{aud(t.projectedOverCost, 0)}</strong> a year extra
+                  </>
+                ) : (
+                  <span className="meta"> — set the plan fee per year in Settings → Rules to see it in dollars</span>
+                )}
               </>
             ) : (
               " — within the plan"

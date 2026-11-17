@@ -111,12 +111,17 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
   const pnl = await prisma.xeroPnl.findMany({ where: { month } });
   const byCode = new Map(accMaps.map((a) => [a.accountCode, a]));
   const accounts: Record<string, number> = {};
+  let postageCost = 0;
   for (const row of pnl) {
     const mp = row.accountCode ? byCode.get(row.accountCode) : undefined;
     const isExpense = !/income|revenue|sales/i.test(row.section);
     if (!isExpense) continue;
     if (!mp || (mp.treatment === "INCLUDE" && !mp.poolKey)) {
       if (Number(row.amount)) notes.unmappedAccounts.push({ code: row.accountCode ?? "?", name: row.accountName, amount: Number(row.amount) });
+      continue;
+    }
+    if (mp.treatment === "POSTAGE") {
+      postageCost += Number(row.amount);
       continue;
     }
     if (mp.treatment !== "INCLUDE" || !mp.poolKey) continue;
@@ -173,12 +178,15 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
   const incomeMaps = accMaps.filter((a) => a.side === "INCOME");
   notes.noIncomeMapping = !incomeMaps.length;
   const included = new Set(incomeMaps.filter((a) => a.treatment === "INCLUDE").map((a) => a.accountCode));
+  const postageAcc = new Set(incomeMaps.filter((a) => a.treatment === "POSTAGE").map((a) => a.accountCode));
   const linked = clients.filter((c) => c.xeroContactId);
   if (linked.length && incomeMaps.length) {
     const lines = await prisma.xeroSaleLine.findMany({ where: { sale: { contactId: { in: linked.map((c) => c.xeroContactId!) }, date: { gte: from, lt: to }, status: { in: ["AUTHORISED", "PAID"] } } }, select: { amount: true, accountCode: true, sale: { select: { contactId: true } } } });
     for (const c of linked) {
       const rev = lines.filter((l) => l.sale.contactId === c.xeroContactId && l.accountCode && included.has(l.accountCode)).reduce((a, l) => a + Number(l.amount), 0);
       if (rev || ec.has(c.id)) clientRow(c).revenue = rev;
+      const post = lines.filter((l) => l.sale.contactId === c.xeroContactId && l.accountCode && postageAcc.has(l.accountCode)).reduce((a, l) => a + Number(l.amount), 0);
+      if (post) clientRow(c).postageRevenue = post;
     }
   }
   for (const r of rates) {
@@ -210,6 +218,7 @@ export async function buildInput(month: string): Promise<{ input: EngineInput; n
     pools: pools.map((p) => ({ key: p.key, name: p.name, kind: p.kind, site: p.site, driver: p.driver, capacity: p.capacity == null ? null : Number(p.capacity) })),
     labour,
     accounts,
+    postageCost,
     services: services.map((s) => ({ code: s.code, name: s.name, unit: s.unit, poolKind: s.poolKind, minutes: s.minutes == null ? null : Number(s.minutes), overheads: (s.overheads ?? {}) as Record<string, number>, billable: s.billable, role: s.role })),
     clients: [...ec.values()],
     orderSizes: [...sizes.entries()].sort((a, b) => a[0] - b[0]).map(([units, orders]) => ({ units, orders })),

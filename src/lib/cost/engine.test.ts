@@ -182,4 +182,53 @@ describe("cost engine", () => {
     expect(csrLine.costT).toBeCloseTo(r4.pools.find((p) => p.key === "csr")!.cost, 6);
     expect(r4.warnings.some((w) => /no weighted ticket scores/.test(w))).toBe(false);
   });
+
+  it("review — a bin-week uses its pallet-equivalent size of rent, not a whole pallet", () => {
+    const base = input();
+    const withBins = {
+      ...base,
+      rules: { ...base.rules, binSize: 0.1 },
+      sites: [{ ...base.sites[0], binPositions: 400 }],
+      services: [...base.services, { code: "STO-BIN", name: "Bin storage", unit: "bin-week", poolKind: null, minutes: null, overheads: { "rent_{site}": 1 }, billable: true, role: null }],
+      clients: [{ ...base.clients[0], volumes: [...base.clients[0].volumes, { serviceCode: "STO-BIN", site: "smi", qty: 400 }] }, base.clients[1]],
+    };
+    const r = runEngine(withBins);
+    const rent = r.pools.find((p) => p.key === "rent_smi")!;
+    const bin = r.clients.find((c) => c.id === "a")!.lines.find((l) => l.code === "STO-BIN")!;
+    const pallet = r.clients.find((c) => c.id === "a")!.lines.find((l) => l.code === "STO")!;
+    // one bin-week costs a tenth of a pallet-week
+    expect(bin.unitT).toBeCloseTo(pallet.unitT * 0.1, 8);
+    expect(bin.costT).toBeCloseTo(400 * 0.1 * rent.rateT!, 6);
+  });
+
+  it("review — office pools with no scores yet are spread by revenue, so totals still add up", () => {
+    const base = input();
+    const r = runEngine({
+      ...base,
+      pools: [...base.pools, { key: "support", name: "Support", kind: "OVERHEAD", site: null, driver: "TICKET_SCORE", capacity: null }],
+      accounts: { ...base.accounts, support: 1000 },
+      clients: [{ ...base.clients[0], revenue: 3000 }, { ...base.clients[1], revenue: 1000 }],
+    });
+    const share = (id: string) => r.clients.find((c) => c.id === id)!.lines.find((l) => l.code === "pool:support")?.costT ?? 0;
+    expect(share("a") + share("b")).toBeCloseTo(1000, 6);
+    expect(share("a")).toBeCloseTo(750, 6);
+    expect(r.warnings.some((w) => /spread by revenue until there are/.test(w))).toBe(true);
+  });
+
+  it("review — postage re-billed with markup: revenue plus its share of carrier cost", () => {
+    const base = input();
+    const r = runEngine({ ...base, postageCost: 800, clients: [{ ...base.clients[0], postageRevenue: 1000 }, base.clients[1]] });
+    const a = r.clients.find((c) => c.id === "a")!;
+    const post = a.lines.find((l) => l.code === "postage")!;
+    expect(post.costT).toBeCloseTo(800, 6); // A is the only client re-billed postage
+    expect(a.revenue).toBe(10000); // 9,000 processing + 1,000 postage
+  });
+
+  it("review — a machine that isn't the CMC (sorter) is spread over every order instead of getting nothing", () => {
+    const base = input();
+    const r = runEngine({ ...base, pools: [...base.pools, { key: "automation_sort", name: "Sorter", kind: "OVERHEAD", site: null, driver: "MACHINE_ORDERS", capacity: null }], accounts: { ...base.accounts, automation_sort: 1000 } });
+    const sort = r.pools.find((p) => p.key === "automation_sort")!;
+    expect(sort.used).toBe(1000);
+    expect(sort.rateT).toBeCloseTo(1, 8);
+  });
 });

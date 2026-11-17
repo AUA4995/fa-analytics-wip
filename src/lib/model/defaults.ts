@@ -13,15 +13,17 @@ export const DEFAULT_SITES = [
 export const DEFAULT_POOLS = [
   { key: "floor_smi", name: "Floor staff · Smithfield", kind: "LABOUR", site: "smi", driver: "MINUTES", description: "Pickers, packers, receivers, forklift — gross + super + payroll tax + workers comp, plus agency labour for the site" },
   { key: "floor_par", name: "Floor staff · Parramatta", kind: "LABOUR", site: "par", driver: "MINUTES", description: "As above, Parramatta" },
-  { key: "csr", name: "Customer service (CSR)", kind: "LABOUR", site: null, driver: "MINUTES", description: "Front tickets × minutes" },
-  { key: "admin", name: "Admin & management", kind: "OVERHEAD", site: null, driver: "LABOUR_MINUTES", description: "Office, management, accounts — per labour minute (rule G still open)" },
+  // Office split agreed 06/11/2026: support by weighted tickets, accounts by invoices + accounts tickets, management and software by revenue
+  { key: "csr", name: "Customer service (support)", kind: "LABOUR", site: null, driver: "TICKET_SCORE", description: "Support staff — spread by each client's weighted ticket score" },
+  { key: "accounts", name: "Accounts", kind: "LABOUR", site: null, driver: "INVOICES_TICKETS", description: "Accounts staff — spread by invoices and accounts tickets" },
+  { key: "admin", name: "Management & office", kind: "OVERHEAD", site: null, driver: "REVENUE", description: "Management, office costs — spread by revenue" },
   { key: "rent_smi", name: "Rent · Smithfield", kind: "OVERHEAD", site: "smi", driver: "PALLET_WEEKS", description: "Rent and outgoings (rule D: maybe by space type)" },
   { key: "rent_par", name: "Notional rent · Parramatta", kind: "OVERHEAD", site: "par", driver: "PALLET_WEEKS", description: "Owned site — notional rent from Settings → Rules → Sites" },
   { key: "equip", name: "Equipment", kind: "OVERHEAD", site: null, driver: "PALLET_MOVES", description: "Forklifts, high reach, order pickers, racking" },
   { key: "automation_cmc", name: "Automation · CMC CartonWrap", kind: "OVERHEAD", site: null, driver: "MACHINE_ORDERS", description: "Lease, service, cartons — orders that go through the machine (rule F still open)" },
   { key: "automation_sort", name: "Automation · Opex Sure Sort", kind: "OVERHEAD", site: null, driver: "MACHINE_ORDERS", description: "Orders that go through the sorter" },
   { key: "packaging", name: "Packaging materials", kind: "OVERHEAD", site: null, driver: "ORDERS_PACKED", description: "Per order packed (rule H: actual per client — open)" },
-  { key: "software", name: "Software & systems", kind: "OVERHEAD", site: null, driver: "ORDERS", description: "WMS, Dyspach, subscriptions" },
+  { key: "software", name: "Software & systems", kind: "OVERHEAD", site: null, driver: "REVENUE", description: "WMS, Dyspach, subscriptions — spread by revenue (Logiwa credits tracked separately)" },
 ] as const;
 
 export async function ensureModelDefaults(db: PrismaClient): Promise<number> {

@@ -54,14 +54,15 @@ const BASE_RULES: Record<string, FieldSpec & { default: number | null }> = {
   workersCompRate: { label: "Workers comp (share of gross)", kind: "pct", min: 0, max: 20, default: null, optional: true, hint: "From the insurance policy — not set yet" },
   csrUtil: { label: "CSR labour utilisation", kind: "pct", min: 10, max: 100, default: 0.8, hint: "Estimate (practical capacity 80–85%) until measured" },
   // Batch 3 (16/11/2026)
-  binSize: { label: "Bin size (pallet-equivalents)", kind: "number", min: 0, max: 10, dp: 3, default: null, optional: true, hint: "Rent by space type: one bin = this many pallet positions. Not set = bins left out of rent capacity" },
-  baySize: { label: "Bay size (pallet-equivalents)", kind: "number", min: 0, max: 100, dp: 2, default: null, optional: true, hint: "One bay = this many pallet positions. Not set = bays left out" },
+  binSize: { label: "Bin size (pallet-equivalents)", kind: "number", min: 0.001, max: 10, dp: 3, default: null, optional: true, hint: "Rent by space type: one bin = this many pallet positions. Not set = bins left out of rent capacity" },
+  baySize: { label: "Bay size (pallet-equivalents)", kind: "number", min: 0.01, max: 100, dp: 2, default: null, optional: true, hint: "One bay = this many pallet positions. Not set = bays left out" },
   accountsInvoiceShare: { label: "Accounts split: weight of invoices", kind: "pct", min: 0, max: 100, default: 0.5, hint: "Pools spread by invoices + accounts tickets: this much by invoice count, the rest by accounts ticket score (starting split — change if needed)" },
   ticketWeekStep: { label: "Ticket score: extra per week open", kind: "pct", min: 0, max: 100, default: 0.25, hint: "+25% for each started week after the first" },
   ticketMaxMultiplier: { label: "Ticket score: highest multiplier", kind: "number", min: 1, max: 10, dp: 2, default: 3, hint: "×3 at most" },
   logiwaCreditsYear: { label: "Logiwa credits per year", kind: "int", min: 0, max: 100000000, default: 800000, hint: "Plan allowance" },
   logiwaLinesPerCredit: { label: "Logiwa: order lines per credit", kind: "int", min: 1, max: 1000, default: 25, hint: "An order with up to 25 unique lines = 1 credit" },
   logiwaOverage: { label: "Logiwa overage price", kind: "pct", min: 100, max: 500, default: 1.5, hint: "Credits above the plan cost this share of the plan price (150%)" },
+  logiwaYearFee: { label: "Logiwa plan fee per year ($)", kind: "money", min: 0, max: 10000000, default: null, optional: true, hint: "Plan price ÷ credits = price per credit; overage = 150% of that" },
   logiwaStartMonth: { label: "Logiwa contract year starts (month 1–12)", kind: "int", min: 1, max: 12, default: null, optional: true, hint: "For the credit tracker" },
 };
 export const BASE_RULE_KEYS = Object.keys(BASE_RULES);
@@ -133,7 +134,8 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
       options: [
         ["INCLUDE", "Included (cost in its pool / processing revenue)"],
         ["PAYROLL", "Wages / super — from Xero Payroll instead"],
-        ["EXCLUDE", "Left out of cost to serve (e.g. postage — see note)"],
+        ["POSTAGE", "Postage & freight (re-billed with markup: revenue + variable cost)"],
+        ["EXCLUDE", "Left out of cost to serve"],
         ["REBILLED", "Passed through to clients"],
       ],
     },

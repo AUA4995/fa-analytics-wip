@@ -75,6 +75,8 @@ export interface EngineClient {
   invoices?: number | null;
   supportScore?: number | null;
   accountsScore?: number | null;
+  /** Postage and freight re-billed to the client this month (Xero sales lines on POSTAGE income accounts) */
+  postageRevenue?: number | null;
 }
 
 /** Drivers spread by each client's share instead of per service (batch 3). */
@@ -90,6 +92,8 @@ export interface EngineInput {
   labour: Record<string, { gross: number; super: number; hours: number; people: number }>;
   /** Xero P&L amounts per pool key (accounts mapped INCLUDE) */
   accounts: Record<string, number>;
+  /** Carrier / postage cost for the month (Xero expense accounts mapped POSTAGE) */
+  postageCost?: number;
   services: EngineService[];
   clients: EngineClient[];
   /** FA-wide order size distribution for cost per order (units per order → number of orders) */
@@ -212,6 +216,22 @@ export function runEngine(inp: EngineInput): EngineResult {
   };
   const acts = new Map(inp.clients.map((c) => [c.id, activity(c)]));
 
+  // Rent by space type (batch 3 review): a bin-week or bay-week uses its size in pallet-equivalents of the rent pool,
+  // the same conversion as the site's capacity. Size not set → 0 (left out, like the capacity) with a warning.
+  const spaceWarned = new Set<string>();
+  const spaceFactor = (s: { code: string; unit: string }, poolKey: string | null): number => {
+    if (!poolKey || pools.get(poolKey)?.driver !== "PALLET_WEEKS") return 1;
+    const kind = /\bbins?\b/i.test(s.unit) ? "bin" : /\bbays?\b/i.test(s.unit) ? "bay" : null;
+    if (!kind) return 1;
+    const size = kind === "bin" ? inp.rules.binSize : inp.rules.baySize;
+    if (size && size > 0) return size;
+    if (!spaceWarned.has(kind)) {
+      spaceWarned.add(kind);
+      warnings.push(`${s.code} is charged per ${kind}, but the ${kind} size in pallet-equivalents isn't set — its storage is left out of rent (Settings → Rules).`);
+    }
+    return 0;
+  };
+
   // ---- 2. driver usage
   const used = new Map<string, number>(inp.pools.map((p) => [p.key, 0]));
   const add = (k: string | null, n: number) => k && used.has(k) && used.set(k, (used.get(k) ?? 0) + n);
@@ -222,13 +242,18 @@ export function runEngine(inp: EngineInput): EngineResult {
   for (const c of inp.clients)
     for (const a of acts.get(c.id) ?? []) {
       const s = svc.get(a.serviceCode)!;
-      if (s.poolKind) {
+      const lpk = s.poolKind ? labourPoolFor(a.site, s.poolKind) : null;
+      // A labour pool spread by client share (support, accounts) isn't priced per minute
+      if (s.poolKind && !(lpk && isClientDriver(pools.get(lpk)?.driver ?? ""))) {
         if (s.minutes == null) missingMinutes.add(s.code);
         const m = (s.minutes ?? 0) * a.qty;
-        add(labourPoolFor(a.site, s.poolKind), m);
+        add(lpk, m);
         labourMinutes += m;
       }
-      for (const [k, n] of Object.entries(s.overheads)) add(resolve(k, a.site), n * a.qty);
+      for (const [k, n] of Object.entries(s.overheads)) {
+        const pk = resolve(k, a.site);
+        add(pk, n * a.qty * spaceFactor(s, pk));
+      }
     }
   for (const p of inp.pools) {
     const listed = inp.services.some((s) => Object.keys(s.overheads).some((k) => resolve(k, p.site ?? "") === p.key || k === p.key));
@@ -237,6 +262,11 @@ export function runEngine(inp: EngineInput): EngineResult {
     else if (p.driver === "ORDERS" || p.driver === "ORDERS_PACKED") used.set(p.key, totalOrders);
     else if (p.driver === "REVENUE") used.set(p.key, totalRevenue);
     else if (p.driver === "MACHINE_ORDERS" && p.key.includes("cmc")) used.set(p.key, inp.clients.reduce((a, c) => a + (clientOrders.get(c.id) ?? 0) * (c.cmcShare ?? 0), 0));
+    else if (p.driver === "MACHINE_ORDERS") {
+      // Other machines (e.g. the sorter): which orders go through them isn't recorded yet → every order
+      used.set(p.key, totalOrders);
+      if (inp.accounts[p.key]) warnings.push(`${p.name}: which orders go through it isn't recorded yet — spread over every order for now.`);
+    }
     else if (isClientDriver(p.driver)) used.set(p.key, 1); // 100% of the pool, spread by client share (step 5)
   }
   if (missingMinutes.size) warnings.push(`No standard minutes yet for ${[...missingMinutes].join(", ")} — their labour is counted as zero (Settings → Services & minutes).`);
@@ -294,21 +324,28 @@ export function runEngine(inp: EngineInput): EngineResult {
     if (!s) return { total: 0, parts: [] };
     const parts: Part[] = [];
     if (s.poolKind && s.minutes) {
-      const lp = labourPoolFor(siteKey, s.poolKind);
+      const lp0 = labourPoolFor(siteKey, s.poolKind);
+      const lp = lp0 && !isClientDriver(pools.get(lp0)?.driver ?? "") ? lp0 : null;
       if (lp) parts.push({ label: `Labour · ${s.minutes} min × ${money(rate(lp, v), 4)} (${pools.get(lp)?.name})`, amount: s.minutes * rate(lp, v), ref: `pool:${lp}` });
       if (adminPool) parts.push({ label: `Admin share · ${s.minutes} min × ${money(rate(adminPool.key, v), 4)}`, amount: s.minutes * rate(adminPool.key, v), ref: `pool:${adminPool.key}` });
     }
-    for (const [k0, n] of Object.entries(s.overheads)) {
+    for (const [k0, n0] of Object.entries(s.overheads)) {
       const k = resolve(k0, siteKey);
       const p = pools.get(k);
       if (!p) continue;
+      const n = n0 * spaceFactor(s, k);
       parts.push({ label: `${p.name} · ${n} ${pr.get(k)?.unitLabel ?? ""} × ${money(rate(k, v), 4)}`, amount: n * rate(k, v), ref: `pool:${k}` });
     }
     // Per-order pools not listed on any service: one per order (ORDER role) / per order packed (PACK roles)
     for (const p of inp.pools) {
       if (Object.keys(s.overheads).some((k) => resolve(k, siteKey) === p.key)) continue;
       if (inp.services.some((sv) => Object.keys(sv.overheads).some((k) => resolve(k, siteKey) === p.key || k === p.key))) continue;
-      if ((p.driver === "ORDERS" && s.role === "ORDER") || (p.driver === "ORDERS_PACKED" && (s.role === "PACK_MANUAL" || s.role === "PACK_CMC")) || (p.driver === "MACHINE_ORDERS" && p.key.includes("cmc") && s.role === "PACK_CMC"))
+      if (
+        (p.driver === "ORDERS" && s.role === "ORDER") ||
+        (p.driver === "ORDERS_PACKED" && (s.role === "PACK_MANUAL" || s.role === "PACK_CMC")) ||
+        (p.driver === "MACHINE_ORDERS" && p.key.includes("cmc") && s.role === "PACK_CMC") ||
+        (p.driver === "MACHINE_ORDERS" && !p.key.includes("cmc") && s.role === "ORDER")
+      )
         parts.push({ label: `${p.name} · 1 order × ${money(rate(p.key, v), 4)}`, amount: rate(p.key, v), ref: `pool:${p.key}` });
     }
     return { total: parts.reduce((a, x) => a + x.amount, 0), parts };
@@ -332,11 +369,21 @@ export function runEngine(inp: EngineInput): EngineResult {
     }
     return 0;
   };
+  // No scores / invoices this month: spread by revenue (or orders) instead, so the cost never disappears from the totals
+  const totRev = sum((c) => c.revenue ?? 0);
+  const fallbackShare = (c: EngineClient) => (totRev ? (c.revenue ?? 0) / totRev : totalOrders ? (clientOrders.get(c.id) ?? 0) / totalOrders : 0);
+  const noData = (driver: string) => (driver === "TICKET_SCORE" ? !totSupport : driver === "INVOICES_TICKETS" ? !totInv && !totAcct : false);
+  const shareFor = (driver: string, c: EngineClient) => (noData(driver) ? fallbackShare(c) : shareOf(driver, c));
   const clientPools = poolResults.filter((p) => isClientDriver(p.driver) && p.cost > 0);
   for (const p of clientPools) {
-    if (p.driver === "TICKET_SCORE" && !totSupport) warnings.push(`${p.name}: no weighted ticket scores this month — its cost isn't spread to clients yet (Data sources → Front → Score tickets).`);
-    if (p.driver === "INVOICES_TICKETS" && !totInv && !totAcct) warnings.push(`${p.name}: no invoices or accounts tickets this month — its cost isn't spread to clients yet.`);
+    if (p.driver === "TICKET_SCORE" && !totSupport) warnings.push(`${p.name}: no weighted ticket scores this month — spread by ${totRev ? "revenue" : "orders"} until there are (Data sources → Front → Recount).`);
+    if (p.driver === "INVOICES_TICKETS" && !totInv && !totAcct) warnings.push(`${p.name}: no invoices or accounts tickets this month — spread by ${totRev ? "revenue" : "orders"} until there are.`);
   }
+  // Postage re-billed with a markup (agreed 06/11/2026): revenue plus a variable cost. Carrier bills aren't per client,
+  // so the month's postage cost is spread by each client's share of postage re-billed.
+  const postageCost = inp.postageCost ?? 0;
+  const totPostRev = sum((c) => c.postageRevenue ?? 0);
+  if (postageCost && !totPostRev) warnings.push("Postage cost is mapped but no postage re-billed is found this month — map the postage income accounts to “Postage (re-billed with markup)”.");
   const clients: ClientResult[] = inp.clients.map((c) => {
     const byCode = new Map<string, Array<{ site: string; qty: number }>>();
     for (const a of acts.get(c.id) ?? []) byCode.set(a.serviceCode, [...(byCode.get(a.serviceCode) ?? []), { site: a.site, qty: a.qty }]);
@@ -368,11 +415,18 @@ export function runEngine(inp: EngineInput): EngineResult {
       };
     });
     for (const p of clientPools) {
-      const sh = shareOf(p.driver, c);
+      const sh = shareFor(p.driver, c);
       if (!sh) continue;
       const amt = p.cost * sh;
-      const part: Part = { label: `${p.name} · ${pct(sh)} share (${p.driver === "TICKET_SCORE" ? "weighted tickets" : "invoices + accounts tickets"})`, amount: amt, ref: `pool:${p.key}` };
+      const basisLabel = noData(p.driver) ? (totRev ? "revenue — no scores yet" : "orders — no scores yet") : p.driver === "TICKET_SCORE" ? "weighted tickets" : "invoices + accounts tickets";
+      const part: Part = { label: `${p.name} · ${pct(sh)} share (${basisLabel})`, amount: amt, ref: `pool:${p.key}` };
       lines.push({ code: `pool:${p.key}`, name: p.name, unit: "share", qty: sh, billable: false, unitT: amt / sh, unitF: amt / sh, costT: amt, costF: amt, partsT: [part], partsF: [part], rate: null, marginPctT: null, marginPctF: null });
+    }
+    if (postageCost && totPostRev && c.postageRevenue) {
+      const sh = c.postageRevenue / totPostRev;
+      const amt = postageCost * sh;
+      const part: Part = { label: `Postage & freight · ${pct(sh)} of postage re-billed × ${money(postageCost, 0)} carrier cost`, amount: amt };
+      lines.push({ code: "postage", name: "Postage & freight (re-billed)", unit: "share", qty: sh, billable: true, unitT: amt / sh, unitF: amt / sh, costT: amt, costF: amt, partsT: [part], partsF: [part], rate: null, marginPctT: null, marginPctF: null });
     }
     lines.sort((a, b) => b.costT - a.costT);
     let costT = lines.reduce((a, l) => a + l.costT, 0);
@@ -386,8 +440,9 @@ export function runEngine(inp: EngineInput): EngineResult {
     const orders = clientOrders.get(c.id) ?? 0;
     // Without Xero revenue, compare only the rated services with their own cost (never rate-less lines against nothing)
     const basis: ClientResult["marginBasis"] = c.revenue != null ? "xero" : expected ? "rated" : null;
+    const revenue = c.revenue != null ? c.revenue + (c.postageRevenue ?? 0) : null;
     const ratedCost = (v: Variant) => withRate.reduce((a, l) => a + (v === "T" ? l.costT : l.costF), 0);
-    const margin = (v: Variant) => (basis === "xero" ? (c.revenue ? (c.revenue - (v === "T" ? costT : costF)) / c.revenue : null) : basis === "rated" ? (expected! - ratedCost(v)) / expected! : null);
+    const margin = (v: Variant) => (basis === "xero" ? (revenue ? (revenue - (v === "T" ? costT : costF)) / revenue : null) : basis === "rated" ? (expected! - ratedCost(v)) / expected! : null);
     return {
       id: c.id,
       name: c.name,
@@ -395,7 +450,7 @@ export function runEngine(inp: EngineInput): EngineResult {
       lines,
       costT,
       costF,
-      revenue: c.revenue,
+      revenue,
       expected,
       marginBasis: basis,
       marginT: margin("T"),
@@ -415,7 +470,10 @@ export function runEngine(inp: EngineInput): EngineResult {
   const faCmc = totalOrders ? inp.clients.reduce((a, c) => a + (clientOrders.get(c.id) ?? 0) * (c.cmcShare ?? 0), 0) / totalOrders : 0;
   const perOrder = inp.services.filter((s) => s.role === "ORDER");
   const perUnit = inp.services.filter((s) => !s.role && s.unit.toLowerCase() === "unit" && s.poolKind === "floor");
+  // Office pools spread by client share or revenue don't sit on a service: add them as an average per order
+  const officePerOrder = totalOrders ? [...clientPools, ...poolResults.filter((p) => p.driver === "REVENUE")].reduce((a, p) => a + p.cost, 0) / totalOrders : 0;
   const orderCost = (units: number, v: Variant) =>
+    officePerOrder +
     perOrder.reduce((a, s) => a + avgUnit(s.code, v), 0) +
     (packCmc ? faCmc * avgUnit(packCmc.code, v) : 0) +
     (packMan ? (1 - (packCmc ? faCmc : 0)) * avgUnit(packMan.code, v) : 0) +

@@ -112,7 +112,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       : [[], ""];
     body = (
       <>
-        <Card title="Users" sub={`${ownerName} is the owner and can't be changed or removed here.`}>
+        <Card title="Users" sub={`${ownerName} is the primary owner — only they can hand that over. Each level manages the levels below it.`}>
           <UsersCard
             me={{ id: me.id, role: me.role, primary: me.primary }}
             ownerName={ownerName}
@@ -184,7 +184,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
 
   return (
     <WithSubNav page="settings" current={section}>
-      <PageHeader title="Settings" subtitle={`Admins and the owner (${ownerName}).`} />
+      <PageHeader title="Settings" subtitle={`Owners and admins (primary owner: ${ownerName}).`} />
       {body}
       {panel && <ModelPanel panel={panel} canEdit />}
     </WithSubNav>
