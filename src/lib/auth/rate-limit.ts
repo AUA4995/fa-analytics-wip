@@ -30,6 +30,7 @@ export interface RateResult {
 
 export async function hitRateLimit(name: LimitName, who: string): Promise<RateResult> {
   const { limit, windowSec } = LIMITS[name];
+  if (!who) return { ok: true, retryAfterSec: 0 }; // no trustworthy address: per-address limits don't apply
   const key = `${name}:${who.toLowerCase().slice(0, 200)}`;
   const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
     INSERT INTO "AuthRateLimit" ("key", "count", "windowStart") VALUES (${key}, 1, (now() AT TIME ZONE 'UTC'))
@@ -54,12 +55,29 @@ export function tooManyMessage(r: RateResult): string {
   return `Too many attempts — try again in ${mins} minute${mins === 1 ? "" : "s"}.`;
 }
 
-/** Client IP for rate limits (first X-Forwarded-For hop when behind a proxy). */
+/**
+ * Caller address for rate limits. X-Forwarded-For is set by whoever calls, so it is trusted only when the app runs
+ * behind a proxy that sets it (TRUST_PROXY=1). Otherwise "" = unknown: per-address limits are skipped (one shared
+ * bucket would let anyone lock everyone out); the per-email, per-account and per-key limits still apply.
+ */
+export function ipFromHeaders(get: (name: string) => string | null): string {
+  if (process.env.TRUST_PROXY !== "1") return "";
+  return ((get("x-forwarded-for")?.split(",")[0] ?? get("x-real-ip") ?? "local").trim() || "local").slice(0, 100);
+}
+
 export async function clientIp(): Promise<string> {
   try {
     const h = await headers();
-    return (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "local").trim() || "local";
+    return ipFromHeaders((n) => h.get(n));
   } catch {
-    return "local";
+    return "";
   }
+}
+
+/** Is this limit already used up (without counting a new hit)? */
+export async function isLimited(name: LimitName, who: string): Promise<boolean> {
+  const { limit, windowSec } = LIMITS[name];
+  if (!who) return false;
+  const row = await prisma.authRateLimit.findUnique({ where: { key: `${name}:${who.toLowerCase().slice(0, 200)}` } });
+  return !!row && row.count >= limit && row.windowStart.getTime() > Date.now() - windowSec * 1000;
 }

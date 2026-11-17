@@ -1,4 +1,4 @@
-import { hitRateLimit, LIMITS } from "@/lib/auth/rate-limit";
+import { hitRateLimit, ipFromHeaders, isLimited, LIMITS } from "@/lib/auth/rate-limit";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -29,12 +29,12 @@ export interface ApiCaller {
  * Every successful call is counted (last used, IP).
  */
 export async function authorise(req: Request, scope: string | null): Promise<ApiCaller | NextResponse> {
-  const ipOf = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  // Too many bad keys from one place → stop before the database lookup
-  const bad = await prisma.authRateLimit.findUnique({ where: { key: `apiBadIp:${ipOf.toLowerCase()}` } });
-  if (bad && bad.count >= LIMITS.apiBadIp.limit && bad.windowStart.getTime() > Date.now() - LIMITS.apiBadIp.windowSec * 1000)
-    return NextResponse.json({ error: "Too many calls with a wrong key", detail: "Wait 15 minutes" }, { status: 429, headers: { "Retry-After": String(LIMITS.apiBadIp.windowSec) } });
+  const ipOf = ipFromHeaders((n) => req.headers.get(n));
+  // Wrong keys are counted per address; once over the limit, wrong keys get 429. A valid key is never blocked by
+  // someone else's wrong keys (the address can be shared or, without a proxy, is "local" for everyone).
   const fail = async (body: { error: string }) => {
+    if (await isLimited("apiBadIp", ipOf))
+      return NextResponse.json({ error: "Too many calls with a wrong key", detail: "Wait 15 minutes" }, { status: 429, headers: { "Retry-After": String(LIMITS.apiBadIp.windowSec) } });
     await hitRateLimit("apiBadIp", ipOf);
     return NextResponse.json(body, { status: 401 });
   };
@@ -49,7 +49,7 @@ export async function authorise(req: Request, scope: string | null): Promise<Api
   if (scope && !row.scopes.includes(scope)) return NextResponse.json({ error: `This key doesn't have the ${scope} scope` }, { status: 403 });
   const limit = await hitRateLimit("apiKey", row.id);
   if (!limit.ok) return NextResponse.json({ error: "Too many requests for this key", detail: `At most ${LIMITS.apiKey.limit} calls a minute — try again in ${limit.retryAfterSec} s` }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } });
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ip = ipOf || null;
   await prisma.apiKey.update({ where: { id: row.id }, data: { lastUsedAt: new Date(), lastUsedIp: ip, uses: { increment: 1 } } });
   return { id: row.id, name: row.name, scopes: row.scopes };
 }

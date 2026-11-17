@@ -3,7 +3,7 @@
  * shown as they are; database and other internal errors (table / column names, SQL) are logged on the server and
  * replaced by a plain message.
  */
-const INTERNAL = /prisma|invalid `|\bP\d{4}\b|relation "|column "|violates|duplicate key|ECONNREFUSED|syntax error|at [\w.]+ \(/i;
+const INTERNAL = /prisma|invalid `|\bP\d{4}\b|relation "|column "|violates|duplicate key|ECONNREFUSED|syntax error|at [\w.]+ \(|database server|authentication failed|ETIMEDOUT|ENOTFOUND/i;
 
 export function plainError(err: unknown, opts: { log?: boolean } = {}): string {
   const msg = err instanceof Error ? err.message : String(err);
