@@ -256,4 +256,20 @@ describe("cost engine", () => {
     const spread = r.clients.reduce((a, c) => a + c.lines.filter((l) => l.code === "ORD").reduce((x, l) => x + l.partsT.filter((p) => p.ref === "pool:sw_orders").reduce((y, p) => y + p.amount, 0) * l.qty, 0), 0);
     expect(spread).toBeCloseTo(1000, 6);
   });
+
+  it("round 4 — a machine with cost but no measured use: Full absorption spreads it over all orders, TDABC shows it unused", () => {
+    const base = input();
+    const r = runEngine(input({ clients: base.clients.map((c) => ({ ...c, cmcShare: 0 })) }));
+    const cmc = r.pools.find((p) => p.key === "automation_cmc")!;
+    expect(cmc.used).toBe(0);
+    expect(cmc.unused).toBe(2000);
+    const fA = r.clients.find((c) => c.id === "a")!;
+    const fB = r.clients.find((c) => c.id === "b")!;
+    // 800 and 200 of 1,000 orders
+    expect(fA.lines.find((l) => l.code === "idle:automation_cmc")!.costF).toBeCloseTo(1600);
+    expect(fB.lines.find((l) => l.code === "idle:automation_cmc")!.costF).toBeCloseTo(400);
+    expect(fA.lines.find((l) => l.code === "idle:automation_cmc")!.costT).toBe(0);
+    expect(r.base.F.all.cpo! - r.base.T.all.cpo!).toBeGreaterThan(1.99);
+    expect(r.warnings.some((w) => /CMC: no use measured/.test(w))).toBe(true);
+  });
 });

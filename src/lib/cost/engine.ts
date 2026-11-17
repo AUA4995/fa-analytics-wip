@@ -386,6 +386,12 @@ export function runEngine(inp: EngineInput): EngineResult {
   const noData = (driver: string) => (driver === "TICKET_SCORE" ? !totSupport : driver === "INVOICES_TICKETS" ? !totInv && !totAcct : false);
   const shareFor = (driver: string, c: EngineClient) => (noData(driver) ? fallbackShare(c) : shareOf(driver, c));
   const clientPools = poolResults.filter((p) => isClientDriver(p.driver) && p.cost > 0);
+  // Full absorption spreads every dollar: a pool with cost but no measured use this month (e.g. a machine whose
+  // orders aren't recorded yet) is spread over all orders in Full absorption; TDABC shows it as unused capacity.
+  const idlePools = poolResults.filter((p) => p.cost > 0 && !(p.used > 0) && !isClientDriver(p.driver) && p.driver !== "REVENUE");
+  const idleCost = idlePools.reduce((a, p) => a + p.cost, 0);
+  for (const p of idlePools)
+    warnings.push(`${p.name}: no use measured this month — Full absorption spreads its ${money(p.cost, 0)} over all orders; TDABC shows it as unused capacity.`);
   for (const p of clientPools) {
     if (p.driver === "TICKET_SCORE" && !totSupport) warnings.push(`${p.name}: no weighted ticket scores this month — spread by ${totRev ? "revenue" : "orders"} until there are (Data sources → Front → Recount).`);
     if (p.driver === "INVOICES_TICKETS" && !totInv && !totAcct) warnings.push(`${p.name}: no invoices or accounts tickets this month — spread by ${totRev ? "revenue" : "orders"} until there are.`);
@@ -454,6 +460,16 @@ export function runEngine(inp: EngineInput): EngineResult {
         lines.push({ code: `pool:${p.key}`, name: p.name, unit: "share", qty: sh, billable: false, unitT: amt / sh, unitF: amt / sh, costT: amt, costF: amt, partsT: [part], partsF: [part], rate: null, marginPctT: null, marginPctF: null });
       }
     }
+    if (idleCost && totalOrders) {
+      const sh = (clientOrders.get(c.id) ?? 0) / totalOrders;
+      for (const p of idlePools) {
+        const amt = p.cost * sh;
+        if (!amt) continue;
+        const part: Part = { label: `${p.name} · ${pct(sh)} of orders (no use measured — Full absorption only)`, amount: amt, ref: `pool:${p.key}` };
+        costF += amt;
+        lines.push({ code: `idle:${p.key}`, name: `${p.name} (no use measured)`, unit: "share", qty: sh, billable: false, unitT: 0, unitF: amt / sh, costT: 0, costF: amt, partsT: [], partsF: [part], rate: null, marginPctT: null, marginPctF: null });
+      }
+    }
     if (c.revenue && revenuePools.length) {
       costT += c.revenue * revPoolRate("T");
       costF += c.revenue * revPoolRate("F");
@@ -497,6 +513,7 @@ export function runEngine(inp: EngineInput): EngineResult {
   const officePerOrder = totalOrders ? [...clientPools, ...poolResults.filter((p) => p.driver === "REVENUE")].reduce((a, p) => a + p.cost, 0) / totalOrders : 0;
   const orderCost = (units: number, v: Variant) =>
     officePerOrder +
+    (v === "F" && totalOrders ? idleCost / totalOrders : 0) +
     perOrder.reduce((a, s) => a + avgUnit(s.code, v), 0) +
     (packCmc ? faCmc * avgUnit(packCmc.code, v) : 0) +
     (packMan ? (1 - (packCmc ? faCmc : 0)) * avgUnit(packMan.code, v) : 0) +
