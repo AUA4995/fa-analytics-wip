@@ -396,7 +396,7 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
     const status = /\((\d{3})\)/.exec(err instanceof Error ? err.message : "")?.[1];
     payrollNote =
       status === "401" || status === "403"
-        ? "Xero refused access to pay items — reconnect Xero (Settings → Company) and allow payroll settings; until then paid hours and overtime show no data"
+        ? "Xero refused access to pay items — check that the Xero user who connected has payroll admin access, then reconnect Xero (Settings → Company) and allow payroll settings; until then paid hours and overtime show no data"
         : "Xero pay items couldn't be read this time — paid hours and overtime show no data until the next sync";
     return null;
   });
