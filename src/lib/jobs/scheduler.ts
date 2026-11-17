@@ -83,17 +83,25 @@ export async function startScheduler(): Promise<void> {
   await b.work(QUEUE_THOMAX_NIGHTLY, async ([job]) => {
     const { getCreds, nightly } = await import("@/lib/thomax/sync");
     if (!(await getCreds())) return;
-    await nightly(new Date(), { signal: job.signal });
+    const r = await nightly(new Date(), { signal: job.signal });
+    // A history step was running: try again in 2 minutes (history steps give way to the nightly, see below)
+    if (r.busy) await b.send(QUEUE_THOMAX_NIGHTLY, {}, { startAfter: 120 });
   });
   await b.work<{ anyTime?: boolean }>(QUEUE_THOMAX_HISTORY, async ([job]) => {
-    const { getCreds, historyStep } = await import("@/lib/thomax/sync");
+    const { getCreds, historyStep, nightlyDueNow } = await import("@/lib/thomax/sync");
     if (!(await getCreds())) return;
+    const anyTime = !!job.data?.anyTime;
     const { thomaxWindowOpen } = await import("@/lib/thomax/window");
-    if (!job.data?.anyTime && !thomaxWindowOpen(new Date())) return; // tonight's 20:05 run picks it up
+    if (!anyTime && !thomaxWindowOpen(new Date())) return; // tonight's 20:05 run picks it up
+    // Give way to the nightly copy (02:15) so master tables and recent changes are read every night
+    if (await nightlyDueNow(new Date())) {
+      await b.send(QUEUE_THOMAX_HISTORY, { anyTime }, { startAfter: 600 });
+      return;
+    }
     const r = await historyStep(6, new Date(), { signal: job.signal });
-    // Next step only when this one made progress and nothing stopped it. "Load history now" applies to the first
-    // step only: the rest continues in the 20:00–06:00 window.
-    if (r.remaining > 0 && r.windows > 0 && !r.stopped) await b.send(QUEUE_THOMAX_HISTORY, { anyTime: false }, { startAfter: 30 });
+    // Next step when this one made progress, or try again shortly when another copy was running.
+    // "Keep loading now" (anyTime) carries on during the day; otherwise only in the 20:00–06:00 window.
+    if (r.remaining > 0 && ((r.windows > 0 && !r.stopped) || r.busy)) await b.send(QUEUE_THOMAX_HISTORY, { anyTime }, { startAfter: r.busy ? 120 : 30 });
   });
   console.log("[jobs] scheduler started");
 }

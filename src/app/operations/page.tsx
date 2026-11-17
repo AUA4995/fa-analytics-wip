@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth/session";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db";
 import { lookup, showThomaxTime } from "@/lib/thomax/lookup";
+import { parseThomaxDate } from "@/lib/thomax/shape";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Operations" };
@@ -22,7 +23,17 @@ const SUBTITLE: Record<string, string> = {
   trends: "Coming soon: volumes over time and the forecast.",
 };
 
-const cell = (v: unknown) => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+const cell = (v: unknown) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object") return JSON.stringify(v);
+  const s = String(v);
+  // /Date(…)/ values read as a date, the raw value kept in brackets
+  if (/^\/Date\(-?\d+/.test(s)) {
+    const d = parseThomaxDate(s);
+    return d ? `${showThomaxTime(d)} (${s})` : s;
+  }
+  return s;
+};
 
 /** Operations (batch 1, 16/11/2026): Order lookup over the Thomax copy. Other sections come in later batches. */
 export default async function OperationsPage({ searchParams }: { searchParams: SP }) {
@@ -35,7 +46,7 @@ export default async function OperationsPage({ searchParams }: { searchParams: S
       <PageHeader title="Operations" subtitle={SUBTITLE[section]} />
       {section === "lookup" ? (
         isAdminRole(me.role) ? (
-          <Lookup q={q} />
+          <Lookup q={q} by={me.name} />
         ) : (
           <EmptyState title="Admins only">Order lookup shows receivers&apos; names and addresses from Thomax, so it is limited to admins and the owner.</EmptyState>
         )
@@ -46,9 +57,12 @@ export default async function OperationsPage({ searchParams }: { searchParams: S
   );
 }
 
-async function Lookup({ q }: { q: string }) {
+async function Lookup({ q, by }: { q: string; by: string }) {
   const copied = await prisma.thomaxRow.count();
   const res = q ? await lookup(q) : null;
+  // Results can show receivers' names and addresses: every search is logged (who, what, when)
+  if (res) await prisma.changeLog.create({ data: { entity: "OrderLookup", entityId: res.term, field: "search", newValue: { rows: res.rows.length }, actorName: by } }).catch(() => {});
+  const rowNo = new Map(res?.rows.map((r, i) => [r.id, i + 1]) ?? []);
   return (
     <>
       <Card title="Find" sub={copied ? `${copied.toLocaleString("en-AU")} Thomax rows copied. Exact match on each table's searchable fields (Data sources → WMS).` : undefined}>
@@ -79,7 +93,10 @@ async function Lookup({ q }: { q: string }) {
                     <li key={i}>
                       <span>{showThomaxTime(e.at)}</span>
                       <span>
-                        <b>{e.table}</b> · {e.field}
+                        <a href={`#row-${e.rowId}`} className="lnk">
+                          <b>{e.table}</b> row {rowNo.get(e.rowId)}
+                        </a>{" "}
+                        · {e.field}
                       </span>
                     </li>
                   );
@@ -101,7 +118,7 @@ async function Lookup({ q }: { q: string }) {
             </Card>
           )}
           {res.rows.map((r) => (
-            <Card key={r.id} title={`${r.table} · ${r.label}`} sub={`matched on ${r.matchedOn.join(", ")}`}>
+            <Card key={r.id} id={`row-${r.id}`} title={`${r.table} row ${rowNo.get(r.id)} · ${r.label}`} sub={`matched on ${r.matchedOn.join(", ")}`}>
               <dl className="raw-kv">
                 {r.entries.map(([k, v]) => (
                   <div key={k} style={{ display: "contents" }}>

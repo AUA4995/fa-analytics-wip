@@ -84,6 +84,8 @@ describe("Thomax values", () => {
   it("secret-looking fields are dropped (USR may hold password hashes)", () => {
     expect(withoutSecrets({ UserID: 1, Name: "Jo", PasswordHash: "x", PIN: "1234", ApiToken: "t", Pinned: true })).toEqual({ UserID: 1, Name: "Jo", Pinned: true });
     expect(fieldsOf([{ UserID: 1, Password: "x" }])).toEqual(["UserID"]);
+    // Names that only contain those letters are kept (the copy is the archive after Thomax ends)
+    expect(withoutSecrets({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t", UserPwd: "x", Salt: "s" })).toEqual({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t" });
   });
   it("lookup values are trimmed, upper-cased, 2–100 chars, no objects", () => {
     expect(lookupValues({ OrderNo: " so-123 ", Ref: "x", Con: { a: 1 }, Track: null }, ["OrderNo", "Ref", "Con", "Track"])).toEqual([{ field: "OrderNo", value: "SO-123" }]);
@@ -140,6 +142,10 @@ describe("Thomax client", () => {
     expect(() => dataOf({ Status: "Invalid table" }, "XX")).toThrow(/Invalid table/);
     expect(() => dataOf({ Status: "Error: Invalid field Created", Data: [] }, "PCK")).toThrow(/Invalid field/);
     expect(dataOf({ Status: "OK", Data: [] }, "PCK")).toEqual([]);
+    expect(() => dataOf({ Status: "Query timed out", Data: [] }, "PCK")).toThrow(/timed out/);
+    expect(() => dataOf({ Status: "Busy, try later", Data: [] }, "PCK")).toThrow(/no rows, status/);
+    expect(dataOf({ Status: "Busy", Data: [{ A: 1 }] }, "PCK")).toEqual([{ A: 1 }]);
+    await expect(queryPage(creds, { table: "USR" }, { fetchImpl: async () => new Response("no", { status: 403 }) })).rejects.toThrow(/isn't allowed to read USR/);
   });
   it("never follows redirects and doesn't retry a host that doesn't exist", async () => {
     let seen: RequestInit | undefined;

@@ -24,6 +24,7 @@ CREATE TABLE "ThomaxTable" (
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "kind" TEXT NOT NULL DEFAULT 'TRANSACTIONAL',
     "fields" JSONB,
+    "droppedFields" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "sample" JSONB,
     "exploredAt" TIMESTAMP(3),
     "dateField" TEXT,

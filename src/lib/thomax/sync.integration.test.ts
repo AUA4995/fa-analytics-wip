@@ -22,8 +22,11 @@ describe.skipIf(!hasDb)("Thomax copy (integration)", () => {
     let rows = table === "PCK" ? pck : table === "TNT" ? tnt : [];
     const where = p.get("Where");
     if (where) {
-      const m = /ge '([\d-]+)' AND \w+ lt '([\d-]+)'/.exec(where)!;
-      rows = rows.filter((r) => String(r.JobCreateTime) >= m[1] && String(r.JobCreateTime) < m[2]);
+      const m = /ge '([\d-]+)' AND \w+ lt '([\d-]+)'/.exec(where);
+      const before = /^\w+ lt '([\d-]+)'$/.exec(where);
+      if (m) rows = rows.filter((r) => String(r.JobCreateTime) >= m[1] && String(r.JobCreateTime) < m[2]);
+      else if (before) rows = rows.filter((r) => r.JobCreateTime && String(r.JobCreateTime) < before[1]);
+      else if (/ is null$/.test(where)) rows = rows.filter((r) => r.JobCreateTime === null || r.JobCreateTime === undefined);
     }
     const skip = Number(p.get("Skip") ?? 0);
     const limit = Number(p.get("Limit"));
@@ -147,6 +150,47 @@ describe.skipIf(!hasDb)("Thomax copy (integration)", () => {
     // saving a working login again un-pauses
     await s.saveConnection({ cluster: "e", username: "analytics", password: "s3cret!" }, "Test");
     expect(await s.getCreds()).not.toBeNull();
+  });
+
+  it("unstable paging (keys repeated across pages) → the window is read again day by day, nothing missed", async () => {
+    // 3 orders × 3 lines in one month; key PCKID + LineNo; every call returns tied rows in a new random order
+    pck = [];
+    for (let o = 1; o <= 3; o++) for (let ln = 1; ln <= 3; ln++) pck.push({ PCKID: 100 + o, LineNo: ln, OrderNo: `L-${o}`, JobCreateTime: `2026-10-0${o}T09:00:00` });
+    const shuffled = async (u: string) => {
+      const p = new URL(u).searchParams;
+      const m = /ge '([\d-]+)' AND \w+ lt '([\d-]+)'/.exec(p.get("Where") ?? "");
+      let rows = pck.filter((r) => !m || (String(r.JobCreateTime) >= m[1] && String(r.JobCreateTime) < m[2]));
+      rows = [...rows].sort((a, b) => Number(a.PCKID) - Number(b.PCKID) || Math.random() - 0.5);
+      const skip = Number(p.get("Skip") ?? 0);
+      return new Response(JSON.stringify({ Status: "OK", Data: rows.slice(skip, skip + Number(p.get("Limit"))) }), { status: 200 });
+    };
+    await prisma.thomaxRow.deleteMany({ where: { table: "PCK" } });
+    const t = { name: "PCK", keyFields: ["PCKID", "LineNo"], lookupFields: [], dateField: "JobCreateTime" };
+    let total = 0;
+    for (let i = 0; i < 5; i++) {
+      await prisma.thomaxRow.deleteMany({ where: { table: "PCK" } });
+      await s.copyWindow((await s.getCreds())!, t, new Date("2026-10-01"), new Date("2026-11-01"), { fetchImpl: shuffled, sleep: async () => {}, pageSize: 4 });
+      total = await prisma.thomaxRow.count({ where: { table: "PCK" } });
+      expect(total).toBe(9);
+    }
+  });
+
+  it("a 403 on one table marks that table only; copying isn't paused", async () => {
+    const f403 = async (u: string) => (new URL(u).searchParams.get("Table") === "PCK" ? new Response("no", { status: 403 }) : fetchImpl(u));
+    const r = await s.nightly(new Date("2026-11-16T12:00:00Z"), { fetchImpl: f403, sleep: async () => {} });
+    expect(r.stopped).toBeNull();
+    expect(r.errors.some((e) => /isn't allowed to read PCK/.test(e))).toBe(true);
+    expect((await prisma.thomaxConnection.findUniqueOrThrow({ where: { id: "thomax" } })).enabled).toBe(true);
+  });
+
+  it("a run that stopped without finishing doesn't block the next one", async () => {
+    await prisma.sourceRun.create({ data: { source: "THOMAX", label: "history", startedAt: new Date(Date.now() - 30 * 60_000) } });
+    const r = await s.nightly(new Date("2026-11-16T12:00:00Z"), opts);
+    expect(r.busy).toBeFalsy();
+    expect(await prisma.sourceRun.count({ where: { source: "THOMAX", status: "RUNNING" } })).toBe(0);
+    await prisma.sourceRun.create({ data: { source: "THOMAX", label: "history" } }); // fresh → busy
+    expect((await s.nightly(new Date(), opts)).busy).toBe(true);
+    await prisma.sourceRun.deleteMany({ where: { source: "THOMAX", status: "RUNNING" } });
   });
 
   it("the stored password is never re-used for a different cluster or user", async () => {

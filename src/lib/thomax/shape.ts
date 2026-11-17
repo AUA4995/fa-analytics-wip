@@ -142,8 +142,12 @@ export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string 
   return vals.length === 1 ? vals[0] : JSON.stringify(vals);
 }
 
-/** Fields that look like secrets are never stored (USR may hold password hashes, PINs, tokens). */
-const SECRET_FIELD = /pass|pwd|secret|token|hash|salt|pin$|^pin(code|number|no)?$/i;
+/**
+ * Fields that hold secrets are never stored (USR may hold password hashes, PINs, tokens). Matched on the name's
+ * meaning, not any 3 letters: "Password", "UserPwd", "ApiToken", "PinCode" go; "ContactPassport", "QCPassed",
+ * "Compass…", "Shipping…" stay. The table page lists what was left out.
+ */
+const SECRET_FIELD = /password|passwd|passcode|(^|[_a-z0-9])(pwd|secret|token|salt)$|^(pin|pincode|pinnumber|pinno|passwordhash|hash)$|(pin|password)hash$/i;
 export function isSecretField(f: string): boolean {
   return SECRET_FIELD.test(f);
 }

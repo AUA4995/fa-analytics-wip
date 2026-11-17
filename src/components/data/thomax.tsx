@@ -30,6 +30,7 @@ export function ThomaxConnectionForm({ cluster, username, historyFrom, recheckDa
       <label>
         Copy history from
         <input name="historyFrom" type="date" defaultValue={historyFrom} />
+        <span className="meta">An earlier date reads the history again from it (rows are updated, not duplicated).</span>
       </label>
       <label>
         Re-check the last … days each night
@@ -65,7 +66,7 @@ export function ThomaxButtons({ owner }: { owner: boolean }) {
       <button type="button" className="btn primary" disabled={pending} onClick={() => run(() => runThomaxAction("nightly"))}>
         Sync now
       </button>
-      <button type="button" className="btn" disabled={pending} onClick={() => confirm("Start loading history now? The first step runs now (by day it shares Thomax with Power BI and the daily emails); the rest continues each night 20:00–06:00.") && run(() => runThomaxAction("history"))}>
+      <button type="button" className="btn" disabled={pending} onClick={() => confirm("Start loading history now? It keeps going, step by step, until the history is loaded — also during the day, when it shares Thomax with Power BI and the daily emails (they may be a little slower). Close the app to pause it.") && run(() => runThomaxAction("history"))}>
         Load history now
       </button>
       {owner && (

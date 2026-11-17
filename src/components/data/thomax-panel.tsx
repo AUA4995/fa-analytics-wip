@@ -63,6 +63,11 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
               {admin ? `${conn.username} @ ${conn.cluster}.dotwms.com · ` : ""}history from {au(conn.historyFrom)} · re-check {conn.recheckDays} days · <b>{n(totalRows)}</b> rows copied ·{" "}
               {!saved ? "no table saved yet — Explore, then check and save each table" : remaining ? `${n(remaining)} month windows of history still to load (runs 20:00–06:00)` : "history up to date"}
             </p>
+            {remaining > 0 && (
+              <p className="meta" style={{ marginTop: 0 }}>
+                The history load and the nightly copy only run while the app is open and the computer is awake. On a laptop that is off at night, use <b>Load history now</b> — it then keeps loading during the day until it&apos;s done.
+              </p>
+            )}
             {admin && conn.lastTestAt && (
               <p className={conn.lastTestOk ? "meta" : "msg-err"} style={{ marginTop: 0 }}>
                 Last test {auTime(conn.lastTestAt)}: {conn.lastTestOk ? "Thomax answered ✓" : (conn.lastError ?? "failed")}
@@ -140,6 +145,11 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
         <div id="thomax-table">
           <Card title={`${sel.name} · ${tableDef(sel.name)?.label ?? ""}`} sub={sel.exploredAt ? `Explored ${auTime(sel.exploredAt)} · ${fields(sel.fields).length ? `${fields(sel.fields).length} fields` : "no rows in the table yet"}${sel.confirmedAt ? ` · saved by ${sel.confirmedBy ?? "—"} ${auTime(sel.confirmedAt)}` : ""}` : "Not explored yet"}>
             {sel.lastError && <p className="msg-err" style={{ marginTop: 0 }}>{sel.lastError}</p>}
+            {sel.droppedFields.length > 0 && (
+              <p className="meta" style={{ marginTop: 0 }}>
+                Not copied (they hold passwords, PINs or tokens): {sel.droppedFields.join(", ")}.
+              </p>
+            )}
             {admin && <ExploreOneButton table={sel.name} />}
             <div style={{ marginTop: 12 }}>
               <ThomaxTableForm

@@ -189,7 +189,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--grey); font-weight: 600; padding: 6px 10px 6px 0; white-space: nowrap; }
   td { border-top: 1px solid var(--border); padding: 9px 10px 9px 0; vertical-align: top; }
-  textarea, input[type=text], input[type=email], input[type=password], input[type=date], input[type=number], select { font: inherit; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; background: var(--card); color: var(--ink); }
+  textarea, input:not([type]), input[type=text], input[type=search], input[type=email], input[type=password], input[type=date], input[type=number], select { font: inherit; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; background: var(--card); color: var(--ink); }
   textarea { width: 100%; min-height: 60px; resize: vertical; }
 }
 

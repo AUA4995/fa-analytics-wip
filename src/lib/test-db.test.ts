@@ -7,6 +7,6 @@ describe("integration tests only touch a *_test database", () => {
     expect(isTestDatabase("postgresql://fa:x@localhost:5432/fa_analytics?schema=public")).toBe(false);
     expect(isTestDatabase("postgresql://fa:x@localhost:5432/fa_analytics_test_copy")).toBe(false);
     expect(isTestDatabase("not a url")).toBe(false);
-    expect(isTestDatabase(undefined)).toBe(false);
+    expect(isTestDatabase("")).toBe(false);
   });
 });

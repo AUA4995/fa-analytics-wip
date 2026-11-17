@@ -1150,6 +1150,8 @@ model ThomaxTable {
   kind          String    @default("TRANSACTIONAL")
   /// Field names found by Explore, in Thomax order
   fields        Json?
+  /// Fields left out because they hold secrets (passwords, PINs, tokens) — shown on the table card
+  droppedFields String[]  @default([])
   /// Up to 5 sample rows from Explore (owners only; shown on Data sources → WMS)
   sample        Json?
   exploredAt    DateTime?

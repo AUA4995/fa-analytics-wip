@@ -76,7 +76,8 @@ export async function queryPage(creds: ThomaxCreds, q: QueryParts, opts: ClientO
       continue;
     }
     const text = await res.text();
-    if (res.status === 401 || res.status === 403) throw new ThomaxError(`Thomax refused the login (${res.status}) — check the user name and password`, res.status);
+    if (res.status === 401) throw new ThomaxError(`Thomax refused the login (401) — check the user name and password`, 401);
+    if (res.status === 403) throw new ThomaxError(`Thomax: this .wms user isn't allowed to read ${q.table} (403)`, 403);
     if (!res.ok) throw new ThomaxError(`Thomax ${q.table} failed (${res.status}): ${text.slice(0, 300)}`, res.status);
     let body: unknown;
     try {
@@ -98,8 +99,12 @@ export function dataOf(body: unknown, table: string): ThomaxRecord[] {
     const o = body as Record<string, unknown>;
     const data = o.Data ?? o.data;
     const status = o.Status ?? o.status;
-    if (typeof status === "string" && /error|invalid|fail|denied|exceed|not\s*found|unknown|exception/i.test(status)) throw new ThomaxError(`Thomax ${table}: ${status.slice(0, 300)}`);
-    if (Array.isArray(data)) return data.filter((r): r is ThomaxRecord => !!r && typeof r === "object" && !Array.isArray(r));
+    if (typeof status === "string" && /error|invalid|fail|denied|exceed|not\s*found|unknown|exception|time[ds]?\s*out|timeout/i.test(status)) throw new ThomaxError(`Thomax ${table}: ${status.slice(0, 300)}`);
+    if (Array.isArray(data)) {
+      // An empty page with a Status that isn't plainly "OK" could be a failure we don't recognise: don't count it as loaded
+      if (!data.length && typeof status === "string" && status.trim() && !/^(ok|success(ful)?|succeeded|200|true|no\s*(data|rows|records))$/i.test(status.trim())) throw new ThomaxError(`Thomax ${table}: no rows, status "${status.slice(0, 200)}"`);
+      return data.filter((r): r is ThomaxRecord => !!r && typeof r === "object" && !Array.isArray(r));
+    }
     const why = status ?? o.Message ?? o.message;
     throw new ThomaxError(`Thomax ${table}: ${typeof why === "string" ? why.slice(0, 300) : JSON.stringify(why ?? body).slice(0, 200)}`);
   }
