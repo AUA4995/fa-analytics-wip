@@ -33,7 +33,7 @@ export const PAGES: Record<PageKey, PageDef> = {
     key: "operations",
     label: "Operations",
     href: "/operations",
-    sections: [["lookup", "Order lookup"], ["receiving", "Receiving"], ["sla", "SLA"], ["returns", "Returns"], ["trends", "Trends & forecast"]],
+    sections: [["lookup", "Order lookup"], ["receiving", "Receiving"], ["sla", "SLA"], ["returns", "Returns"], ["trends", "Trends & forecast"], ["setup", "Setup"]],
   },
   cost: { key: "cost", label: "Cost & margin", href: "/cost", sections: [["base", "Base cost"], ["serve", "Cost to serve"], ["workbench", "Rate workbench"]] },
   leakage: {

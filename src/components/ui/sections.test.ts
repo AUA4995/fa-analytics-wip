@@ -11,7 +11,7 @@ describe("FA Analytics menu", () => {
     expect(PAGES.cost.sections.map((s) => s[1])).toEqual(["Base cost", "Cost to serve", "Rate workbench"]);
   });
   it("Operations has Order lookup first (batch 1), then the sections built next", () => {
-    expect(PAGES.operations.sections.map((s) => s[1])).toEqual(["Order lookup", "Receiving", "SLA", "Returns", "Trends & forecast"]);
+    expect(PAGES.operations.sections.map((s) => s[1])).toEqual(["Order lookup", "Receiving", "SLA", "Returns", "Trends & forecast", "Setup"]);
     expect(pageForPath("/operations")).toBe("operations");
   });
   it("maps paths to pages", () => {
