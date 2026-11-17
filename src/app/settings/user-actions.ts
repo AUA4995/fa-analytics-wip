@@ -9,7 +9,7 @@ import { isOwnerRole, isPrimaryOwner } from "@/lib/auth/roles";
 import { approveAccessRequest, declineAccessRequest, inviteUser, sendInvite, sendResetLink, type LinkOutcome } from "@/lib/auth/flows";
 import { forgetThisDevice, regenerateBackupCodes, resetTwoFactor, verifySecondFactor } from "@/lib/auth/two-factor";
 import { hitRateLimit, tooManyMessage } from "@/lib/auth/rate-limit";
-import { setAccessDomain } from "@/lib/auth/domain";
+import { getAccessDomain, setAccessDomain } from "@/lib/auth/domain";
 import { logChange } from "@/lib/model/store";
 
 /** Who changed whose access, kept in the change history (Settings → History). */
@@ -105,6 +105,7 @@ export async function resetUserPassword(userId: string): Promise<UserActionState
     if (!t.active) return fail(`Re-activate ${t.name} first.`);
     if (!t.passwordSetAt) return fail(`${t.name} hasn't set a password yet — use Send invite again.`);
     const out = await sendResetLink(t.id, me.id, me.name);
+    await audit(me, t.email, "passwordReset", null, out.mail.sent ? "reset link emailed" : "reset link shown to " + me.name); // never the link itself
     return { ok: true, ...linkMessage(t.name, t.email, out, "Reset link emailed to", "2 hours") };
   });
 }
@@ -119,6 +120,7 @@ export async function resendInvite(userId: string): Promise<UserActionState> {
     if (t.passwordSetAt) return fail(`${t.name} has already set a password — use Reset password instead.`);
     if (!t.active) return fail(`Re-activate ${t.name} first.`);
     const out = await sendInvite(t.id, me.id, me.name);
+    await audit(me, t.email, "invite", null, out.mail.sent ? "invitation emailed again" : "invitation link shown to " + me.name);
     return { ok: true, ...linkMessage(t.name, t.email, out, "New invitation emailed to", "7 days") };
   });
 }
@@ -219,7 +221,6 @@ export async function decideAccessRequest(requestId: string, decision: "approve"
       throw new AuthError("Only an owner can approve or decline access requests.");
     });
     const r = decision === "approve" ? await approveAccessRequest(requestId, role === "ADMIN" ? "ADMIN" : "USER", me) : await declineAccessRequest(requestId, me);
-    if (r.ok) await audit(me, requestId, "accessRequest", null, decision === "approve" ? `approved as ${role === "ADMIN" ? "ADMIN" : "USER"}` : "declined");
     revalidatePath("/settings");
     if (!r.ok) return fail(r.message);
     const link = "outcome" in r ? r.outcome?.link : undefined;
@@ -230,8 +231,9 @@ export async function decideAccessRequest(requestId: string, decision: "approve"
 export async function saveAccessDomain(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   return run(async () => {
     const me = await assertAdmin();
+    const before = await getAccessDomain();
     const d = await setAccessDomain(String(formData.get("domain") ?? ""));
-    await audit(me, "company", "accessDomain", null, d);
+    if (d !== before) await audit(me, "company", "accessDomain", before, d);
     revalidatePath("/settings");
     return { ok: true, message: `Saved — only @${d} emails can request access.` };
   });

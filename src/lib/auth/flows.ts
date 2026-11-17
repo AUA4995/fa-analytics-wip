@@ -6,6 +6,7 @@ import { hashPassword, passwordProblem } from "./password";
 import { appBaseUrl, frontSendChannel, sendAuthEmail, type MailResult } from "./mail";
 import { checkAuthToken, consumeAuthToken, createAuthToken, tokenProblemMessage, TOKEN_TTL_MS } from "./tokens";
 import { emailInDomain, getAccessDomain } from "./domain";
+import { logChange } from "@/lib/model/store";
 
 /**
  * Email-link flows (Batch 2 items 2, 30, 31, 33). Permission checks live in the server actions that call these;
@@ -184,6 +185,8 @@ export async function approveAccessRequest(requestId: string, role: "USER" | "AD
   const now = new Date();
   const claimed = await prisma.accessRequest.updateMany({ where: { id: requestId, status: "PENDING" }, data: { status: "APPROVED", decidedAt: now, decidedByName: by.name, role } });
   if (claimed.count !== 1) return { ok: false, message: "This request has already been dealt with." };
+  // Logged here so the in-app button and the owner's email link both leave a record
+  await logChange({ entity: "accessRequest", entityId: requestId, field: "decision", oldValue: "PENDING", newValue: `approved as ${role}`, actor: { type: "USER", name: by.name } });
   await prisma.authToken.updateMany({ where: { accessRequestId: requestId, usedAt: null }, data: { usedAt: now } });
   const req = await prisma.accessRequest.findUniqueOrThrow({ where: { id: requestId } });
   const existing = await prisma.user.findUnique({ where: { email: req.email } });
@@ -205,6 +208,7 @@ export async function declineAccessRequest(requestId: string, by: { name: string
   const now = new Date();
   const claimed = await prisma.accessRequest.updateMany({ where: { id: requestId, status: "PENDING" }, data: { status: "DECLINED", decidedAt: now, decidedByName: by.name } });
   if (claimed.count !== 1) return { ok: false, message: "This request has already been dealt with." };
+  await logChange({ entity: "accessRequest", entityId: requestId, field: "decision", oldValue: "PENDING", newValue: "declined", actor: { type: "USER", name: by.name } });
   await prisma.authToken.updateMany({ where: { accessRequestId: requestId, usedAt: null }, data: { usedAt: now } });
   const req = await prisma.accessRequest.findUniqueOrThrow({ where: { id: requestId } });
   return { ok: true, message: `Declined — ${req.name} (${req.email}) won't get access. Nothing was sent to them.` };
