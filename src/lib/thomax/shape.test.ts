@@ -39,6 +39,12 @@ describe("Thomax query building", () => {
     expect(() => assertCluster("e.attacker")).toThrow();
     expect(assertCluster(" E ")).toBe("e");
   });
+  it("part-day windows use date and time; whole days just the date; OrderBy can list several key fields", () => {
+    expect(windowWhere("Created", new Date("2026-06-01T00:00:00Z"), new Date("2026-06-02T00:00:00Z"))).toEqual(["Created ge '2026-06-01'", "Created lt '2026-06-02'"]);
+    expect(windowWhere("Created", new Date("2026-06-01T05:00:00Z"), new Date("2026-06-01T06:00:00Z"))).toEqual(["Created ge '2026-06-01 05:00:00'", "Created lt '2026-06-01 06:00:00'"]);
+    expect(new URL(buildQueryUrl("e", { table: "PCK1", orderBy: "PCKID,LineNo" })).searchParams.get("OrderBy")).toBe("PCKID,LineNo");
+    expect(() => buildQueryUrl("e", { table: "PCK1", orderBy: "PCKID;drop" })).toThrow();
+  });
   it("splits history into month windows", () => {
     const w = monthWindows(new Date("2021-01-15T00:00:00Z"), new Date("2021-03-10T00:00:00Z"));
     expect(w.map((x) => [x.from.toISOString().slice(0, 10), x.to.toISOString().slice(0, 10)])).toEqual([
@@ -85,7 +91,11 @@ describe("Thomax values", () => {
     expect(withoutSecrets({ UserID: 1, Name: "Jo", PasswordHash: "x", PIN: "1234", ApiToken: "t", Pinned: true })).toEqual({ UserID: 1, Name: "Jo", Pinned: true });
     expect(fieldsOf([{ UserID: 1, Password: "x" }])).toEqual(["UserID"]);
     // Names that only contain those letters are kept (the copy is the archive after Thomax ends)
-    expect(withoutSecrets({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t", UserPwd: "x", Salt: "s" })).toEqual({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t" });
+    expect(withoutSecrets({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t", UserPwd: "x", Salt: "s", Basalt: "b" })).toEqual({ ContactPassport: "P1", QCPassed: true, Compass: 1, ShippingPin: 2, TokenExpiry: "t", Basalt: "b" });
+    // Credentials under other names
+    expect(withoutSecrets({ ApiKey: 1, SecretKey: 2, AccessKey: 3, PrivateKey: 4, AuthKey: 5, LicenceKey: 6, Credentials: 7, UserPIN: 8, LoginPin: 9, SecretAnswer: 10, Passphrase: 11, ItemKey: 12, OrderKey: 13 })).toEqual({ ItemKey: 12, OrderKey: 13 });
+    // …and anything the owner chose not to copy
+    expect(withoutSecrets({ A: 1, B: 2 }, ["B"])).toEqual({ A: 1 });
   });
   it("lookup values are trimmed, upper-cased, 2–100 chars, no objects", () => {
     expect(lookupValues({ OrderNo: " so-123 ", Ref: "x", Con: { a: 1 }, Track: null }, ["OrderNo", "Ref", "Con", "Track"])).toEqual([{ field: "OrderNo", value: "SO-123" }]);

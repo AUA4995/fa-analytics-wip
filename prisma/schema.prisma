@@ -1152,6 +1152,8 @@ model ThomaxTable {
   fields        Json?
   /// Fields left out because they hold secrets (passwords, PINs, tokens) — shown on the table card
   droppedFields String[]  @default([])
+  /// Fields the owner chose not to copy (e.g. a key or PIN Thomax stores under an unusual name)
+  excludeFields String[]  @default([])
   /// Up to 5 sample rows from Explore (owners only; shown on Data sources → WMS)
   sample        Json?
   exploredAt    DateTime?

@@ -161,6 +161,7 @@ export async function ThomaxPanel({ admin, owner, open }: { admin: boolean; owne
                 dateField={sel.dateField}
                 keyFields={sel.keyFields}
                 lookupFields={sel.lookupFields}
+                excludeFields={sel.excludeFields}
                 confirmed={!!sel.confirmedAt}
                 rowCount={sel.rowCount}
                 owner={owner}

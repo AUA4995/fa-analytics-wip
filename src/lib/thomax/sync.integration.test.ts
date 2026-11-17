@@ -175,6 +175,39 @@ describe.skipIf(!hasDb)("Thomax copy (integration)", () => {
     }
   });
 
+  it("a busy day: ordered by every key field, or read hour by hour, so nothing is missed", async () => {
+    // 1 day, 6 orders × 3 lines, tied by PCKID; pages of 4. Thomax refuses a multi-field OrderBy → hourly windows
+    pck = [];
+    for (let o = 1; o <= 6; o++) for (let ln = 1; ln <= 3; ln++) pck.push({ PCKID: 200 + o, LineNo: ln, JobCreateTime: `2026-10-05T${String(8 + o).padStart(2, "0")}:00:00` });
+    const f = async (u: string) => {
+      const p = new URL(u).searchParams;
+      if ((p.get("OrderBy") ?? "").includes(",")) return new Response("bad OrderBy", { status: 400 });
+      const m = /ge '([\d -:]+)' AND \w+ lt '([\d -:]+)'/.exec(p.get("Where") ?? "")!;
+      const norm = (x: string) => x.replace(" ", "T");
+      let rows = pck.filter((r) => String(r.JobCreateTime) >= norm(m[1]) && String(r.JobCreateTime) < norm(m[2]));
+      rows = [...rows].sort((a, b) => Number(a.PCKID) - Number(b.PCKID) || Math.random() - 0.5);
+      const skip = Number(p.get("Skip") ?? 0);
+      return new Response(JSON.stringify({ Status: "OK", Data: rows.slice(skip, skip + Number(p.get("Limit"))) }), { status: 200 });
+    };
+    const t = { name: "PCK", keyFields: ["PCKID", "LineNo"], lookupFields: [], dateField: "JobCreateTime" };
+    for (let i = 0; i < 3; i++) {
+      await prisma.thomaxRow.deleteMany({ where: { table: "PCK" } });
+      await s.copyWindow((await s.getCreds())!, t, new Date("2026-10-05"), new Date("2026-10-06"), { fetchImpl: f, sleep: async () => {}, pageSize: 4 });
+      expect(await prisma.thomaxRow.count({ where: { table: "PCK" } })).toBe(18);
+    }
+  });
+
+  it("the nightly stops when Thomax can't be reached instead of trying every table", async () => {
+    let calls = 0;
+    const down = async () => {
+      calls++;
+      throw new TypeError("fetch failed");
+    };
+    const r = await s.nightly(new Date("2026-11-16T12:00:00Z"), { fetchImpl: down, sleep: async () => {}, maxRetries: 1 });
+    expect(r.stopped).toMatch(/can't be reached/);
+    expect(calls).toBeLessThanOrEqual(2);
+  });
+
   it("a 403 on one table marks that table only; copying isn't paused", async () => {
     const f403 = async (u: string) => (new URL(u).searchParams.get("Table") === "PCK" ? new Response("no", { status: 403 }) : fetchImpl(u));
     const r = await s.nightly(new Date("2026-11-16T12:00:00Z"), { fetchImpl: f403, sleep: async () => {} });

@@ -32,6 +32,8 @@ export interface ClientOptions {
   maxRetries?: number;
   /** Stops waiting and paging when the job is cancelled or times out */
   signal?: AbortSignal;
+  /** Called before every try (heartbeat while Thomax is slow or unreachable) */
+  onAttempt?: () => Promise<void> | void;
 }
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -50,6 +52,7 @@ export async function queryPage(creds: ThomaxCreds, q: QueryParts, opts: ClientO
   for (let attempt = 0; ; attempt++) {
     if (opts.signal?.aborted) throw new ThomaxError("Stopped (the job was cancelled or ran out of time).");
     let res: Response;
+    await opts.onAttempt?.();
     try {
       const timeout = AbortSignal.timeout(opts.timeoutMs ?? 150_000);
       res = await fetchImpl(url, {
@@ -102,7 +105,7 @@ export function dataOf(body: unknown, table: string): ThomaxRecord[] {
     if (typeof status === "string" && /error|invalid|fail|denied|exceed|not\s*found|unknown|exception|time[ds]?\s*out|timeout/i.test(status)) throw new ThomaxError(`Thomax ${table}: ${status.slice(0, 300)}`);
     if (Array.isArray(data)) {
       // An empty page with a Status that isn't plainly "OK" could be a failure we don't recognise: don't count it as loaded
-      if (!data.length && typeof status === "string" && status.trim() && !/^(ok|success(ful)?|succeeded|200|true|no\s*(data|rows|records))$/i.test(status.trim())) throw new ThomaxError(`Thomax ${table}: no rows, status "${status.slice(0, 200)}"`);
+      if (!data.length && typeof status === "string" && status.trim() && !/^(ok|success(ful)?|succeeded|completed?|done|200|true|no\s*(data|rows|records)(\s*found)?|0\s*(rows|records)(\s*found)?)$/i.test(status.trim())) throw new ThomaxError(`Thomax ${table}: no rows, status "${status.slice(0, 200)}"`);
       return data.filter((r): r is ThomaxRecord => !!r && typeof r === "object" && !Array.isArray(r));
     }
     const why = status ?? o.Message ?? o.message;

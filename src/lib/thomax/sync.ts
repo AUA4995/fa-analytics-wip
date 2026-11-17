@@ -149,13 +149,14 @@ export async function exploreTable(name: string, opts?: ThomaxOptions): Promise<
   try {
     const raw = await queryPage(creds, { table: name, limit: 5 }, { maxRetries: 1, timeoutMs: 130_000, ...opts });
     const droppedFields = [...new Set(raw.flatMap((r) => Object.keys(r)))].filter(isSecretField);
-    const rows = raw.map(withoutSecrets);
+    // Excluded fields keep their name in the field list (so the owner can switch them back on) but no value in the sample
+    const rows = raw.map((r) => withoutSecrets(r, t.excludeFields));
     if (!rows.length) {
       // An empty table: keep the fields found before (if any)
       await prisma.thomaxTable.update({ where: { name }, data: { lastError: null, exploredAt: t.exploredAt ?? new Date(), ...(t.fields ? {} : { sample: [] }) } });
       return { fields: Array.isArray(t.fields) ? (t.fields as string[]).length : 0, empty: true };
     }
-    const fields = fieldsOf(rows);
+    const fields = [...fieldsOf(rows), ...t.excludeFields.filter((f) => raw.some((r) => f in r) && !fieldsOf(rows).includes(f))];
     const unconfirmed = !t.confirmedAt;
     const dateField = suggestDateField(fields, rows);
     await prisma.thomaxTable.update({
@@ -211,6 +212,8 @@ export interface TableSettings {
   dateField: string | null;
   keyFields: string[];
   lookupFields: string[];
+  /** Fields not to copy */
+  excludeFields?: string[];
   /** Must be true when the key changes on a table that already has rows (they are deleted and copied again) */
   confirmKeyChange?: boolean;
 }
@@ -223,7 +226,9 @@ export async function saveTableSettings(name: string, s: TableSettings, by: stri
   const known = (f: string) => fields.includes(f);
   if (s.kind !== "TRANSACTIONAL" && s.kind !== "MASTER") throw new Error("Unknown kind");
   if (s.dateField && !known(s.dateField)) throw new Error(`${name}: date field "${s.dateField}" isn't one of the table's fields — run Explore first.`);
-  for (const f of [...s.keyFields, ...s.lookupFields]) if (!known(f)) throw new Error(`${name}: "${f}" isn't one of the table's fields.`);
+  const exclude = s.excludeFields ?? [];
+  for (const f of [...s.keyFields, ...s.lookupFields, ...exclude]) if (!known(f)) throw new Error(`${name}: "${f}" isn't one of the table's fields.`);
+  if (exclude.some((f) => s.keyFields.includes(f) || s.lookupFields.includes(f) || f === s.dateField)) throw new Error(`${name}: a field that isn't copied can't be the key, the date or searchable.`);
   if (s.enabled && s.kind === "TRANSACTIONAL" && !s.dateField) throw new Error(`${name}: choose the date field used to copy history, or set the table to "re-read in full".`);
   if (s.enabled && !s.keyFields.length) throw new Error(`${name}: choose the field(s) that identify one row, so re-reads update rows instead of adding copies.`);
   if (s.keyFields.length > 4 || s.lookupFields.length > 12) throw new Error("Too many fields chosen.");
@@ -242,7 +247,7 @@ export async function saveTableSettings(name: string, s: TableSettings, by: stri
     }
     await tx.thomaxTable.update({
       where: { name },
-      data: { enabled: s.enabled, kind: s.kind, dateField: s.kind === "MASTER" ? null : s.dateField, keyFields: s.keyFields, lookupFields: s.lookupFields, confirmedAt: new Date(), confirmedBy: by },
+      data: { enabled: s.enabled, kind: s.kind, dateField: s.kind === "MASTER" ? null : s.dateField, keyFields: s.keyFields, lookupFields: s.lookupFields, excludeFields: exclude, confirmedAt: new Date(), confirmedBy: by },
     });
   });
   if (!keyChanged && t.confirmedAt && t.lookupFields.join("|") !== s.lookupFields.join("|")) await rebuildRefs(name, s.lookupFields);
@@ -256,6 +261,8 @@ interface TableCfg {
   keyFields: string[];
   lookupFields: string[];
   dateField: string | null;
+  /** Fields the owner chose not to copy */
+  excludeFields?: string[];
 }
 
 export interface StoreResult {
@@ -277,7 +284,7 @@ export async function storeRows(cfg: TableCfg, raw: ThomaxRecord[]): Promise<Sto
   // De-duplicate within the page (last wins) — ON CONFLICT can't touch the same row twice in one statement.
   const byKey = new Map<string, ThomaxRecord>();
   for (const r0 of raw) {
-    const r = withoutSecrets(r0);
+    const r = withoutSecrets(r0, cfg.excludeFields ?? []);
     const k = rowKey(r, cfg.keyFields);
     if (k === null) {
       noKey++;
@@ -357,7 +364,7 @@ async function readyTables(): Promise<ReadyTable[]> {
   return rows
     // ATR needs an InnerJoin parameter the copy doesn't send; every other table can be switched on by the owner
     .filter((t) => t.name !== "ATR" && t.keyFields.length > 0)
-    .map((t) => ({ name: t.name, kind: t.kind, keyFields: t.keyFields, lookupFields: t.lookupFields, dateField: t.dateField, historyDoneTo: t.historyDoneTo }));
+    .map((t) => ({ name: t.name, kind: t.kind, keyFields: t.keyFields, lookupFields: t.lookupFields, dateField: t.dateField, excludeFields: t.excludeFields, historyDoneTo: t.historyDoneTo }));
 }
 
 interface CopyResult {
@@ -373,14 +380,14 @@ interface CopyResult {
   warning: string | null;
 }
 
-async function copy(creds: ThomaxCreds, t: TableCfg, where: string[] | undefined, opts?: ThomaxOptions): Promise<CopyResult> {
+async function copy(creds: ThomaxCreds, t: TableCfg, where: string[] | undefined, opts?: ThomaxOptions, orderBy?: string): Promise<CopyResult> {
   const out: CopyResult = { unstable: false, read: 0, inserted: 0, updated: 0, noKey: 0, maxAt: null, warning: null };
   const seen = new Set<string>();
   let pages = 0;
   // Order by the first key field (unique per row for single-field keys) so paging with Skip is stable.
-  out.read = await queryAll(creds, { table: t.name, where, orderBy: t.keyFields[0] }, async (rows) => {
+  out.read = await queryAll(creds, { table: t.name, where, orderBy: orderBy ?? t.keyFields[0] }, async (rows) => {
     for (const r of rows) {
-      const k = rowKey(withoutSecrets(r), t.keyFields);
+      const k = rowKey(withoutSecrets(r, t.excludeFields ?? []), t.keyFields);
       if (k !== null) seen.add(k);
     }
     pages++;
@@ -390,7 +397,7 @@ async function copy(creds: ThomaxCreds, t: TableCfg, where: string[] | undefined
     out.updated += r.updated;
     out.noKey += r.noKey;
     if (r.maxAt && (!out.maxAt || r.maxAt > out.maxAt)) out.maxAt = r.maxAt;
-  }, opts);
+  }, { ...opts, onAttempt: beat });
   const notes: string[] = [];
   if (out.noKey) notes.push(`${out.noKey} rows had no value in the key field(s) and were skipped`);
   const dupes = out.read - out.noKey - seen.size;
@@ -407,21 +414,37 @@ async function copy(creds: ThomaxCreds, t: TableCfg, where: string[] | undefined
  */
 export async function copyWindow(creds: ThomaxCreds, t: TableCfg, from: Date, to: Date, opts?: ThomaxOptions): Promise<CopyResult> {
   if (!t.dateField) throw new Error(`${t.name} has no date field`);
-  const r = await copy(creds, t, windowWhere(t.dateField, from, to), opts);
-  if (!r.unstable || to.getTime() - from.getTime() <= DAY) {
-    if (r.unstable) throw new ThomaxError(`${t.name} ${from.toISOString().slice(0, 10)}: more rows in one day than one page, and Thomax didn't keep their order between pages — rows may be missing. Tell Claude (the day can't be split further).`);
-    return r;
+  const where = windowWhere(t.dateField, from, to);
+  const r = await copy(creds, t, where, opts);
+  if (!r.unstable) return r;
+  const span = to.getTime() - from.getTime();
+  if (span > DAY) return splitWindow(creds, t, from, to, DAY, r, opts);
+  // A day (or hour) still not stable: order by every key field, if Thomax accepts it
+  if (t.keyFields.length > 1) {
+    try {
+      const all = await copy(creds, t, where, opts, t.keyFields.join(","));
+      if (!all.unstable) return all;
+    } catch (err) {
+      if (isAuthError(err)) throw err; // otherwise: Thomax may not accept several OrderBy fields — try smaller windows
+    }
   }
-  const total: CopyResult = { unstable: false, read: 0, inserted: r.inserted, updated: r.updated, noKey: 0, maxAt: r.maxAt, warning: null };
+  if (span > HOUR) return splitWindow(creds, t, from, to, HOUR, r, opts);
+  throw new ThomaxError(`${t.name} ${from.toISOString().slice(0, 16).replace("T", " ")}: more rows in one hour than one page, and Thomax didn't keep their order between pages — rows may be missing. Tell Claude.`);
+}
+
+const HOUR = 3_600_000;
+
+async function splitWindow(creds: ThomaxCreds, t: TableCfg, from: Date, to: Date, step: number, first: CopyResult, opts?: ThomaxOptions): Promise<CopyResult> {
+  const total: CopyResult = { unstable: false, read: 0, inserted: first.inserted, updated: first.updated, noKey: 0, maxAt: first.maxAt, warning: null };
   const notes = new Set<string>();
-  for (let d = from.getTime(); d < to.getTime(); d += DAY) {
-    const day = await copyWindow(creds, t, new Date(d), new Date(Math.min(d + DAY, to.getTime())), opts);
-    total.read += day.read;
-    total.inserted += day.inserted;
-    total.updated += day.updated;
-    total.noKey += day.noKey;
-    if (day.maxAt && (!total.maxAt || day.maxAt > total.maxAt)) total.maxAt = day.maxAt;
-    if (day.warning) notes.add(day.warning);
+  for (let d = from.getTime(); d < to.getTime(); d += step) {
+    const part = await copyWindow(creds, t, new Date(d), new Date(Math.min(d + step, to.getTime())), opts);
+    total.read += part.read;
+    total.inserted += part.inserted;
+    total.updated += part.updated;
+    total.noKey += part.noKey;
+    if (part.maxAt && (!total.maxAt || part.maxAt > total.maxAt)) total.maxAt = part.maxAt;
+    if (part.warning) notes.add(part.warning);
   }
   total.warning = notes.size ? [...notes].join("; ") : null;
   return total;
@@ -430,7 +453,9 @@ export async function copyWindow(creds: ThomaxCreds, t: TableCfg, from: Date, to
 /** Rows whose date field is empty never fall in a window: read them separately (nightly). */
 export async function copyNoDate(creds: ThomaxCreds, t: TableCfg, opts?: ThomaxOptions): Promise<CopyResult> {
   if (!t.dateField) throw new Error(`${t.name} has no date field`);
-  return copy(creds, t, [`${assertName(t.dateField, "field")} is null`], opts);
+  const r = await copy(creds, t, [`${assertName(t.dateField, "field")} is null`], opts);
+  if (r.unstable) r.warning = [r.warning, "rows with no date: Thomax didn't keep their order between pages, so some may be missing until the next night's read"].filter(Boolean).join("; ");
+  return r;
 }
 
 /** Re-read a MASTER table in full. Rows that disappear from Thomax are kept (it's an archive). */
@@ -440,11 +465,19 @@ export async function copyMaster(creds: ThomaxCreds, t: TableCfg, opts?: ThomaxO
   return r;
 }
 
-/** Rows dated before the history start (placeholder dates like 01/01/1900) never fall in a month window: read once. */
+/**
+ * Rows with placeholder dates (before 2000, e.g. 01/01/1900) never fall in a month window: read once at the start.
+ * Real rows between 2000 and the history start are left out on purpose (choose an earlier "Copy history from" date
+ * to load them month by month).
+ */
 export async function copyBefore(creds: ThomaxCreds, t: TableCfg, before: Date, opts?: ThomaxOptions): Promise<CopyResult> {
   if (!t.dateField) throw new Error(`${t.name} has no date field`);
-  return copy(creds, t, [`${assertName(t.dateField, "field")} lt '${before.toISOString().slice(0, 10)}'`], opts);
+  const cut = before < PLACEHOLDER_BEFORE ? before : PLACEHOLDER_BEFORE;
+  const r = await copy(creds, t, [`${assertName(t.dateField, "field")} lt '${cut.toISOString().slice(0, 10)}'`], opts);
+  if (r.unstable) throw new ThomaxError(`${t.name}: rows with placeholder dates (before 2000) couldn't be read reliably (Thomax didn't keep their order between pages). Tell Claude.`);
+  return r;
 }
+const PLACEHOLDER_BEFORE = new Date("2000-01-01T00:00:00Z");
 
 export interface StepResult {
   windows: number;
@@ -458,12 +491,13 @@ export interface StepResult {
 }
 
 /** Heartbeat of the run in progress (every page): a run with no heartbeat for 20 minutes is treated as dead. */
-let currentRun: string | null = null;
+const activeRuns = new Set<string>();
 let lastBeat = 0;
+/** Called before every Thomax try and on every page, so a slow or unreachable Thomax still shows the run is alive. */
 async function beat(): Promise<void> {
-  if (!currentRun || Date.now() - lastBeat < 30_000) return;
+  if (!activeRuns.size || Date.now() - lastBeat < 30_000) return;
   lastBeat = Date.now();
-  await prisma.sourceRun.update({ where: { id: currentRun }, data: { finishedAt: new Date() } }).catch(() => {});
+  await prisma.sourceRun.updateMany({ where: { id: { in: [...activeRuns] }, status: "RUNNING" }, data: { finishedAt: new Date() } }).catch(() => {});
 }
 const STALE_MS = 20 * 60_000;
 
@@ -484,13 +518,13 @@ async function runningRun(): Promise<boolean> {
 
 async function startRun(label: string): Promise<string> {
   const run = await prisma.sourceRun.create({ data: { source: SOURCE, label } });
-  currentRun = run.id;
+  activeRuns.add(run.id);
   lastBeat = Date.now();
   return run.id;
 }
 
 async function finishRun(id: string, res: StepResult) {
-  if (currentRun === id) currentRun = null;
+  activeRuns.delete(id);
   await prisma.sourceRun.update({ where: { id }, data: { status: res.errors.length || res.stopped ? "FAILED" : "SUCCESS", finishedAt: new Date(), stats: res as unknown as Prisma.InputJsonValue, error: [res.stopped, ...res.errors].filter(Boolean).join("\n").slice(0, 2000) || null } });
 }
 
@@ -592,11 +626,19 @@ export async function nightly(now = new Date(), opts?: ThomaxOptions): Promise<S
       if (isAuthError(err)) {
         await loginRefused(err);
         res.stopped = "Thomax refused the login — stopped.";
-      } else if (opts?.signal?.aborted) res.stopped = "Stopped (time limit).";
+      } else if (isNetworkError(err)) res.stopped = "Thomax can't be reached — stopped (tried again tomorrow, or press Sync now).";
+      else if (opts?.signal?.aborted) res.stopped = "Stopped (time limit).";
     }
   }
   await finishRun(run.id, res);
   return res;
+}
+
+/** No nightly copy started in the last 24 hours (the computer was off or asleep at 02:15)? */
+export async function nightlyMissed(now: Date): Promise<boolean> {
+  const tables = await prisma.thomaxTable.count({ where: { enabled: true, confirmedAt: { not: null } } });
+  if (!tables) return false;
+  return (await prisma.sourceRun.count({ where: { source: SOURCE, label: "nightly", startedAt: { gte: new Date(now.getTime() - 24 * 3_600_000) } } })) === 0;
 }
 
 /** Is tonight's nightly copy due (after 02:15 Sydney) and not yet finished or started today? */

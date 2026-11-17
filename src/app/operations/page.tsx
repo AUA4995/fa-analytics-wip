@@ -61,7 +61,7 @@ async function Lookup({ q, by }: { q: string; by: string }) {
   const copied = await prisma.thomaxRow.count();
   const res = q ? await lookup(q) : null;
   // Results can show receivers' names and addresses: every search is logged (who, what, when)
-  if (res) await prisma.changeLog.create({ data: { entity: "OrderLookup", entityId: res.term, field: "search", newValue: { rows: res.rows.length }, actorName: by } }).catch(() => {});
+  if (res) await prisma.changeLog.create({ data: { entity: "OrderLookup", entityId: res.term, field: "search", newValue: { rows: res.rows.length }, actorName: by } }).catch((err) => console.error("[lookup] search log not written:", err));
   const rowNo = new Map(res?.rows.map((r, i) => [r.id, i + 1]) ?? []);
   return (
     <>

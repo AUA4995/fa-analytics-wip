@@ -98,6 +98,7 @@ export async function saveThomaxTableAction(_: DataActionState | null, form: For
         dateField: String(form.get("dateField") ?? "") || null,
         keyFields: form.getAll("keyFields").map(String).filter(Boolean),
         lookupFields: form.getAll("lookupFields").map(String).filter(Boolean),
+        excludeFields: form.getAll("excludeFields").map(String).filter(Boolean),
         confirmKeyChange: form.get("confirmKeyChange") === "on",
       },
       me.name,

@@ -56,6 +56,11 @@ export async function startScheduler(): Promise<void> {
   await b.schedule(QUEUE_THOMAX_NIGHTLY, "15 2 * * *", {}, { tz: TZ });
   // Picks the history load up again each evening (a no-op once it's done).
   await b.schedule(QUEUE_THOMAX_HISTORY, "5 20 * * *", {}, { tz: TZ });
+  // A laptop that was off at 02:15: catch the nightly copy up shortly after the app starts
+  void (async () => {
+    const { getCreds, nightlyMissed } = await import("@/lib/thomax/sync");
+    if ((await getCreds()) && (await nightlyMissed(new Date()))) await b.send(QUEUE_THOMAX_NIGHTLY, {}, { startAfter: 300, singletonKey: "thomax-nightly-catchup" });
+  })().catch((err) => console.error("[jobs] Thomax catch-up check failed:", err));
   await b.work<{ kind?: "FULL" | "INCREMENTAL"; by?: string }>(QUEUE_XERO_SYNC, async ([job]) => {
     const { getConnection } = await import("@/lib/xero/auth");
     if (!(await getConnection())) return;

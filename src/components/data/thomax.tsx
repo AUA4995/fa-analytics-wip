@@ -99,6 +99,7 @@ export function ThomaxTableForm({
   dateField,
   keyFields,
   lookupFields,
+  excludeFields = [],
   confirmed,
   rowCount,
   owner,
@@ -110,6 +111,7 @@ export function ThomaxTableForm({
   dateField: string | null;
   keyFields: string[];
   lookupFields: string[];
+  excludeFields?: string[];
   confirmed: boolean;
   rowCount: number;
   owner: boolean;
@@ -161,6 +163,17 @@ export function ThomaxTableForm({
           {fields.map((f) => (
             <label key={f} className="chip-check">
               <input type="checkbox" name="lookupFields" value={f} defaultChecked={lookupFields.includes(f)} disabled={!owner} /> {f}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Don&apos;t copy these fields</legend>
+        <span className="meta">For anything private Thomax keeps under an unusual name (a key, PIN or password). Fields named like passwords, PINs and tokens are already left out.</span>
+        <div className="chips-wrap">
+          {fields.map((f) => (
+            <label key={f} className="chip-check">
+              <input type="checkbox" name="excludeFields" value={f} defaultChecked={excludeFields.includes(f)} disabled={!owner} /> {f}
             </label>
           ))}
         </div>

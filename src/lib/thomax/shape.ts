@@ -49,16 +49,19 @@ export function buildQueryUrl(cluster: string, q: QueryParts): string {
   const params = new URLSearchParams();
   params.set("Table", assertName(q.table, "table"));
   if (q.where?.length) params.set("Where", q.where.join(" AND "));
-  if (q.orderBy) params.set("OrderBy", assertName(q.orderBy, "field"));
+  if (q.orderBy) params.set("OrderBy", q.orderBy.split(",").map((f) => assertName(f.trim(), "field")).join(","));
   params.set("Limit", String(Math.min(Math.max(1, q.limit ?? PAGE_LIMIT), PAGE_LIMIT)));
   if (q.skip) params.set("Skip", String(q.skip));
   return `https://${assertCluster(cluster)}.dotwms.com/api/2.0/QueryAPI/?${params.toString()}`;
 }
 
-/** Where clause for one date window [from, to). */
+const ymdhms = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
+
+/** Where clause for one window [from, to): whole days as YYYY-MM-DD, part days as YYYY-MM-DD HH:MM:SS. */
 export function windowWhere(field: string, from: Date, to: Date): string[] {
   assertName(field, "field");
-  return [`${field} ge ${quote(ymd(from))}`, `${field} lt ${quote(ymd(to))}`];
+  const fmt = (d: Date) => (d.getTime() % 86_400_000 === 0 ? ymd(d) : ymdhms(d));
+  return [`${field} ge ${quote(fmt(from))}`, `${field} lt ${quote(fmt(to))}`];
 }
 
 /** Month windows from `from` (inclusive) up to `until` (exclusive), each [start, nextStart). */
@@ -147,13 +150,14 @@ export function rowKey(row: ThomaxRecord, keyFields: readonly string[]): string 
  * meaning, not any 3 letters: "Password", "UserPwd", "ApiToken", "PinCode" go; "ContactPassport", "QCPassed",
  * "Compass…", "Shipping…" stay. The table page lists what was left out.
  */
-const SECRET_FIELD = /password|passwd|passcode|(^|[_a-z0-9])(pwd|secret|token|salt)$|^(pin|pincode|pinnumber|pinno|passwordhash|hash)$|(pin|password)hash$/i;
+const SECRET_FIELD =
+  /password|passwd|passcode|passphrase|credential|secret|(^|[_a-z0-9])(pwd|token)$|(api|access|private|auth|account|licen[cs]e|signing|encryption|client|consumer)_?key$|(^|_|password)salt$|^(pin|pincode|pinnumber|pinno|hash)$|(user|login|security|access|staff|employee)_?pin(code|number|no)?$|(pin|password)hash$/i;
 export function isSecretField(f: string): boolean {
   return SECRET_FIELD.test(f);
 }
-export function withoutSecrets(row: ThomaxRecord): ThomaxRecord {
+export function withoutSecrets(row: ThomaxRecord, exclude: readonly string[] = []): ThomaxRecord {
   const out: ThomaxRecord = {};
-  for (const [k, v] of Object.entries(row)) if (!isSecretField(k)) out[k] = v;
+  for (const [k, v] of Object.entries(row)) if (!isSecretField(k) && !exclude.includes(k)) out[k] = v;
   return out;
 }
 

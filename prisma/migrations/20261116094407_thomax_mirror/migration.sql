@@ -25,6 +25,7 @@ CREATE TABLE "ThomaxTable" (
     "kind" TEXT NOT NULL DEFAULT 'TRANSACTIONAL',
     "fields" JSONB,
     "droppedFields" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "excludeFields" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "sample" JSONB,
     "exploredAt" TIMESTAMP(3),
     "dateField" TEXT,
