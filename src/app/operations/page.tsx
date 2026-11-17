@@ -141,7 +141,7 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
         </form>
         <p className="meta" style={{ marginBottom: 0 }}>
           {section !== "trends" && <>Period: {range.label}{period === "custom" ? " (From/To dates; at most 400 days)" : ""}. </>}
-          Times are Sydney time as Thomax records them.
+          Times are Sydney time as Thomax records them. <NotConnected source="logiwa" until="the Thomax copy" />
           {siteNoCodes && <> {site.name} has no WMS warehouse codes yet (Settings → Sites), so the site filter can&apos;t apply.</>}
         </p>
       </Card>
@@ -366,6 +366,9 @@ async function Trends({ cfg, filter, now, name }: Omit<ViewProps, "from" | "to">
   const wk = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
   return (
     <>
+      <p className="meta" style={{ margin: "0 0 10px" }}>
+        <NotConnected source="sales" until="history only — new clients from the Sales app aren't in the outlook" />
+      </p>
       <Card title="Next 7 days — outlook" sub="Average orders on the same weekday over the last 8 weeks. Shown only with at least 4 weeks of history; not a promise, just the usual pattern.">
         <div className="tw">
           <table>
