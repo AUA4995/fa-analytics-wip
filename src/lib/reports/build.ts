@@ -192,13 +192,13 @@ export async function buildReport(r: ReportSpec, opts: { filter?: WorkloadFilter
     blocks.push({
       kind: "kpis",
       items: [
-        { label: "Recovered this month", value: aud(rec.reduce((a, i) => a + Number(i.recoveredAmount ?? i.gap), 0)), sub: `${rec.length} items · ≈ 100% to profit`, tone: "green" },
+        { label: "Recovered this month", value: aud(rec.reduce((a, i) => a + Number(i.recoveredAmount ?? 0), 0)), sub: `${rec.length} items · ≈ 100% to profit`, tone: "green" },
         { label: "Leakage still open", value: aud(open.reduce((a, i) => a + Number(i.gap), 0)), sub: `${open.length} findings` },
         { label: "Priced below cost", value: aud(below.reduce((a, x) => a + (x.l.unitT - (x.l.rate ?? 0)) * x.l.qty, 0)), sub: `${below.length} client services` },
         { label: "Margin floor", value: pc(rules.marginFloor ?? 0.15) },
       ],
     });
-    blocks.push({ kind: "table", title: "Recovered", head: ["Client", "What", "Invoice", "Amount"], right: [3], rows: await Promise.all(rec.map(async (i) => [(await prisma.client.findUnique({ where: { id: i.clientId } }))?.name ?? "?", `${i.serviceCode ?? i.kind.toLowerCase().replace("_", " ")} · ${i.period}`, i.recoveredInvoice ?? "—", aud(Number(i.recoveredAmount ?? i.gap))])) });
+    blocks.push({ kind: "table", title: "Recovered", head: ["Client", "What", "Invoice", "Amount"], right: [3], rows: await Promise.all(rec.map(async (i) => [(await prisma.client.findUnique({ where: { id: i.clientId } }))?.name ?? "?", `${i.serviceCode ?? i.kind.toLowerCase().replace("_", " ")} · ${i.period}`, i.recoveredInvoice ?? "—", aud(Number(i.recoveredAmount ?? 0))])) });
     blocks.push({ kind: "note", text: "Cash collected faster (debtor days) is shown separately in Finance — it isn't profit." });
   }
 

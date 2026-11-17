@@ -74,7 +74,7 @@ function stats(items: Item[]) {
   const found = items.filter((i) => i.kind !== "RATE_MISMATCH");
   const rec = found.filter((i) => i.status === "RECOVERED");
   const open = found.filter((i) => i.status === "OPEN" || i.status === "TASK");
-  const recTot = rec.reduce((a, i) => a + Number(i.recoveredAmount ?? i.gap), 0);
+  const recTot = rec.reduce((a, i) => a + Number(i.recoveredAmount ?? 0), 0);
   const foundTot = found.reduce((a, i) => a + Number(i.gap), 0);
   const dayList = rec.filter((i) => i.recoveredOn).map((i) => (i.recoveredOn!.getTime() - i.foundOn.getTime()) / 86400000);
   return { found, rec, open, recTot, foundTot, openTot: open.reduce((a, i) => a + Number(i.gap), 0), rate: foundTot ? recTot / foundTot : null, days: dayList.length ? dayList.reduce((a, b) => a + b, 0) / dayList.length : null };
@@ -131,7 +131,7 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
                   <td>
                     {KIND[i.kind]} · {i.serviceCode ?? "all services"} · {i.period}
                   </td>
-                  <td className="r num">{aud(Number(i.recoveredAmount ?? i.gap))}</td>
+                  <td className="r num">{i.recoveredAmount == null ? "no amount entered" : aud(Number(i.recoveredAmount))}</td>
                   <td className="mono small">{i.recoveredInvoice ?? "—"}</td>
                   <td>{au(i.recoveredOn)}</td>
                   <td>{i.recoveredBy ?? "—"}</td>
@@ -169,7 +169,7 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
               ) : (
                 months.map((m) => {
                   const f = s.found.filter((i) => i.foundOn.toISOString().startsWith(m)).reduce((a, i) => a + Number(i.gap), 0);
-                  const r = s.rec.filter((i) => i.recoveredOn?.toISOString().startsWith(m)).reduce((a, i) => a + Number(i.recoveredAmount ?? i.gap), 0);
+                  const r = s.rec.filter((i) => i.recoveredOn?.toISOString().startsWith(m)).reduce((a, i) => a + Number(i.recoveredAmount ?? 0), 0);
                   return (
                     <div key={m} style={{ marginBottom: 8 }}>
                       <div className="catbar">

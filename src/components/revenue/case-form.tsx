@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useTransition, useState } from "react";
+import { useActionState, useEffect, useTransition, useState } from "react";
 import { deleteCase, saveCase, type CaseState } from "@/app/revenue/actions";
 
 export interface CaseValues {
@@ -25,12 +25,34 @@ const LABEL_AFTER: Record<string, string> = { COST_AVOIDED: "Actually cost ($)",
 
 /** Add or edit a revenue protection case (batch 4). Amounts left empty = not known yet (never guessed). */
 export function CaseForm(props: { v: CaseValues; clients: Array<[string, string]>; canEdit: boolean }) {
-  // A new form per case: switching cases in the drawer must not carry the previous case's kind over
-  return <CaseFormInner key={props.v.id ?? "new"} {...props} />;
+  // A new form per case: switching cases in the drawer must not carry the previous case's kind over.
+  // The "Add" form gets a fresh, empty form after each successful add (so a second click can't add it twice).
+  const [round, setRound] = useState(0);
+  const [added, setAdded] = useState<string | null>(null);
+  return (
+    <>
+      {added && !props.v.id && <p className="msg-ok">{added}</p>}
+      <CaseFormInner
+        key={`${props.v.id ?? "new"}:${round}`}
+        {...props}
+        onAdded={
+          props.v.id
+            ? undefined
+            : (m) => {
+                setAdded(m);
+                setRound((r) => r + 1);
+              }
+        }
+      />
+    </>
+  );
 }
 
-function CaseFormInner({ v, clients, canEdit }: { v: CaseValues; clients: Array<[string, string]>; canEdit: boolean }) {
+function CaseFormInner({ v, clients, canEdit, onAdded }: { v: CaseValues; clients: Array<[string, string]>; canEdit: boolean; onAdded?: (message: string) => void }) {
   const [state, action, pending] = useActionState(saveCase, null as CaseState | null);
+  useEffect(() => {
+    if (state?.ok && onAdded) onAdded(state.message);
+  }, [state, onAdded]);
   const [, startSave] = useTransition();
   const [kind, setKind] = useState(v.kind || "COST_AVOIDED");
   const [msg, setMsg] = useState<string | null>(null);

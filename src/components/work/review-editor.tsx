@@ -20,7 +20,7 @@ export function ReviewEditor({ id, stage, owner, due, note, stages, people }: { 
   return (
     <div className="addform" style={{ marginTop: 6 }}>
       <label>
-        Stage
+        Stage (kept here until CLM is connected; then CLM owns it)
         <select value={v.stage} onChange={(e) => setV({ ...v, stage: Number(e.target.value) })}>
           {stages.map((s, k) => (
             <option key={s} value={k}>

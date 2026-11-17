@@ -71,9 +71,8 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
         <Drawer label="Case">
           <DrawerHeader kicker={`${kindLabel(sel.kind)} · ${au(sel.date)}`} title={sel.title} />
           <div className="formula">
-            {cn(sel)} · result <strong>{aud(caseResult(ins[cases.indexOf(sel)]))}</strong>
-            {isProvisional(sel) && <span className="meta"> + parts still to confirm ({sel.pending})</span>}
-            {sel.pending ? ` · still to confirm: ${sel.pending}` : ""}
+            {cn(sel)} · result <strong>{isProvisional(sel) ? "≈ " : ""}{aud(caseResult(ins[cases.indexOf(sel)]))}</strong>
+            {sel.pending ? <span className="meta"> · provisional — still to confirm: {sel.pending}</span> : ""}
             {sel.carNumber ? ` · CAR ${sel.carNumber}` : ""}
           </div>
           <CaseForm v={toValues(sel)} clients={clientOpts} canEdit={admin} />
@@ -101,7 +100,7 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
             <div className="s">
               {s.cases} cases{s.provisional ? ` · ${s.provisional} provisional (parts still to confirm aren't counted yet)` : ""}
               {s.noResult ? ` · ${s.noResult} without figures` : ""}
-              {s.recoveredNoAmount ? ` · ${s.recoveredNoAmount} leakage recoveries with no amount entered (not counted)` : ""}
+              {s.recoveredNoAmount ? ` · ${s.recoveredNoAmount} leakage ${s.recoveredNoAmount === 1 ? "recovery" : "recoveries"} with no amount entered (not counted)` : ""}
             </div>
           </div>
         ))}
@@ -132,7 +131,7 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
                   </td>
                   <td className="r num delta-neg">{aud(s.losses)}</td>
                   <td className="r num">
-                    <strong>{aud(s.protectedNet)}</strong>
+                    <strong>{s.provisional ? `≈ ${aud(s.protectedNet)}` : aud(s.protectedNet)}</strong>
                   </td>
                 </tr>
               ))}
@@ -190,7 +189,7 @@ function Cases({ cases, cn }: { cases: Awaited<ReturnType<typeof prisma.revenueC
                     <Pill tone={c.kind === "LOSS" ? "red" : "green"}>{kindLabel(c.kind)}</Pill>
                   </td>
                   <td className={"r num" + (r != null && r < 0 ? " delta-neg" : "")} title={isProvisional(c) ? `Provisional — still to confirm: ${c.pending}` : undefined}>
-                    {r == null ? "no figure yet" : isProvisional(c) ? `${aud(r)} + TBC` : aud(r)}
+                    {r == null ? "no figure yet" : isProvisional(c) ? `≈ ${aud(r)} (TBC)` : aud(r)}
                   </td>
                   <td>{c.status === "CLOSED" ? <Pill tone="grey">closed</Pill> : <Pill tone="amber">open</Pill>}</td>
                   <td>{c.carNumber ?? "—"}</td>

@@ -28,7 +28,7 @@ const CaseForm = z.object({
   amountBefore: money,
   amountAfter: money,
   pending: z.string().trim().max(500, "“Still to confirm” is too long (500 characters at most)").optional().default(""),
-  status: z.enum(["OPEN", "CLOSED"]).default("OPEN"),
+  status: z.enum(["OPEN", "CLOSED"], { message: "Status must be open or closed" }).default("OPEN"),
   stoppedBy: z.string().trim().max(120, "“Stopped by” is too long").optional().default(""),
   carNumber: z.string().trim().max(40, "The CAR number is too long").optional().default(""),
   lessons: z.string().trim().max(4000, "Lessons are too long (4,000 characters at most)").optional().default(""),
@@ -79,6 +79,12 @@ export async function saveCase(_prev: CaseState | null, form: FormData): Promise
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
     if (parsed.data.status === "CLOSED" && (parsed.data.amountBefore == null || parsed.data.amountAfter == null)) return { ok: false, message: "A case can be closed once both amounts are known." };
     if (Number.isNaN(Date.parse(`${parsed.data.date}T00:00:00Z`)) || new Date(`${parsed.data.date}T00:00:00Z`).toISOString().slice(0, 10) !== parsed.data.date) return { ok: false, message: "That date doesn't exist." };
+    const { amountBefore: b, amountAfter: a, kind } = parsed.data;
+    if (b != null && a != null && kind === "LOSS" && a < b) return { ok: false, message: "For a loss, “actually cost” is more than “should have earned / cost” — check the two amounts or choose “Cost avoided”." };
+    if (b != null && a != null && kind === "COST_AVOIDED" && a > b) return { ok: false, message: "For cost avoided, “actually cost” is less than “would have cost” — check the two amounts or choose “Loss”." };
+    const d = new Date(`${parsed.data.date}T00:00:00Z`);
+    const tomorrow = new Date(Date.now() + 36 * 3_600_000);
+    if (d.getUTCFullYear() < 2020 || d > tomorrow) return { ok: false, message: "The date must be between 2020 and today." };
     if (parsed.data.kind === "RECOVERED" && parsed.data.amountBefore != null && parsed.data.amountAfter != null && parsed.data.amountAfter > parsed.data.amountBefore)
       return { ok: false, message: "“Still missed” can't be more than what was missed." };
     const data = await toData(parsed.data);

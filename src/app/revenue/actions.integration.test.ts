@@ -74,6 +74,9 @@ describe.skipIf(!isTestDatabase())("revenue protection cases (integration)", () 
     expect((await act.saveCase(null, form({ ...base, kind: "RECOVERED", amountBefore: "100", amountAfter: "500" }))).message).toMatch(/can't be more than what was missed/);
     expect((await act.saveCase(null, form({ ...base, date: "2026-02-31" }))).message).toMatch(/doesn't exist/);
     expect((await act.saveCase(null, form({ ...base, title: "x".repeat(161) }))).message).toMatch(/title is too long/);
+    expect((await act.saveCase(null, form({ ...base, kind: "LOSS", amountBefore: "1500", amountAfter: "1440" }))).message).toMatch(/For a loss/);
+    expect((await act.saveCase(null, form({ ...base, kind: "COST_AVOIDED", amountBefore: "100", amountAfter: "500" }))).message).toMatch(/For cost avoided/);
+    expect((await act.saveCase(null, form({ ...base, date: "2099-01-01" }))).message).toMatch(/between 2020 and today/);
     expect((await act.saveCase(null, form({ ...base, status: "CLOSED" }))).message).toMatch(/closed once both amounts are known/);
     const r = await act.saveCase(null, form({ ...base, id: made[0], amountAfter: "400", status: "CLOSED" }));
     expect(r.ok).toBe(true);
