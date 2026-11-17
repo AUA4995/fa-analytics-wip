@@ -30,7 +30,13 @@ describe("payroll hours (batch 6)", () => {
     const noOt: XPayItems = { PayItems: { EarningsRates: items.PayItems!.EarningsRates!.filter((x) => x.EarningsRateID !== "ot") } };
     expect(payslipHours([{ EarningsRateID: "ord", NumberOfUnits: 38 }], classifyRates(noOt))).toEqual({ hours: 38, overtimeHours: null });
   });
-  it("pay items unreadable → overtime unknown", () => {
-    expect(payslipHours(lines, classifyRates(null)).overtimeHours).toBeNull();
+  it("pay items unreadable → hours and overtime unknown, never allowance units", () => {
+    expect(payslipHours(lines, classifyRates(null))).toEqual({ hours: 0, overtimeHours: null });
+  });
+  it("free-text units: Hrs / Hr count as hours; no ordinary hourly rate → unknown, not 100% overtime", () => {
+    const hrs: XPayItems = { PayItems: { EarningsRates: [{ EarningsRateID: "ord", Name: "Ordinary", RateType: "RATEPERUNIT", TypeOfUnits: "Hrs" }, { EarningsRateID: "ot", Name: "Overtime", RateType: "MULTIPLE" }] } };
+    expect(payslipHours([{ EarningsRateID: "ord", NumberOfUnits: 30 }, { EarningsRateID: "ot", NumberOfUnits: 6 }], classifyRates(hrs))).toEqual({ hours: 36, overtimeHours: 6 });
+    const none: XPayItems = { PayItems: { EarningsRates: [{ EarningsRateID: "ord", Name: "Ordinary", RateType: "RATEPERUNIT" }, { EarningsRateID: "ot", Name: "Overtime", RateType: "MULTIPLE" }] } };
+    expect(payslipHours([{ EarningsRateID: "ord", NumberOfUnits: 30 }, { EarningsRateID: "ot", NumberOfUnits: 6 }], classifyRates(none))).toEqual({ hours: 0, overtimeHours: null });
   });
 });

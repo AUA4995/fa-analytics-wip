@@ -28,7 +28,7 @@ export interface ApiCaller {
  * Check the Bearer key for one scope. Returns the caller, or a JSON error response (401 / 403) to send back.
  * Every successful call is counted (last used, IP).
  */
-export async function authorise(req: Request, scope: string): Promise<ApiCaller | NextResponse> {
+export async function authorise(req: Request, scope: string | null): Promise<ApiCaller | NextResponse> {
   const ipOf = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   // Too many bad keys from one place → stop before the database lookup
   const bad = await prisma.authRateLimit.findUnique({ where: { key: `apiBadIp:${ipOf.toLowerCase()}` } });
@@ -46,7 +46,7 @@ export async function authorise(req: Request, scope: string): Promise<ApiCaller 
   if (!row || !timingSafeEqual(Buffer.from(row.hash), Buffer.from(hash))) return fail({ error: "Unknown API key" });
   if (row.revokedAt) return fail({ error: "This API key was revoked" });
   if (row.expiresAt && row.expiresAt < new Date()) return fail({ error: "This API key has expired" });
-  if (!row.scopes.includes(scope)) return NextResponse.json({ error: `This key doesn't have the ${scope} scope` }, { status: 403 });
+  if (scope && !row.scopes.includes(scope)) return NextResponse.json({ error: `This key doesn't have the ${scope} scope` }, { status: 403 });
   const limit = await hitRateLimit("apiKey", row.id);
   if (!limit.ok) return NextResponse.json({ error: "Too many requests for this key", detail: `At most ${LIMITS.apiKey.limit} calls a minute — try again in ${limit.retryAfterSec} s` }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;

@@ -7,7 +7,7 @@ export function shapeOf(v: string): string {
     .join("")
     .replace(/\p{N}/gu, "9")
     .replace(/\p{L}\p{M}*/gu, "A")
-    .replace(/[^A9 \-_/.:,@#()+&]/g, "?");
+    .replace(/[^A9 \-_/.:,@#()+&]/gu, "?");
 }
 
 /**

@@ -45,6 +45,9 @@ returned. Every call updates the key's "last used" and call count.
 Planned, not built yet (need data Analytics doesn't have): open orders by SKU (`/workload/open`, after the Thomax order-line
 fields are confirmed) and measured minutes per order (`/norms`, after timed activities are mapped).
 
+**Scopes changed (batch 6):** `/workload/daily` and `/inbound` need `operations:read`. A key made earlier with only
+`volumes:read` gets 403 there — make a new key with Operations (daily) ticked (API connections → Keys we give out) and revoke the old one.
+
 **Site filter** (`site=`): if the site has no WMS warehouse codes yet, or the Warehouse field isn't chosen in
 Operations → Setup for a list the route returns, the answer is 409 — never all sites' numbers labelled as one site.
 Leave `site` out to get all sites.

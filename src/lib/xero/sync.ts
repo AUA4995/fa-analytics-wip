@@ -356,7 +356,8 @@ export function classifyRates(items: XPayItems | null): { hourly: Set<string>; o
   const hourly = new Set<string>();
   const overtime = new Set<string>();
   for (const r of items.PayItems?.EarningsRates ?? []) {
-    const isHours = /hour/i.test(r.TypeOfUnits ?? "") || (!r.TypeOfUnits && r.RateType === "MULTIPLE");
+    // "Type of units" is free text in Xero: Hours, Hrs, Hr, H
+    const isHours = /hour|^\s*h(r|rs)?\.?\s*$/i.test(r.TypeOfUnits ?? "") || (!r.TypeOfUnits && r.RateType === "MULTIPLE");
     if (!isHours) continue;
     hourly.add(r.EarningsRateID);
     if (r.EarningsType === "OVERTIMEEARNINGS" || /overtime|\bo\/?t\b/i.test(r.Name ?? "")) overtime.add(r.EarningsRateID);
@@ -368,7 +369,8 @@ type PayLine = { NumberOfUnits?: number; EarningsRateID?: string };
 /** Paid hours and overtime hours of one payslip; overtime null when it can't be told (no overtime rate in Xero). */
 export function payslipHours(lines: PayLine[], rates: ReturnType<typeof classifyRates>): { hours: number; overtimeHours: number | null } {
   const sum = (ls: PayLine[]) => ls.reduce((a, l) => a + (l.NumberOfUnits ?? 0), 0);
-  if (!rates) return { hours: sum(lines), overtimeHours: null }; // pay items unreadable: as before, and overtime unknown
+  // Pay items unreadable, or no ordinary hourly rate recognised: hours unknown (0 = "no data" in the KPIs), never a guess
+  if (!rates || ![...rates.hourly].some((id) => !rates.overtime.has(id))) return { hours: 0, overtimeHours: null };
   const hours = sum(lines.filter((l) => l.EarningsRateID && rates.hourly.has(l.EarningsRateID)));
   const overtimeHours = rates.overtime.size ? sum(lines.filter((l) => l.EarningsRateID && rates.overtime.has(l.EarningsRateID))) : null;
   return { hours, overtimeHours };
@@ -391,11 +393,12 @@ async function syncPayroll(): Promise<{ employees: number; payRuns: number; pays
   // Overtime (batch 6): earnings rates whose type is overtime; their hours are kept per payslip
   let payrollNote: string | undefined;
   const items = await xeroGet<XPayItems>("/PayItems", { api: "payroll" }).catch((err: unknown) => {
-    payrollNote = `Xero pay items couldn't be read (${err instanceof Error ? err.message.slice(0, 120) : "error"}) — paid hours may include allowance units, overtime not read`;
+    payrollNote = `Xero pay items couldn't be read (${err instanceof Error ? err.message.slice(0, 120) : "error"}) — paid hours and overtime show no data`;
     return null;
   });
   const rates = classifyRates(items);
-  if (rates && !rates.overtime.size) payrollNote = "No overtime earnings rate found in Xero (type Overtime, or “overtime” in the name) — overtime shows no data";
+  if (rates && ![...rates.hourly].some((id) => !rates.overtime.has(id))) payrollNote = "No hourly earnings rate found in Xero (type of units Hours) — paid hours and overtime show no data";
+  else if (rates && !rates.overtime.size) payrollNote = "No overtime earnings rate found in Xero (type Overtime, or “overtime” in the name) — overtime shows no data";
   const overtimeRates = rates && rates.overtime.size ? rates.overtime : null;
   const known = new Map((await prisma.payRun.findMany({ select: { xeroId: true, status: true } })).map((r) => [r.xeroId, r.status]));
   // Posted runs never change — except to read overtime on payslips stored before it was kept

@@ -368,6 +368,7 @@ function summary(stats: unknown): string {
   if (!stats || typeof stats !== "object") return "";
   return Object.entries(stats as Record<string, unknown>)
     .filter(([k, v]) => k !== "durationMs" && v !== undefined && v !== null && v !== 0)
-    .map(([k, v]) => `${k} ${typeof v === "number" ? n(v) : String(v)}`)
+    // Notes are sentences: shown on their own, without the internal key name
+    .map(([k, v]) => (/(Note|Skipped)$/.test(k) ? String(v) : `${k} ${typeof v === "number" ? n(v) : String(v)}`))
     .join(" · ");
 }
