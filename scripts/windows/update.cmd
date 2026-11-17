@@ -12,10 +12,7 @@ git checkout main || goto :fail
 git pull --ff-only || goto :fail
 call npm.cmd ci || goto :fail
 call npm.cmd run db:deploy || goto :fail
-call npm.cmd run build || goto :nobackup
-echo The backup failed, so nothing was updated.
-exit /b 1
-:fail
+call npm.cmd run build || goto :fail
 echo.
 echo Updated. Start the app again with scripts\windows\start.cmd
 exit /b 0
