@@ -84,6 +84,8 @@ describe.skipIf(!hasDb)("users: owner rules and email links (integration)", () =
     await as(ids.owner);
     expect(await act.setUserRole(ids.owner, "USER")).toEqual({ ok: false, message: "You can't change your own role." });
     expect(await act.setUserRole(ids.user, "ADMIN")).toMatchObject({ ok: true, message: "Uma User is now an admin." });
+    const log = await prisma.changeLog.findFirstOrThrow({ where: { entity: "user", field: "role" }, orderBy: { at: "desc" } });
+    expect([log.oldValue, log.newValue]).toEqual(["USER", "ADMIN"]);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: ids.user } })).role).toBe("ADMIN");
     expect(await act.setUserRole(ids.user, "USER")).toMatchObject({ ok: true });
   });

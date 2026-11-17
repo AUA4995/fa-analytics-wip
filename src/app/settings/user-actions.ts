@@ -10,6 +10,11 @@ import { approveAccessRequest, declineAccessRequest, inviteUser, sendInvite, sen
 import { forgetThisDevice, regenerateBackupCodes, resetTwoFactor, verifySecondFactor } from "@/lib/auth/two-factor";
 import { hitRateLimit, tooManyMessage } from "@/lib/auth/rate-limit";
 import { setAccessDomain } from "@/lib/auth/domain";
+import { logChange } from "@/lib/model/store";
+
+/** Who changed whose access, kept in the change history (Settings → History). */
+const audit = (me: { name: string }, entityId: string, field: string, oldValue: unknown, newValue: unknown) =>
+  logChange({ entity: "user", entityId, field, oldValue, newValue, actor: { type: "USER", name: me.name } });
 
 /**
  * Users (Batch 2 items 1, 2, 31, 32; four roles batch 3, 16/11/2026 — same rules as the Accounts Hub).
@@ -82,6 +87,7 @@ export async function addUser(_prev: UserActionState, formData: FormData): Promi
     if (parsed.data.role === "ADMIN" && !isOwnerRole(me.role)) return { ...fail("Only an owner can add admins."), values };
     if (await prisma.user.findUnique({ where: { email: parsed.data.email } })) return { ...fail("A user with that email already exists."), values };
     const out = await inviteUser({ ...parsed.data, byId: me.id, byName: me.name });
+    await audit(me, parsed.data.email, "_added", null, { name: parsed.data.name, role: parsed.data.role });
     revalidatePath("/settings");
     const lm = linkMessage(parsed.data.name, parsed.data.email, out, `${parsed.data.name} added — invitation emailed to`, "7 days");
     return { ok: true, ...lm, message: out.mail.sent ? lm.message : `${parsed.data.name} added. ${lm.message}` };
@@ -126,6 +132,7 @@ export async function setUserActive(userId: string, active: boolean): Promise<Us
     if (problem) return fail(problem);
     await prisma.user.update({ where: { id: userId }, data: { active } });
     if (!active) await prisma.session.deleteMany({ where: { userId } });
+    await audit(me, t.email, "active", t.active, active);
     revalidatePath("/settings");
     return { ok: true, message: active ? `${t.name} re-activated.` : `${t.name} deactivated and signed out.` };
   });
@@ -149,6 +156,7 @@ export async function setUserRole(userId: string, role: "OWNER" | "ADMIN" | "USE
     if (role === "OWNER" && !t.passwordSetAt) return fail(`${t.name} needs to set a password and sign in once first.`);
     // extraOwner is true only while someone is an extra owner (the primary owner never changes here)
     await prisma.user.update({ where: { id: userId }, data: { role, extraOwner: role === "OWNER" } });
+    await audit(me, t.email, "role", t.role, role);
     if (isOwnerRole(t.role) || role === "OWNER") revalidatePath("/", "layout");
     revalidatePath("/settings");
     return { ok: true, message: `${t.name} is now ${ROLE_WORD[role]}.` };
@@ -165,6 +173,7 @@ export async function resetUserTwoFactor(userId: string): Promise<UserActionStat
     const problem = manageProblem(me, t, "reset two-step sign-in for");
     if (problem) return fail(problem);
     await resetTwoFactor(t.id);
+    await audit(me, t.email, "twoFactor", "set up", "reset");
     revalidatePath("/settings");
     return { ok: true, message: `${t.name}'s two-step sign-in was reset and they were signed out. They'll set it up again next time they sign in.` };
   });
@@ -196,6 +205,7 @@ export async function transferPrimaryOwner(_prev: UserActionState, formData: For
       if (down.count !== 1) throw new AuthError("You're no longer the primary owner.");
       await tx.user.update({ where: { id: t.id }, data: { role: "OWNER", extraOwner: false } });
     });
+    await audit(me, t.email, "primaryOwner", me.email, t.email);
     revalidatePath("/", "layout");
     return { ok: true, message: `${t.name} is now the primary owner. You're ${then === "OWNER" ? "an owner" : "an admin"}.` };
   });
@@ -209,6 +219,7 @@ export async function decideAccessRequest(requestId: string, decision: "approve"
       throw new AuthError("Only an owner can approve or decline access requests.");
     });
     const r = decision === "approve" ? await approveAccessRequest(requestId, role === "ADMIN" ? "ADMIN" : "USER", me) : await declineAccessRequest(requestId, me);
+    if (r.ok) await audit(me, requestId, "accessRequest", null, decision === "approve" ? `approved as ${role === "ADMIN" ? "ADMIN" : "USER"}` : "declined");
     revalidatePath("/settings");
     if (!r.ok) return fail(r.message);
     const link = "outcome" in r ? r.outcome?.link : undefined;
@@ -218,8 +229,9 @@ export async function decideAccessRequest(requestId: string, decision: "approve"
 
 export async function saveAccessDomain(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   return run(async () => {
-    await assertAdmin();
+    const me = await assertAdmin();
     const d = await setAccessDomain(String(formData.get("domain") ?? ""));
+    await audit(me, "company", "accessDomain", null, d);
     revalidatePath("/settings");
     return { ok: true, message: `Saved — only @${d} emails can request access.` };
   });
