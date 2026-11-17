@@ -275,6 +275,8 @@
   .kpi .l { font-size: 13px; color: var(--ink-2); }
   .kpi .v { font-size: 26px; font-weight: 700; margin-top: 6px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .kpi .s { font-size: 12px; color: var(--grey); line-height: 1.4; }
+  /* A long "…: not connected" pill inside a small tile wraps instead of widening the page on phones */
+  .kpi .s .pill { white-space: normal; max-width: 100%; }
   .kpis.lead-first > .kpi:first-child, .kpi.lead { background: var(--hi); border-color: var(--hi); color: var(--white); }
   .kpis.lead-first > .kpi:first-child .l, .kpi.lead .l { color: rgba(255,255,255,.78); }
   .kpis.lead-first > .kpi:first-child .v, .kpi.lead .v { color: var(--white); }

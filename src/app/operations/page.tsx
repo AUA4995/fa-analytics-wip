@@ -83,7 +83,8 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
   const tenant = one(sp.client) || "";
   const siteKey = one(sp.site) || "";
   const site = sites.find((s) => s.key === siteKey);
-  const filter = { tenants: tenant ? [tenant] : null, warehouses: site ? site.codes : null };
+  // A site with no WMS codes can't filter: show all sites and say so (an empty list would show zeros)
+  const filter = { tenants: tenant ? [tenant] : null, warehouses: site && site.codes.length ? site.codes : null };
   const name = (t: string) => names.get(t) ?? (t ? `tenant ${t}` : "(no tenant)");
   const tenantOptions = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const siteNoCodes = site && !site.codes.length;
@@ -145,9 +146,21 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
         <p className="meta" style={{ marginBottom: 0 }}>
           {section !== "trends" && <>Period: {range.label}{period === "custom" ? " (From/To dates; at most 400 days)" : ""}. </>}
           Times are Sydney time as Thomax records them. <NotConnected source="logiwa" until="the Thomax copy" />
-          {siteNoCodes && <> {site.name} has no WMS warehouse codes yet (Settings → Sites), so the site filter can&apos;t apply.</>}
-          {site && !siteNoCodes && flowsUsed.some((k) => !cfg.flows[k].roles.warehouse) && <> <strong>The site filter isn&apos;t applied</strong> — choose the Warehouse field in Operations → Setup.</>}
-          {unreadable > 0 && <> {unreadable.toLocaleString("en-AU")} rows have a date that can&apos;t be read and aren&apos;t counted.</>}
+          {siteNoCodes && <> <strong>Showing all sites</strong> — {site.name} has no WMS warehouse codes yet (Settings → Sites).</>}
+          {site && !siteNoCodes && flowsUsed.some((k) => !cfg.flows[k].roles.warehouse) && (
+            <>
+              {" "}
+              <strong>
+                {flowsUsed
+                  .filter((k) => !cfg.flows[k].roles.warehouse)
+                  .map((k) => FLOW_INFO[k].title)
+                  .join(" and ")}{" "}
+                show all sites
+              </strong>{" "}
+              — the site filter needs the Warehouse field chosen in Operations → Setup.
+            </>
+          )}
+          {unreadable > 0 && <> {unreadable.toLocaleString("en-AU")} {unreadable === 1 ? "row has" : "rows have"} a date that can&apos;t be read and {unreadable === 1 ? "isn't" : "aren't"} counted.</>}
         </p>
       </Card>
       {!copied && (

@@ -2,14 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth/session";
-import { FLOW_INFO, FLOW_KEYS, saveOpsConfig, type FlowKey, type RoleKey } from "@/lib/ops/config";
+import { FLOW_INFO, FLOW_KEYS, getOpsConfig, saveOpsConfig, type FlowKey, type RoleKey } from "@/lib/ops/config";
+import { logChange } from "@/lib/model/store";
 
 export type OpsActionState = { ok: boolean; message: string };
 
 /** Operations → Setup (admins): which Thomax fields mean what, and the SLA rules. Validated against Explore's field lists. */
 export async function saveOpsSetupAction(_: OpsActionState | null, form: FormData): Promise<OpsActionState> {
   try {
-    await assertAdmin();
+    const me = await assertAdmin();
+    const before = await getOpsConfig();
     const flows = {} as Record<FlowKey, { table: string; roles: Partial<Record<RoleKey, string>> }>;
     for (const k of FLOW_KEYS) {
       const roles: Partial<Record<RoleKey, string>> = {};
@@ -24,6 +26,8 @@ export async function saveOpsSetupAction(_: OpsActionState | null, form: FormDat
       receivingHours: String(form.get("receivingHours") ?? ""),
       holidays: String(form.get("holidays") ?? ""),
     });
+    // SLA rules and field choices change every Operations number, so who changed them is kept
+    if (JSON.stringify(before) !== JSON.stringify(saved)) await logChange({ entity: "ops", entityId: "config", field: "setup", oldValue: before, newValue: saved, actor: { type: "USER", name: me.name } });
     revalidatePath("/operations");
     const { flowReady } = await import("@/lib/ops/config");
     const missing = FLOW_KEYS.filter((k) => !flowReady(saved, k)).map((k) => FLOW_INFO[k].title);
