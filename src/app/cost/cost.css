@@ -8,7 +8,11 @@ a.kpi { text-decoration: none; color: inherit; display: block; }
 a.kpi.on { background: var(--header, #010028); color: #fff; }
 a.kpi.on .l, a.kpi.on .s { color: rgba(255, 255, 255, .75); }
 .v2 { display: flex; gap: 14px; font-size: 13px; margin: 6px 0 2px; }
-.v2 strong { font-size: 20px; display: block; }
+.v2 strong { font-size: 20px; display: block; overflow-wrap: anywhere; }
+/* Phones: the B2C / B2B amounts wrap inside the tile instead of running past its border */
+.v2 { flex-wrap: wrap; min-width: 0; }
+.v2 > span { min-width: 0; }
+@media (max-width: 640px) { .v2 strong { font-size: 17px; } }
 .kpi .v small { font-size: 13px; opacity: .7; margin-left: 4px; }
 .ubar { display: inline-flex; align-items: center; gap: 6px; width: 120px; }
 .ubar i { display: block; height: 7px; border-radius: 4px; }
