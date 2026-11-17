@@ -10,26 +10,28 @@ import { logChange } from "@/lib/model/store";
 
 export type CaseState = { ok: boolean; message: string; id?: string };
 
+// Plain dollar amounts only ("1,400", "$1400.50"); no negatives (the kind says whether it's a saving or a loss)
 const money = z
   .string()
   .trim()
+  .refine((v) => v === "" || /^\$?\d{1,3}(,?\d{3})*(\.\d{1,2})?$/.test(v.replace(/\s/g, "")), "Amounts are dollars like 1,400 or 1400.50 — no minus sign (the kind says if it's a loss)")
   .transform((v) => (v === "" ? null : Number(v.replace(/[$,\s]/g, ""))))
-  .refine((v) => v === null || (Number.isFinite(v) && Math.abs(v) < 1e9), "Amounts must be numbers");
+  .refine((v) => v === null || v < 1e9, "That amount is too big");
 
 const CaseForm = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   clientId: z.string().trim().max(40).optional().default(""),
   clientName: z.string().trim().max(120).optional().default(""),
-  title: z.string().trim().min(3, "Give it a short title").max(160),
+  title: z.string().trim().min(3, "Give it a short title").max(160, "The title is too long (160 characters at most)"),
   kind: z.enum(["COST_AVOIDED", "LOSS", "RECOVERED"], { message: "Pick what kind of case it is" }),
-  whatHappened: z.string().trim().min(3, "Say what happened").max(4000),
+  whatHappened: z.string().trim().min(3, "Say what happened").max(4000, "“What happened” is too long (4,000 characters at most)"),
   amountBefore: money,
   amountAfter: money,
-  pending: z.string().trim().max(500).optional().default(""),
+  pending: z.string().trim().max(500, "“Still to confirm” is too long (500 characters at most)").optional().default(""),
   status: z.enum(["OPEN", "CLOSED"]).default("OPEN"),
-  stoppedBy: z.string().trim().max(120).optional().default(""),
-  carNumber: z.string().trim().max(40).optional().default(""),
-  lessons: z.string().trim().max(4000).optional().default(""),
+  stoppedBy: z.string().trim().max(120, "“Stopped by” is too long").optional().default(""),
+  carNumber: z.string().trim().max(40, "The CAR number is too long").optional().default(""),
+  lessons: z.string().trim().max(4000, "Lessons are too long (4,000 characters at most)").optional().default(""),
 });
 
 function read(form: FormData) {
@@ -76,6 +78,9 @@ export async function saveCase(_prev: CaseState | null, form: FormData): Promise
     const parsed = read(form);
     if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
     if (parsed.data.status === "CLOSED" && (parsed.data.amountBefore == null || parsed.data.amountAfter == null)) return { ok: false, message: "A case can be closed once both amounts are known." };
+    if (Number.isNaN(Date.parse(`${parsed.data.date}T00:00:00Z`)) || new Date(`${parsed.data.date}T00:00:00Z`).toISOString().slice(0, 10) !== parsed.data.date) return { ok: false, message: "That date doesn't exist." };
+    if (parsed.data.kind === "RECOVERED" && parsed.data.amountBefore != null && parsed.data.amountAfter != null && parsed.data.amountAfter > parsed.data.amountBefore)
+      return { ok: false, message: "“Still missed” can't be more than what was missed." };
     const data = await toData(parsed.data);
     const id = String(form.get("id") ?? "");
     if (id) {

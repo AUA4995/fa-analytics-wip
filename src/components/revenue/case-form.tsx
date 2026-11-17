@@ -24,13 +24,27 @@ const LABEL_BEFORE: Record<string, string> = { COST_AVOIDED: "Would have cost ($
 const LABEL_AFTER: Record<string, string> = { COST_AVOIDED: "Actually cost ($)", LOSS: "Actually cost ($)", RECOVERED: "Still missed after recovery ($, usually 0)" };
 
 /** Add or edit a revenue protection case (batch 4). Amounts left empty = not known yet (never guessed). */
-export function CaseForm({ v, clients, canEdit }: { v: CaseValues; clients: Array<[string, string]>; canEdit: boolean }) {
+export function CaseForm(props: { v: CaseValues; clients: Array<[string, string]>; canEdit: boolean }) {
+  // A new form per case: switching cases in the drawer must not carry the previous case's kind over
+  return <CaseFormInner key={props.v.id ?? "new"} {...props} />;
+}
+
+function CaseFormInner({ v, clients, canEdit }: { v: CaseValues; clients: Array<[string, string]>; canEdit: boolean }) {
   const [state, action, pending] = useActionState(saveCase, null as CaseState | null);
+  const [, startSave] = useTransition();
   const [kind, setKind] = useState(v.kind || "COST_AVOIDED");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, start] = useTransition();
   return (
-    <form action={action} className="stack" key={v.id ?? "new"}>
+    <form
+      className="stack"
+      // Submit without React's automatic form reset, so a validation message never wipes what was typed
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        startSave(() => action(fd));
+      }}
+    >
       {v.id && <input type="hidden" name="id" value={v.id} />}
       <div className="form-grid">
         <label>
@@ -58,12 +72,12 @@ export function CaseForm({ v, clients, canEdit }: { v: CaseValues; clients: Arra
         </label>
         <label>
           Client (as written)
-          <input name="clientName" defaultValue={v.clientName} maxLength={120} disabled={!canEdit} />
+          <input type="text" name="clientName" defaultValue={v.clientName} maxLength={120} disabled={!canEdit} />
         </label>
       </div>
       <label>
         Title
-        <input name="title" defaultValue={v.title} required maxLength={160} disabled={!canEdit} />
+        <input type="text" name="title" defaultValue={v.title} required maxLength={160} disabled={!canEdit} />
       </label>
       <label>
         What happened
@@ -72,11 +86,11 @@ export function CaseForm({ v, clients, canEdit }: { v: CaseValues; clients: Arra
       <div className="form-grid">
         <label>
           {LABEL_BEFORE[kind]}
-          <input name="amountBefore" inputMode="decimal" defaultValue={v.amountBefore} disabled={!canEdit} />
+          <input type="text" name="amountBefore" inputMode="decimal" defaultValue={v.amountBefore} disabled={!canEdit} />
         </label>
         <label>
           {LABEL_AFTER[kind]}
-          <input name="amountAfter" inputMode="decimal" defaultValue={v.amountAfter} disabled={!canEdit} />
+          <input type="text" name="amountAfter" inputMode="decimal" defaultValue={v.amountAfter} disabled={!canEdit} />
         </label>
         <label>
           Status
@@ -87,17 +101,17 @@ export function CaseForm({ v, clients, canEdit }: { v: CaseValues; clients: Arra
         </label>
         <label>
           CAR number
-          <input name="carNumber" defaultValue={v.carNumber} maxLength={40} disabled={!canEdit} />
+          <input type="text" name="carNumber" defaultValue={v.carNumber} maxLength={40} disabled={!canEdit} />
           <span className="meta">From the HR app — no staff names here</span>
         </label>
       </div>
       <label>
         Still to confirm
-        <input name="pending" defaultValue={v.pending} maxLength={500} disabled={!canEdit} placeholder="e.g. NZ delivery cost, invoice hours" />
+        <input type="text" name="pending" defaultValue={v.pending} maxLength={500} disabled={!canEdit} placeholder="e.g. NZ delivery cost, invoice hours" />
       </label>
       <label>
         Stopped / raised by
-        <input name="stoppedBy" defaultValue={v.stoppedBy} maxLength={120} disabled={!canEdit} />
+        <input type="text" name="stoppedBy" defaultValue={v.stoppedBy} maxLength={120} disabled={!canEdit} />
       </label>
       <label>
         Lessons / process gaps

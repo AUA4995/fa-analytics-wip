@@ -45,7 +45,7 @@ export async function createReviewAction(clientId: string, type: "CPI" | "CARRIE
   const me = await assertUser();
   const r = await prisma.rateReview.create({ data: { clientId, type, due: due ? new Date(due + "T00:00:00Z") : null, note, owner: me.name, createdBy: me.name } });
   await logChange({ entity: "review", entityId: r.id, field: "_created", oldValue: null, newValue: { clientId, type, due }, actor: actor(me) });
-  revalidatePath("/rates");
+  revalidatePath("/cost");
   return { ok: true, message: "Review started.", id: r.id };
 }
 
@@ -62,6 +62,6 @@ export async function updateReviewAction(id: string, data: { stage?: number; own
   if (data.closed != null) upd.closed = data.closed;
   await prisma.rateReview.update({ where: { id }, data: upd });
   for (const [k, v] of Object.entries(upd)) await logChange({ entity: "review", entityId: id, field: k, oldValue: (cur as Record<string, unknown>)[k] ?? null, newValue: v as never, actor: actor(me) });
-  revalidatePath("/rates");
+  revalidatePath("/cost");
   return { ok: true, message: "Saved." };
 }

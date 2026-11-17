@@ -10,7 +10,7 @@ import { CaseForm, type CaseValues } from "@/components/revenue/case-form";
 import { requireUser } from "@/lib/auth/session";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db";
-import { CASE_KINDS, caseResult, periods, summarise, type CaseIn } from "@/lib/revenue/summary";
+import { CASE_KINDS, caseResult, isProvisional, periods, summarise, type CaseIn } from "@/lib/revenue/summary";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Revenue protection" };
@@ -41,7 +41,8 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
   const sel = panel?.kind === "case" ? cases.find((c) => c.id === panel.id) : undefined;
   const toValues = (c?: (typeof cases)[number]): CaseValues => ({
     id: c?.id,
-    date: (c?.date ?? new Date()).toISOString().slice(0, 10),
+    // New case: today in Sydney (not UTC, which is yesterday before 11:00)
+    date: c ? c.date.toISOString().slice(0, 10) : new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" }).format(new Date()),
     clientId: c?.clientId ?? "",
     clientName: c?.clientName ?? "",
     title: c?.title ?? "",
@@ -71,6 +72,7 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
           <DrawerHeader kicker={`${kindLabel(sel.kind)} · ${au(sel.date)}`} title={sel.title} />
           <div className="formula">
             {cn(sel)} · result <strong>{aud(caseResult(ins[cases.indexOf(sel)]))}</strong>
+            {isProvisional(sel) && <span className="meta"> + parts still to confirm ({sel.pending})</span>}
             {sel.pending ? ` · still to confirm: ${sel.pending}` : ""}
             {sel.carNumber ? ` · CAR ${sel.carNumber}` : ""}
           </div>
@@ -83,8 +85,11 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
 
 function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: Array<{ recoveredOn: Date | null; recoveredAmount: unknown; gap: unknown }>; improvements: Array<{ name: string; measuredMonthly: unknown; estMonthly: unknown }> }) {
   const p = periods(new Date());
-  const rec = (from: Date, to: Date) => recovered.filter((r) => r.recoveredOn && r.recoveredOn >= from && r.recoveredOn < to).reduce((a, r) => a + Number(r.recoveredAmount ?? r.gap ?? 0), 0);
-  const rows = (["week", "month", "fy"] as const).map((k) => ({ k, label: p[k].label, s: summarise(ins, rec(p[k].from, p[k].to), p[k].from, p[k].to) }));
+  // Only recovered amounts actually entered count; a recovery with no amount is counted separately, never assumed = the gap
+  const inP = (from: Date, to: Date) => recovered.filter((r) => r.recoveredOn && r.recoveredOn >= from && r.recoveredOn < to);
+  const rec = (from: Date, to: Date) => inP(from, to).reduce((a, r) => a + (r.recoveredAmount == null ? 0 : Number(r.recoveredAmount)), 0);
+  const noAmt = (from: Date, to: Date) => inP(from, to).filter((r) => r.recoveredAmount == null).length;
+  const rows = (["week", "month", "fy"] as const).map((k) => ({ k, label: p[k].label, s: summarise(ins, rec(p[k].from, p[k].to), p[k].from, p[k].to, noAmt(p[k].from, p[k].to)) }));
   const monthlySavings = improvements.reduce((a, i) => a + Number(i.measuredMonthly ?? 0), 0);
   return (
     <>
@@ -92,10 +97,11 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
         {rows.map(({ k, label, s }) => (
           <div key={k} className={"kpi" + (s.protectedNet < 0 ? " red" : "")}>
             <div className="l">Protected · {label}</div>
-            <div className="v">{aud(s.protectedNet)}</div>
+            <div className="v">{s.provisional ? `≈ ${aud(s.protectedNet)}` : aud(s.protectedNet)}</div>
             <div className="s">
-              {s.cases} cases{s.provisional ? ` · ${s.provisional} provisional` : ""}
+              {s.cases} cases{s.provisional ? ` · ${s.provisional} provisional (parts still to confirm aren't counted yet)` : ""}
               {s.noResult ? ` · ${s.noResult} without figures` : ""}
+              {s.recoveredNoAmount ? ` · ${s.recoveredNoAmount} leakage recoveries with no amount entered (not counted)` : ""}
             </div>
           </div>
         ))}
@@ -183,7 +189,9 @@ function Cases({ cases, cn }: { cases: Awaited<ReturnType<typeof prisma.revenueC
                   <td>
                     <Pill tone={c.kind === "LOSS" ? "red" : "green"}>{kindLabel(c.kind)}</Pill>
                   </td>
-                  <td className={"r num" + (r != null && r < 0 ? " delta-neg" : "")}>{r == null ? "no figure yet" : aud(r)}</td>
+                  <td className={"r num" + (r != null && r < 0 ? " delta-neg" : "")} title={isProvisional(c) ? `Provisional — still to confirm: ${c.pending}` : undefined}>
+                    {r == null ? "no figure yet" : isProvisional(c) ? `${aud(r)} + TBC` : aud(r)}
+                  </td>
                   <td>{c.status === "CLOSED" ? <Pill tone="grey">closed</Pill> : <Pill tone="amber">open</Pill>}</td>
                   <td>{c.carNumber ?? "—"}</td>
                 </tr>

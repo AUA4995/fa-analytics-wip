@@ -18,10 +18,13 @@ describe("revenue protection sums", () => {
       c("2026-10-01", "COST_AVOIDED", 9999, 0),
     ];
     const s = summarise(cases, 120.5, new Date("2026-11-01T00:00:00Z"), new Date("2026-12-01T00:00:00Z"));
-    expect(s).toEqual({ avoided: 2600, losses: -390, recoveredCases: 500, recoveredLeakage: 120.5, protectedNet: 2830.5, cases: 4, provisional: 2, noResult: 1 });
+    expect(s).toEqual({ avoided: 2600, losses: -390, recoveredCases: 500, recoveredLeakage: 120.5, protectedNet: 2830.5, cases: 4, provisional: 2, noResult: 1, recoveredNoAmount: 0 });
   });
   it("a 'loss' that came out positive isn't counted as a gain", () => {
     expect(summarise([c("2026-11-10", "LOSS", 1500, 1440)], 0, new Date("2026-11-01"), new Date("2026-12-01")).losses).toBe(0);
+  });
+  it("a recovery where 'still missed' is more than 'missed' is never counted as a gain", () => {
+    expect(summarise([c("2026-11-10", "RECOVERED", 100, 500)], 0, new Date("2026-11-01"), new Date("2026-12-01")).recoveredCases).toBe(0);
   });
   it("periods: Sydney week from Monday, month, financial year from July", () => {
     const p = periods(new Date("2026-11-16T01:00:00Z")); // Mon 16/11 12:00 AEDT

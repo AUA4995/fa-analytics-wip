@@ -57,6 +57,7 @@ export const SOURCES: ReadonlyArray<SourceDef> = [
     reads: "Rosters and leave (staffing), CAR numbers and status (no staff names).",
     affects: [
       { where: "KPI → People", href: "/kpi?section=people", until: "Xero Payroll hours" },
+      { where: "Revenue protection → CAR numbers on cases", href: "/revenue?section=cases", until: "CAR number typed on the case" },
     ],
     needs: "Access to the HR app repo and a read-only key from Marcus.",
   },

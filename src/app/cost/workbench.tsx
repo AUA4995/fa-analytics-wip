@@ -26,6 +26,7 @@ export async function RateWorkbench({ sp, me }: { sp: SP; me: string }) {
   const cn = (id: string) => clients.find((c) => c.id === id)?.shortName || clients.find((c) => c.id === id)?.name || "?";
   return (
     <>
+      {one(sp.moved) && <p className="meta">The rate review calendar and the stages board now live in CLM — Analytics keeps the workbench (costs, margins and the effect of new rates).</p>}
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
         <NotConnected source="clm" until="review dates and stages are kept in CLM; proposed rates are saved here" />
         <NewReview clients={clients.map((c) => ({ id: c.id, name: c.shortName || c.name }))} />

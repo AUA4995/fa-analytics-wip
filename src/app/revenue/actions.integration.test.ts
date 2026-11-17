@@ -67,7 +67,13 @@ describe.skipIf(!isTestDatabase())("revenue protection cases (integration)", () 
   it("validation: kind, amounts, and closing only with both amounts", async () => {
     await as(ids.admin);
     expect((await act.saveCase(null, form({ ...base, kind: "OTHER" }))).ok).toBe(false);
-    expect((await act.saveCase(null, form({ ...base, amountAfter: "abc" }))).message).toBe("Amounts must be numbers");
+    expect((await act.saveCase(null, form({ ...base, amountAfter: "abc" }))).message).toMatch(/Amounts are dollars/);
+    expect((await act.saveCase(null, form({ ...base, amountBefore: "-5000" }))).message).toMatch(/no minus sign/);
+    expect((await act.saveCase(null, form({ ...base, amountBefore: "0x10" }))).ok).toBe(false);
+    expect((await act.saveCase(null, form({ ...base, amountBefore: "1e5" }))).ok).toBe(false);
+    expect((await act.saveCase(null, form({ ...base, kind: "RECOVERED", amountBefore: "100", amountAfter: "500" }))).message).toMatch(/can't be more than what was missed/);
+    expect((await act.saveCase(null, form({ ...base, date: "2026-02-31" }))).message).toMatch(/doesn't exist/);
+    expect((await act.saveCase(null, form({ ...base, title: "x".repeat(161) }))).message).toMatch(/title is too long/);
     expect((await act.saveCase(null, form({ ...base, status: "CLOSED" }))).message).toMatch(/closed once both amounts are known/);
     const r = await act.saveCase(null, form({ ...base, id: made[0], amountAfter: "400", status: "CLOSED" }));
     expect(r.ok).toBe(true);

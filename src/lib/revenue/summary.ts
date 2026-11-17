@@ -37,20 +37,26 @@ export interface Summary {
   provisional: number;
   /** Cases with no result yet (a figure missing) */
   noResult: number;
+  /** Leakage marked recovered with no recovered amount — not counted (no amount is assumed) */
+  recoveredNoAmount: number;
 }
 
-export function summarise(cases: readonly CaseIn[], recoveredLeakage: number, from: Date, to: Date): Summary {
+/** A provisional case: still open with parts to confirm, so its result is a limit, not the final figure. */
+export const isProvisional = (c: Pick<CaseIn, "pending" | "status">) => !!(c.pending && c.pending.trim() && c.status !== "CLOSED");
+
+export function summarise(cases: readonly CaseIn[], recoveredLeakage: number, from: Date, to: Date, recoveredNoAmount = 0): Summary {
   const inRange = cases.filter((c) => c.date >= from && c.date < to);
-  const s: Summary = { avoided: 0, losses: 0, recoveredCases: 0, recoveredLeakage: Math.round(recoveredLeakage * 100) / 100, protectedNet: 0, cases: inRange.length, provisional: 0, noResult: 0 };
+  const s: Summary = { avoided: 0, losses: 0, recoveredCases: 0, recoveredLeakage: Math.round(recoveredLeakage * 100) / 100, protectedNet: 0, cases: inRange.length, provisional: 0, noResult: 0, recoveredNoAmount };
   for (const c of inRange) {
     const r = caseResult(c);
     if (r == null) {
       s.noResult++;
       continue;
     }
-    if (c.pending && c.pending.trim() && c.status !== "CLOSED") s.provisional++;
+    if (isProvisional(c)) s.provisional++;
     if (c.kind === "LOSS") s.losses += Math.min(0, r);
-    else if (c.kind === "RECOVERED") s.recoveredCases += r < 0 ? -r : r;
+    // Recovered = missed − still missed; a negative result is a data error (refused on save), never counted as a gain
+    else if (c.kind === "RECOVERED") s.recoveredCases += Math.max(0, r);
     else s.avoided += r;
   }
   s.protectedNet = Math.round((s.avoided + s.recoveredCases + s.recoveredLeakage + s.losses) * 100) / 100;
