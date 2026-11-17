@@ -38,7 +38,7 @@ export function RateUpload() {
       <label>
         Export from
         <select value={source} onChange={(e) => setSource(e.target.value as "DYSPATCH" | "WMS")}>
-          <option value="DYSPATCH">Dyspatch</option>
+          <option value="DYSPATCH">Dyspach</option>
           <option value="WMS">WMS</option>
         </select>
       </label>
@@ -64,7 +64,7 @@ export function RateUpload() {
 export function RateDecide({ clientId, serviceCode, options }: { clientId: string; serviceCode: string; options: Array<[string, number]> }) {
   const [s, set] = useState<S>(null);
   const [pending, start] = useTransition();
-  const name = (k: string) => (k === "CLM" ? "CLM" : k === "DYSPATCH" ? "Dyspatch" : "WMS");
+  const name = (k: string) => (k === "CLM" ? "CLM" : k === "DYSPATCH" ? "Dyspach" : "WMS");
   if (s?.ok) return <Msg s={s} />;
   return (
     <span className="row" style={{ display: "inline-flex" }}>

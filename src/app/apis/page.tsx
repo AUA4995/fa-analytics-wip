@@ -47,16 +47,30 @@ async function Connected() {
   ]);
   const st = (k: string) => statuses.find((s) => s.key === k);
   const tone = (s?: { state: string }) => (!s ? "grey" : s.state === "connected" ? "green" : s.state === "error" ? "red" : "grey");
-  const rows: Array<{ name: string; what: string; state: React.ReactNode; last: string; period: string; manage: React.ReactNode }> = [
+  const rows: Array<{ name: string; what: React.ReactNode; state: React.ReactNode; last: string; period: string; manage: React.ReactNode }> = [
     { name: "Xero (accounting)", what: `Accounts, contacts, sales ${sales._count ? `(${sales._count.toLocaleString("en-AU")})` : ""}, P&L, balance sheet, bills ${bills._count ? `(${bills._count})` : ""}`, state: <Pill tone={tone(st("xero"))}>{st("xero")?.state ?? "not set up"}</Pill>, last: st("xero")?.headline ?? "—", period: sales._min.date ? `sales ${ad(sales._min.date)} → ${ad(sales._max.date)} · P&L ${pnl._min.month ?? "—"} → ${pnl._max.month ?? "—"}${bal._min.month ? ` · balance sheet ${bal._min.month} → ${bal._max.month}` : ""}` : "no data yet", manage: <Link href="/settings?section=company">Settings → Company</Link> },
     { name: "Xero Payroll (AU)", what: "Employees, pay runs, payslips (hours, gross, super) — labour cost only", state: <Pill tone={payRuns._count ? "green" : "grey"}>{payRuns._count ? "reading" : "no data yet"}</Pill>, last: payRuns._max.paymentDate ? `last pay run ${ad(payRuns._max.paymentDate)}` : "—", period: payRuns._min.paymentDate ? `${ad(payRuns._min.paymentDate)} → ${ad(payRuns._max.paymentDate)}` : "—", manage: <Link href="/data?section=xero">Data sources → Xero</Link> },
     { name: "Front", what: "Ticket counts per client; sends report emails and drafts (the only write)", state: <Pill tone={tone(st("front"))}>{st("front")?.state ?? "not set up"}</Pill>, last: st("front")?.headline ?? "—", period: tickets._min.month ? `${tickets._min.month} → ${tickets._max.month}` : "—", manage: <Link href="/settings?section=company">Settings → Company</Link> },
     { name: "WMS files (Thomax, 3PLWMS, Logiwa)", what: "Orders and charge volumes by client, uploaded as files", state: <Pill tone={orders._count ? "green" : "grey"}>{orders._count ? "loaded" : "no files yet"}</Pill>, last: lastImport ? `last file ${au(lastImport.createdAt)} · ${lastImport.fileName}` : "—", period: orders._min.date ? `orders ${ad(orders._min.date)} → ${ad(orders._max.date)}` : "—", manage: <Link href="/data?section=wms">Data sources → WMS</Link> },
-    { name: "Thomax API (.wms Query API)", what: "Full copy of every Thomax table — history from 2021, then nightly", state: <Pill tone={thomax ? (thomaxLast?.status === "FAILED" ? "red" : "green") : "grey"}>{thomax ? (thomaxLast?.status === "FAILED" ? "problem" : "connected") : "not connected"}</Pill>, last: thomaxLast ? `${thomaxLast.label} ${au(thomaxLast.startedAt)}` : thomax ? "connected, not synced yet" : "Owner connects it on Data sources → WMS", period: thomaxRows._count ? `${thomaxRows._count.toLocaleString("en-AU")} rows · ${ad(thomaxRows._min.at)} → ${ad(thomaxRows._max.at)} · Thomax ends 31/05/2027 — kept as archive` : "Ends 31/05/2027 — data kept as archive", manage: <Link href="/data?section=wms">Data sources → WMS</Link> },
+    { name: "Thomax API (.wms Query API)", what: "Full copy of every Thomax table — history from 2021, then nightly", state: <Pill tone={thomax ? (thomaxLast?.status === "FAILED" ? "red" : "green") : "amber"}>{thomax ? (thomaxLast?.status === "FAILED" ? "problem" : "connected") : "not connected"}</Pill>, last: thomaxLast ? `${thomaxLast.label} ${au(thomaxLast.startedAt)}` : thomax ? "connected, not synced yet" : "Owner connects it on Data sources → WMS", period: thomaxRows._count ? `${thomaxRows._count.toLocaleString("en-AU")} rows · ${ad(thomaxRows._min.at)} → ${ad(thomaxRows._max.at)} · Thomax ends 31/05/2027 — kept as archive` : "Ends 31/05/2027 — data kept as archive", manage: <Link href="/data?section=wms">Data sources → WMS</Link> },
     { name: "Claude (AI)", what: "Report summaries — figures only, never names of people", state: <Pill tone={tone(st("ai"))}>{st("ai")?.state ?? "not set up"}</Pill>, last: st("ai")?.headline ?? "—", period: "—", manage: <Link href="/data?section=ai">Data sources → AI</Link> },
     ...SOURCES.map((d) => ({
       name: d.name,
-      what: `${d.reads} Affects: ${d.affects.map((a) => `${a.where} (until then: ${a.until})`).join("; ")}.`,
+      what: (
+        <>
+          {d.reads} Affects:{" "}
+          {d.affects.map((a, i) => (
+            <span key={a.where}>
+              {i > 0 && "; "}
+              <Link href={a.href} className="lnk">
+                {a.where}
+              </Link>{" "}
+              (until then: {a.until})
+            </span>
+          ))}
+          .
+        </>
+      ),
       state: <Pill tone="amber">not connected</Pill>,
       last: d.needs,
       period: "—",

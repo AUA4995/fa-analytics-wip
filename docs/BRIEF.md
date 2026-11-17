@@ -24,7 +24,7 @@
 1. **One owner per data type.** Other apps read a copy, never edit someone else's data.
 2. **Star, not a web:** Analytics is the centre for numbers.
 3. **Apps talk only through APIs with keys**, read-only by default, never through each other's database.
-4. **Never write to outside systems** (Xero, Dyspatch, WMS, Front). Comparisons show match / don't match; a person decides; "Update" changes only our app; fixes elsewhere are tasks done by hand. (Exception: sending report emails / drafts / reminders through Front.)
+4. **Never write to outside systems** (Xero, Dyspach, WMS, Front). Comparisons show match / don't match; a person decides; "Update" changes only our app; fixes elsewhere are tasks done by hand. (Exception: sending report emails / drafts / reminders through Front.)
 5. **Never invent numbers.** Unreadable = "unknown, check source". Assumptions are labelled "estimate" until measured.
 6. Costs, margins, buy rates and pay are internal. Clients get only Client-safe reports; lenders/advisers only External finance reports (§10).
 7. **Nothing new is added automatically** from a sync: the app suggests, a person accepts / edits / rejects (§13).
@@ -89,13 +89,13 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 ## 7. Checks
 - **Under-billing:** tolerance $5 (editable); weekly minimum $300 after any levy period; Xero billed wins when Xero and WMS differ.
 - **Under-pricing:** below cost = red; below margin floor (15%, editable) = amber.
-- **Rate checks:** CLM vs Dyspatch vs WMS → match / don't match; a person decides which is right.
+- **Rate checks:** CLM vs Dyspach vs WMS → match / don't match; a person decides which is right.
 - **Leakage statuses:** Open · Task created · Explained · Recovered. Leakage log replaces FA_Leakage_Log.xlsx (import).
 
 ## 8. Rate review
-- **Review types:** Annual CPI increase (contract anniversary) · Carrier rate pass-through (e.g. AusPost July increase → Dyspatch SELL) · Contract renewal · Ad-hoc / below-cost review (started by the app when a line goes below cost).
+- **Review types:** Annual CPI increase (contract anniversary) · Carrier rate pass-through (e.g. AusPost July increase → Dyspach SELL) · Contract renewal · Ad-hoc / below-cost review (started by the app when a line goes below cost).
 - **Calendar:** clients × next 12 months, a coloured dot per review type; dates come **from CLM** (coming soon; demo dates). Click → details + "Open in Workbench".
-- **In progress:** board of open reviews by stage: Preparing → Analysis → Proposal → Client negotiation → Signed → Rates in WMS & Dyspatch → Checked on first invoice. Card = client, type, owner, due date; stage changeable in the panel. Source: CLM (coming soon).
+- **In progress:** board of open reviews by stage: Preparing → Analysis → Proposal → Client negotiation → Signed → Rates in WMS & Dyspach → Checked on first invoice. Card = client, type, owner, due date; stage changeable in the panel. Source: CLM (coming soon).
 - **Workbench:** per client per billable service: current rate, cost (TDABC), margin %, 3-month avg volume. New rates or "raise lines below target margin" → +$/month, +$/year. Cards (new margin, current margin, change, account management) are clickable with the calculation. "Send schedule of rates to CLM" → amendment draft, rates only — **marked Coming soon** until the CLM link is built.
 
 ## 9. Reports and KPI
@@ -192,7 +192,7 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - **WMS · volumes:** Thomax (dotWMS) Query API now — contract ends **31/05/2027**, ~1 month to export → pull full history from 2021 now, a few months per night, kept as read-only archive · 3PLWMS (Tarek's) manual file uploads, checked for duplicates/overlap · Logiwa API key when live. Joined by mapping tables.
 - **Accounting · Xero:** direct, read-only, everything (accounting, reports, payroll, chart of accounts, assets, **attachments**). Nightly; closed months locked.
 - **Client service · Front:** read-only emails, tickets, **attachments**; FA Accounts / Support / Sales only.
-- **Contracts & rates:** CLM (master) · Dyspatch rate export (API not confirmed).
+- **Contracts & rates:** CLM (master) · Dyspach rate export (API not confirmed).
 - **AI · Claude:** reads original supplier invoices on Xero bills (older bills → original found in Front) and Front attachments; writes report summaries; proposes calculations, project steps and participants for new improvement ideas. Confidence + link per value; person confirms low confidence. Own key, call log, budget US$30/month.
 
 ## 12. API connections and Logs
@@ -201,16 +201,16 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - **★ Logs on every editable value** (not one dump in Settings): small "Logs" button next to the field → who, when, old → new, why. Changes through an API record **which key/app** made them (and the user name if that app sends it).
 
 ## 13. ★ Notifications and follow-up tasks
-- After each sync (Thomax, Logiwa, Xero, Front, Dyspatch export) the app lists what's new — new staff member, client, supplier — as notifications. Each is a link → "Add to Analytics" window pre-filled from the source; Asal completes it (e.g. staff: site, position, clients and %).
-- Saving is **not blocked**. Instead the app creates **linked follow-up tasks** for every missing step, e.g.: staff in Logiwa but not in **Xero Payroll** → "Set up in Xero Payroll" (no pay/hours = no cost); client in Dyspatch but not in **Xero** → "Create Xero contact"; client in Thomax/Logiwa but not in Dyspatch and Xero → two tasks. Each task has an "Open" link (new tab) to where it is set up.
-- **Resolve = verified by API:** on Resolve the app checks the system. Found → closed ("confirmed by API" in the log). Not found → message "check failed: … not found", task snoozed 24 h; re-checked at the next sync and closed automatically if found; back to active after 24 h if not. Dyspatch (no API yet): closed manually as "confirmed by hand" or via an uploaded export.
+- After each sync (Thomax, Logiwa, Xero, Front, Dyspach export) the app lists what's new — new staff member, client, supplier — as notifications. Each is a link → "Add to Analytics" window pre-filled from the source; Asal completes it (e.g. staff: site, position, clients and %).
+- Saving is **not blocked**. Instead the app creates **linked follow-up tasks** for every missing step, e.g.: staff in Logiwa but not in **Xero Payroll** → "Set up in Xero Payroll" (no pay/hours = no cost); client in Dyspach but not in **Xero** → "Create Xero contact"; client in Thomax/Logiwa but not in Dyspach and Xero → two tasks. Each task has an "Open" link (new tab) to where it is set up.
+- **Resolve = verified by API:** on Resolve the app checks the system. Found → closed ("confirmed by API" in the log). Not found → message "check failed: … not found", task snoozed 24 h; re-checked at the next sync and closed automatically if found; back to active after 24 h if not. Dyspach (no API yet): closed manually as "confirmed by hand" or via an uploaded export.
 - Tasks also come from leakage, rate checks, the client brake and improvement project steps.
 
 ## 14. Settings
 - **Company**, **Branding** (logos dark/light, colours, reset), **Login & security** (only people on the Internal list; 8-hour session then password + 2FA; forgot-password email link 30 min; 5 wrong attempts → 15 min lock), **Users** (Asal = Owner, cannot be changed or removed; invite by email link; roles and other users — Asal adds later).
 - **Contacts & recipients:** **Internal** (trusted domains + approved people, e.g. Mark's personal email, Khalid's DTS email; only the owner edits) · **Clients** (contacts get Client-safe reports about their own company only) · **★ Lenders & advisers** (bank, external accountant, auditor, broker — External finance reports only, after approval) · **Suggestions** from Xero and Front. Unknown address = blocked.
 - **Rules:** margin floor 15%, tolerance $5, weekly minimum $300, ★ labour and space utilisation per site, ★ B2B threshold (20 units), ★ notional rent for Parramatta, payroll tax / workers comp rates, fixed vs variable cost split, KPI targets.
-- **★ Clients:** status (active / inactive / one-off services), site(s), type B2C / B2B / mixed, IDs in each system (Xero, Dyspatch Customer ID = WMS tenant ID, Thomax, 3PLWMS, Logiwa, Front domains), CLM contract link, weekly minimum and levy period, packing method (manual / CMC share), report contacts.
+- **★ Clients:** status (active / inactive / one-off services), site(s), type B2C / B2B / mixed, IDs in each system (Xero, Dyspach Customer ID = WMS tenant ID, Thomax, 3PLWMS, Logiwa, Front domains), CLM contract link, weekly minimum and levy period, packing method (manual / CMC share), report contacts.
 - **★ Suppliers (analytics view):** cost pool (labour hire, rent, equipment, automation, packaging, software, admin…) and site; **fixed or variable**; FA cost or passed through to a client (rebilled — excluded from cost; from the Accounts Hub classification via API or a simple flag here); expected monthly amount; Xero contact ID.
 - **★ Staff & allocation:** name, site, position / pool (floor, CSR, supervisor, admin), type **permanent / casual / agency**, Xero Payroll ID, codes in each of the 3 WMS, start/end dates. **Allocation matrix:** staff = rows, clients = columns, % in each cell; filters Parramatta / Smithfield narrow both clients and staff; source per cell (WMS / manual). Opened from Settings or from a Cost to serve details panel ("Add staff member" → matrix → "New staff member").
 - Mapping tables: Xero account → cost pool; WMS client IDs and old charge codes → 44 standard codes.
@@ -222,7 +222,7 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - Asal's old client workload report (upload) → may adjust report layouts.
 - CLM link for the rate review calendar, stages and "Send schedule of rates" (coming soon in the demo).
 - Thomax cluster code + first test query; retention and full export at exit (support@thomax.com).
-- Xero granular scope names; Asal's payroll access. Dyspatch API (ask Varun). DTS email domain.
+- Xero granular scope names; Asal's payroll access. Dyspach API (ask Varun). DTS email domain.
 - **To enter in the app once live:** debt schedule (Finance → Cash & debt), KPI targets (Settings → Rules; most start empty), internal domains and report recipients (Settings → Contacts & recipients), staff positions (for suggested project people).
 - **KPIs waiting for data:** dispatch before cut-off, dock-to-stock, returns 48 h, slow stock, stock accuracy (Thomax API); overtime (Xero Payroll earnings lines); mis-pick and damage (a Front tag or claims log — which?).
 - **Bank pack:** confirm the bank's actual list; tax and obligations (BAS, super, payroll tax) are manual for now.

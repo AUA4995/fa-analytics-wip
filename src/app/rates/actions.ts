@@ -33,7 +33,7 @@ export async function decideRateAction(clientId: string, serviceCode: string, ri
       await updateValue("rate", `${clientId}|${serviceCode}`, "rate", String(rate), actor(me), `Rate check: ${right} is right`);
       await createTask({ title: `Update ${serviceCode} for ${c.name} in CLM to $${rate}`, detail: `${right} holds the right rate. Analytics already updated.`, where: "CLM", clientId, source: `ratecheck:${clientId}:${serviceCode}:CLM` });
     } else
-      await createTask({ title: `Fix ${serviceCode} for ${c.name} in ${sys === "DYSPATCH" ? "Dyspatch" : "the WMS"} to $${rate}`, detail: `${right === "CLM" ? "CLM" : right === "DYSPATCH" ? "Dyspatch" : "The WMS"} holds the right rate. Change it by hand, then re-upload the ${sys === "DYSPATCH" ? "Dyspatch" : "WMS"} rate export to confirm.`, where: sys === "DYSPATCH" ? "Dyspatch" : "WMS", clientId, source: `ratecheck:${clientId}:${serviceCode}:${sys}` });
+      await createTask({ title: `Fix ${serviceCode} for ${c.name} in ${sys === "DYSPATCH" ? "Dyspach" : "the WMS"} to $${rate}`, detail: `${right === "CLM" ? "CLM" : right === "DYSPATCH" ? "Dyspach" : "The WMS"} holds the right rate. Change it by hand, then re-upload the ${sys === "DYSPATCH" ? "Dyspach" : "WMS"} rate export to confirm.`, where: sys === "DYSPATCH" ? "Dyspach" : "WMS", clientId, source: `ratecheck:${clientId}:${serviceCode}:${sys}` });
   }
   await logChange({ entity: "ratecheck", entityId: `${clientId}|${serviceCode}`, field: "decision", oldValue: null, newValue: { right, rate }, actor: actor(me) });
   revalidatePath("/leakage");

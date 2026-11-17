@@ -41,7 +41,7 @@ const POOLS = {
 };
 const OVH = [
   { id: "equip", name: "Machinery (forklifts, high reach, order pickers)", src: "Xero: equipment lease, repairs & maintenance", amount: 14500, driver: "Pallet moves", unit: "move", total: 3100 },
-  { id: "soft", name: "Software (WMS, Dyspatch, Xero, Front)", src: "Xero: subscriptions", amount: 11200, driver: "Orders", unit: "order", total: 98000 },
+  { id: "soft", name: "Software (WMS, Dyspach, Xero, Front)", src: "Xero: subscriptions", amount: 11200, driver: "Orders", unit: "order", total: 98000 },
   { id: "admin", name: "Admin & management", src: "Xero: admin wages, insurance, office, utilities", amount: 52000, driver: "Labour minutes used", unit: "minute", total: null }
 ];
 const SERVICES = [
@@ -184,12 +184,12 @@ let LEAK = [
   { id: "L3", client: "coastal", code: "WK-MIN", month: "Sep 2026", kind: "Under-billing", cause: "Levy period ended 01/09/2026; $300 weekly minimum not topped up in 3 weeks", status: "Open", fixed: 410 },
   { id: "L4", client: "lmnd", code: "PKG-STD", month: "Sep 2026", kind: "Under-billing", cause: "620 manual-pack orders had no packaging charge", status: "Open" },
   { id: "L5", client: "kora", code: "RCV-CTN", month: "Sep 2026", kind: "Under-billing", cause: "Carton receiving charge code missing on Kora's WMS rate card", status: "Task created", task: "T4" },
-  { id: "L6", client: "11mode", code: "RTN", month: "Sep 2026", kind: "Rate mismatch", cause: "CLM says $5.50; Dyspatch billed $4.50. A person decides which is right", status: "Open" }
+  { id: "L6", client: "11mode", code: "RTN", month: "Sep 2026", kind: "Rate mismatch", cause: "CLM says $5.50; Dyspach billed $4.50. A person decides which is right", status: "Open" }
 ];
 let TASKS = [
   { id: "T1", pr: "High", topic: "Under-billing", co: "Sony Music", where: "WMS", what: "Collapse 41 per-artist pick codes into PCK-UNIT ($0.45)", why: "3,240 picks billed at $0.00 in September", owner: "Paul", age: 6, st: "open" },
   { id: "T2", pr: "High", topic: "Back-bill", co: "Coastal Grl", where: "Xero", what: "Raise top-up invoice for weekly minimum, 3 weeks of September", why: "$410.00 not billed. Fix by hand in Xero", owner: "David", age: 3, st: "open" },
-  { id: "T3", pr: "Medium", topic: "Rate mismatch", co: "11MODE", where: "CLM / Dyspatch", what: "Confirm returns rate: CLM $5.50 vs Dyspatch $4.50", why: "If Dyspatch is right, update CLM. If CLM is right, fix Dyspatch by hand", owner: "Asal", age: 2, st: "open" },
+  { id: "T3", pr: "Medium", topic: "Rate mismatch", co: "11MODE", where: "CLM / Dyspach", what: "Confirm returns rate: CLM $5.50 vs Dyspach $4.50", why: "If Dyspach is right, update CLM. If CLM is right, fix Dyspach by hand", owner: "Asal", age: 2, st: "open" },
   { id: "T4", pr: "Medium", topic: "Under-billing", co: "Kora Organics", where: "WMS", what: "Add RCV-CTN ($1.60) to Kora's WMS rate card", why: "80 cartons received, $0 billed", owner: "Paul", age: 8, st: "open" },
   { id: "T5", pr: "Medium", topic: "Under-billing", co: "LMND", where: "WMS", what: "Manual-pack orders must carry PKG-STD", why: "620 orders without packaging charge ($341.00)", owner: "Natalia", age: 1, st: "open" },
   { id: "T6", pr: "High", topic: "Under-pricing", co: "MWU", where: "CLM", what: "Rate review: order fee, receiving pallet, returns below cost", why: "Feeds the MWU rate increase amendment", owner: "Asal", age: 14, st: "open" },
@@ -286,7 +286,7 @@ const APIIN = [
   { n: "Front", cat: "Client service", how: "API token", acc: "Read-only, incl. attachments", st: "Not connected", sync: "—", data: "—" },
   { n: "Claude AI", cat: "AI", how: "API key", acc: "Reads files sent to it", st: "Not connected", sync: "—", data: "—" },
   { n: "CLM", cat: "Contracts & rates", how: "API key", acc: "Read-only", st: "Not connected", sync: "—", data: "—" },
-  { n: "Dyspatch", cat: "Contracts & rates", how: "File upload", acc: "—", st: "Files only", sync: "—", data: "—" },
+  { n: "Dyspach", cat: "Contracts & rates", how: "File upload", acc: "—", st: "Files only", sync: "—", data: "—" },
   { n: "Old Thomax test login", cat: "WMS", how: "API key", acc: "Read-only", st: "Ended", sync: "21/10/2026", data: "test rows only" }
 ];
 const SCOPES = ["Services & cost per unit", "Client margins", "Volumes", "Leakage items", "Rate review data", "Monthly report figures"];
@@ -683,16 +683,16 @@ function pLeakOverview(M) {
   <div class="kpis"><button class="kpi" data-goto="leakage|Under-billing"><div class="l">Found</div><div class="v">${m0(tot)}</div><div class="s">a month while unfixed</div></button>
     <button class="kpi green" data-goto="leakage|Leakage log"><div class="l">Recovered</div><div class="v">${m0(rec)}</div><div class="s">billed by hand in Xero</div></button>
     <button class="kpi red" data-goto="leakage|Under-billing"><div class="l">Open</div><div class="v">${LEAK.filter(L => L.status === "Open").length}</div><div class="s">need a decision</div></button>
-    <button class="kpi" data-goto="leakage|Rate checks"><div class="l">Rate mismatches</div><div class="v">${Object.keys(DYSPATCH_RATE).length + Object.keys(WMS_RATE).length}</div><div class="s">CLM vs Dyspatch vs WMS</div></button></div>
+    <button class="kpi" data-goto="leakage|Rate checks"><div class="l">Rate mismatches</div><div class="v">${Object.keys(DYSPATCH_RATE).length + Object.keys(WMS_RATE).length}</div><div class="s">CLM vs Dyspach vs WMS</div></button></div>
   <div class="grid2"><div class="card"><h2>By type</h2>${Object.entries(types).map(([k, v]) => `<div class="catbar"><span>${esc(k)}</span><span class="track"><i style="width:${v / mx * 100}%"></i></span><span class="num small">${m0(v)}</span></div>`).join("")}<h2 style="margin-top:14px">By status</h2><div class="chips">${Object.entries(stats).map(([k, v]) => `${stPill(k)} <span class="small">${v}</span>`).join(" ")}</div></div>
   <div class="card"><h2>Top 5 open</h2><div class="tw"><table><tbody>${LEAK.filter(L => L.status !== "Recovered").sort((a, b) => leakAmount(b, M) - leakAmount(a, M)).slice(0, 5).map(L => `<tr class="clickable" data-leak="${L.id}"><td class="sup">${esc(cl(L.client).short)}<div class="meta">${esc(L.cause)}</div></td><td class="r num">${money(leakAmount(L, M))}</td><td>${stPill(L.status)}</td></tr>`).join("")}</tbody></table></div></div></div>
-  <div class="callout">This app never changes Xero, Dyspatch or the WMS. A person decides, and a task is created to fix the other system by hand.</div>`;
+  <div class="callout">This app never changes Xero, Dyspach or the WMS. A person decides, and a task is created to fix the other system by hand.</div>`;
 }
 
 /* ===== Notifications ===== */
 let NOTIFS = [
   { id: "n1", kind: "staff", src: "Thomax", when: "23/10/2026 02:00", text: "New staff member in Thomax: J. Tran (code JTR04, Smithfield)", data: { name: "J. Tran", site: "smi", codes: { thomax: "JTR04", p3l: "", logiwa: "" } } },
-  { id: "n2", kind: "client", src: "Dyspatch export", when: "22/10/2026 16:20", text: "New client in Dyspatch: Peppr Foods (Customer ID 10458)", data: { name: "Peppr Foods", dyspatch: "10458" } },
+  { id: "n2", kind: "client", src: "Dyspach export", when: "22/10/2026 16:20", text: "New client in Dyspach: Peppr Foods (Customer ID 10458)", data: { name: "Peppr Foods", dyspatch: "10458" } },
   { id: "n3", kind: "supplier", src: "Xero", when: "22/10/2026 02:00", text: "New supplier in Xero: Bubble Pack Supplies Pty Ltd", data: { name: "Bubble Pack Supplies Pty Ltd" } }
 ];
 let CLIENTS_EXTRA = [], SUPPLIERS = [
@@ -709,7 +709,7 @@ function notifHTML() {
 function addNotifHTML(id) {
   const n = NOTIFS.find(x => x.id === id), d = n.data;
   if (n.kind === "staff") return `<h3>Add staff member</h3><p class="small muted">Pre-filled from ${esc(n.src)}. Complete the rest.</p>${staffForm(d)}<div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
-  if (n.kind === "client") return `<h3>Add client</h3><p class="small muted">Pre-filled from ${esc(n.src)}.</p><div class="formgrid"><label for="nc-n">Name</label><input id="nc-n" type="text" value="${esc(d.name)}"><label for="nc-s">Site</label><select id="nc-s"><option value="smi">Smithfield</option><option value="par">Parramatta</option></select><label for="nc-t">Type</label><select id="nc-t"><option>B2C</option><option>B2B</option><option>Mixed</option></select><label for="nc-st">Status</label><select id="nc-st"><option>Active</option><option>One-off services</option></select><label>Dyspatch Customer ID</label><input type="text" value="${esc(d.dyspatch)}" disabled></div><div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
+  if (n.kind === "client") return `<h3>Add client</h3><p class="small muted">Pre-filled from ${esc(n.src)}.</p><div class="formgrid"><label for="nc-n">Name</label><input id="nc-n" type="text" value="${esc(d.name)}"><label for="nc-s">Site</label><select id="nc-s"><option value="smi">Smithfield</option><option value="par">Parramatta</option></select><label for="nc-t">Type</label><select id="nc-t"><option>B2C</option><option>B2B</option><option>Mixed</option></select><label for="nc-st">Status</label><select id="nc-st"><option>Active</option><option>One-off services</option></select><label>Dyspach Customer ID</label><input type="text" value="${esc(d.dyspatch)}" disabled></div><div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
   return `<h3>Add supplier</h3><p class="small muted">Pre-filled from ${esc(n.src)}.</p><div class="formgrid"><label for="ns-n">Name</label><input id="ns-n" type="text" value="${esc(d.name)}"><label for="ns-p">Cost pool</label><select id="ns-p">${["Packaging", "Labour hire", "Rent", "Equipment", "Automation", "Software", "Admin"].map(o => `<option>${o}</option>`).join("")}</select><label for="ns-f">Fixed or variable</label><select id="ns-f"><option>Variable</option><option>Fixed</option></select><label for="ns-r">Passed through to a client</label><select id="ns-r"><option value="0">No · FA cost</option><option value="1">Yes · rebilled</option></select></div><div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
 }
 function staffForm(d = {}) {
@@ -737,7 +737,7 @@ function pRules() {
   return Object.entries(groups).map(([g, ks]) => `<div class="card"><h2>${esc(g)}</h2><p class="sub">Same values as in the details panels; a change here or there updates both and is logged.</p><dl class="dl setdl">${ks.map(k => setRow(k)).join("")}</dl></div>`).join("");
 }
 function pClientsSet() {
-  const all = [...CLIENTS.map(c => ({ name: c.name, site: SITES[c.site], type: c.type, st: "Active", cmc: c.cmc, ids: `Xero ✓ · Dyspatch ✓ · Thomax ✓ · Logiwa —`, id: c.id })), ...CLIENTS_EXTRA];
+  const all = [...CLIENTS.map(c => ({ name: c.name, site: SITES[c.site], type: c.type, st: "Active", cmc: c.cmc, ids: `Xero ✓ · Dyspach ✓ · Thomax ✓ · Logiwa —`, id: c.id })), ...CLIENTS_EXTRA];
   return `<div class="card"><h2>Clients</h2><p class="sub">Status, site, type, IDs in each system, CLM contract, weekly minimum, packing method. New clients arrive as notifications.</p><div class="tw"><table><thead><tr><th>Client</th><th>Status</th><th>Site</th><th>Type</th><th>CMC share</th><th>IDs</th><th>CLM</th></tr></thead><tbody>
   ${all.map(c => `<tr ${c.id ? `class="clickable" data-client="${c.id}"` : ""}><td class="sup">${esc(c.name)}</td><td><span class="pill ${c.st === "Active" ? "p-green" : "p-grey"}">${esc(c.st)}</span></td><td>${esc(c.site)}</td><td>${esc(c.type)}</td><td class="num">${c.cmc != null ? pct(c.cmc, 0) : "—"}</td><td class="meta">${esc(c.ids)}</td><td class="meta">${c.id ? "contract linked" : "not yet"}</td></tr>`).join("")}</tbody></table></div></div>`;
 }
@@ -778,18 +778,18 @@ function lineHTML(id) {
   return `<h3>${esc(c.short)} · ${esc(l.s.name)}</h3><dl class="dl"><dt>Rate (CLM)</dt><dd class="num">${l.s.unbilled ? "not billed" : money(l.rate) + " per " + esc(l.s.unit)}</dd><dt>Cost per unit</dt><dd class="num">TDABC ${money(l.unitT, 3)} · Full ${money(l.unitF, 3)}</dd><dt>Margin</dt><dd>${mpill(l.marginPct)}</dd><dt>Volume</dt><dd class="num">${num(l.vol)}</dd></dl>
   <div class="tsec"><div class="tsec-h">What the ${money(l.unitCost, 3)} (${VAR === "T" ? "TDABC" : "Full"}) is made of · click a part</div><table><tbody>${l.parts.map(p => `<tr class="clickable" data-row="${p[2]}"><td>${esc(p[0])}</td><td class="r num">${money(p[1], 3)}</td></tr>`).join("")}<tr class="tot"><td>Total</td><td class="r num">${money(l.unitCost, 3)}</td></tr></tbody></table></div>
   <div class="tsec"><div class="tsec-h">This period</div><div class="formula">Should bill = ${num(l.vol)} × ${money(l.rate)} = ${money(l.expected)}<br>Billed in Xero = ${money(l.billed)}<br>Cost = ${num(l.vol)} × ${money(l.unitCost, 3)} = ${money(l.cost)}<br>Margin = ${money(l.billed - l.cost)}</div></div>
-  <div class="tsec"><div class="tsec-h">Rate in each system</div><table><tbody><tr><td>CLM</td><td class="r num">${money(l.rate)}</td></tr><tr><td>Dyspatch</td><td class="r num">${dy != null ? money(dy) : money(l.rate)}</td></tr><tr><td>WMS</td><td class="r num">${wm ? esc(wm) : money(l.rate)}</td></tr></tbody></table>${dy != null || wm ? '<span class="pill p-red">don\'t match</span>' : '<span class="pill p-green">match</span>'}</div>
+  <div class="tsec"><div class="tsec-h">Rate in each system</div><table><tbody><tr><td>CLM</td><td class="r num">${money(l.rate)}</td></tr><tr><td>Dyspach</td><td class="r num">${dy != null ? money(dy) : money(l.rate)}</td></tr><tr><td>WMS</td><td class="r num">${wm ? esc(wm) : money(l.rate)}</td></tr></tbody></table>${dy != null || wm ? '<span class="pill p-red">don\'t match</span>' : '<span class="pill p-green">match</span>'}</div>
   <div class="tsec"><div class="tsec-h">Staff on ${esc(c.short)} for this work</div><table><tbody>${ppl.map(s => `<tr><td>${esc(s.name)} <span class="meta">· ${esc(s.pos)}</span></td><td class="r"><input class="mini" type="number" min="0" max="100" step="5" value="${s.alloc[cid]}" data-alloc="${s.id}|${cid}" aria-label="${esc(s.name)} %"> %</td></tr>`).join("") || '<tr><td class="empty">Nobody allocated.</td></tr>'}</tbody></table><div class="row" style="margin-top:8px"><button class="btn" data-goto="settings|Staff & allocation">Add staff member</button></div></div>
   <div class="tsec"><div class="tsec-h">Sources</div><div class="small">Volume: Thomax ${esc(PLABEL)} · rate: CLM · billed: Xero invoice lines · cost: Base cost (${SITES[c.site]} pool).</div></div>
   <div class="row"><button class="btn" data-review="${cid}">Rate review for ${esc(c.short)}</button></div>`;
 }
 function taskHTML(id) {
   const t = TASKS.find(x => x.id === id);
-  const links = { Xero: "Open Xero", "Xero Payroll": "Open Xero Payroll", WMS: "Open Thomax", "CLM / Dyspatch": "Open CLM", CLM: "Open CLM", Dyspatch: "Open Dyspatch", Floor: "", Settings: "Open Settings" };
+  const links = { Xero: "Open Xero", "Xero Payroll": "Open Xero Payroll", WMS: "Open Thomax", "CLM / Dyspach": "Open CLM", CLM: "Open CLM", Dyspach: "Open Dyspach", Floor: "", Settings: "Open Settings" };
   const L = LEAK.find(l => l.task === id || ("From leakage " + l.id) === t.why);
   const tl = (LOGS_EXTRA["task|" + id] || []).slice().reverse();
   return `<div class="row" style="justify-content:space-between"><h3>${esc(t.topic)} · ${esc(t.co)}</h3><span class="pill ${t.pr === "High" ? "p-red" : t.pr === "Medium" ? "p-amber" : "p-grey"}">${t.pr}</span></div>
-  <dl class="dl"><dt>What to do</dt><dd>${esc(t.what)}</dd><dt>Why</dt><dd>${esc(t.why)}</dd><dt>Fix in</dt><dd>${esc(t.where)} (by hand) ${links[t.where] ? `· <a class="ref" href="https://go.xero.com" target="_blank" rel="noopener">${links[t.where]} ↗</a>` : ""}</dd><dt>Owner</dt><dd>${esc(t.owner)}</dd><dt>Status</dt><dd>${t.st === "snoozed" ? `Snoozed until ${esc(t.wake)}` : t.st}</dd>${t.verify ? `<dt>Closing rule</dt><dd>${t.verify === "dyspatch" ? "Confirmed by hand (Dyspatch has no API yet)" : "Checked by API before it can be resolved"}</dd>` : ""}</dl>
+  <dl class="dl"><dt>What to do</dt><dd>${esc(t.what)}</dd><dt>Why</dt><dd>${esc(t.why)}</dd><dt>Fix in</dt><dd>${esc(t.where)} (by hand) ${links[t.where] ? `· <a class="ref" href="https://go.xero.com" target="_blank" rel="noopener">${links[t.where]} ↗</a>` : ""}</dd><dt>Owner</dt><dd>${esc(t.owner)}</dd><dt>Status</dt><dd>${t.st === "snoozed" ? `Snoozed until ${esc(t.wake)}` : t.st}</dd>${t.verify ? `<dt>Closing rule</dt><dd>${t.verify === "dyspatch" ? "Confirmed by hand (Dyspach has no API yet)" : "Checked by API before it can be resolved"}</dd>` : ""}</dl>
   ${L ? `<div class="tsec"><div class="tsec-h">Created from</div><div class="ctk clickable" data-leak="${L.id}" style="cursor:pointer"><strong>${esc(L.kind)} · ${esc(cl(L.client).short)}</strong><div class="small">${esc(L.cause)}</div></div></div>` : ""}
   <div class="tsec"><div class="tsec-h">Timeline</div><ul class="tl">${tl.map(x => `<li class="k-note"><div class="tl-h"><strong>${esc(x.when)}</strong> · ${esc(x.who)}</div><div class="tl-b">${esc(x.text)}</div></li>`).join("") || `<li class="k-in"><div class="tl-h"><strong>${t.age} days ago</strong> task created</div><div class="tl-b">Assigned to ${esc(t.owner)}</div></li>`}</ul></div>
   <div class="row">${t.st !== "done" ? `<button class="btn primary" data-done="${t.id}">${t.verify && t.verify !== "dyspatch" ? "Resolve (check by API)" : t.verify === "dyspatch" ? "Confirm by hand" : "Resolve"}</button>` : `<button class="btn" data-reopen="${t.id}">Re-open</button>`}</div>`;
@@ -848,9 +848,9 @@ function extraClick(e, t, d) {
   if (d.savenotif) {
     const n = NOTIFS.find(x => x.id === d.savenotif);
     if (n.kind === "staff") { const s = saveStaffFromForm(true); toast(`${s.name} added. Follow-up task: set up in Xero Payroll.`); }
-    if (n.kind === "client") { const nm = $("#nc-n").value; CLIENTS_EXTRA.push({ name: nm, site: SITES[$("#nc-s").value], type: $("#nc-t").value, st: $("#nc-st").value, cmc: null, ids: "Dyspatch ✓ · Xero — · Thomax —" });
-      addTask({ pr: "High", topic: "Set up", co: nm, where: "Xero", what: `Create ${nm} as a contact in Xero`, why: "Client is in Dyspatch but not in Xero", owner: "David", verify: "xero-contact" });
-      addTask({ pr: "Medium", topic: "Set up", co: nm, where: "WMS", what: `Set up ${nm} as a tenant in the WMS`, why: "Client is in Dyspatch but has no WMS tenant", owner: "Paul", verify: "wms" }); toast(`${nm} added. Two follow-up tasks created.`); }
+    if (n.kind === "client") { const nm = $("#nc-n").value; CLIENTS_EXTRA.push({ name: nm, site: SITES[$("#nc-s").value], type: $("#nc-t").value, st: $("#nc-st").value, cmc: null, ids: "Dyspach ✓ · Xero — · Thomax —" });
+      addTask({ pr: "High", topic: "Set up", co: nm, where: "Xero", what: `Create ${nm} as a contact in Xero`, why: "Client is in Dyspach but not in Xero", owner: "David", verify: "xero-contact" });
+      addTask({ pr: "Medium", topic: "Set up", co: nm, where: "WMS", what: `Set up ${nm} as a tenant in the WMS`, why: "Client is in Dyspach but has no WMS tenant", owner: "Paul", verify: "wms" }); toast(`${nm} added. Two follow-up tasks created.`); }
     if (n.kind === "supplier") { SUPPLIERS.push({ name: $("#ns-n").value, pool: $("#ns-p").value, site: "both", fv: $("#ns-f").value, rebill: $("#ns-r").value === "1", exp: 0, xero: "new" }); toast("Supplier added to Settings → Suppliers."); }
     NOTIFS = NOTIFS.filter(x => x.id !== n.id); closeAll(); render(); return true;
   }
@@ -970,7 +970,7 @@ function pLeakage(M) {
     <div class="kpi green"><div class="l">Recovered so far</div><div class="v">${m0(rec)}</div><div class="s">billed by hand in Xero</div></div>
     <div class="kpi red"><div class="l">Open</div><div class="v">${LEAK.filter(L => L.status === "Open").length}</div><div class="s">need a decision</div></div>
     <div class="kpi"><div class="l">Tolerance</div><div class="v">${money(RULES.tolerance, 0)}</div><div class="s">gaps below this are ignored</div></div></div>
-    <div class="callout">This app never changes Xero, Dyspatch or the WMS. Each check shows <strong>match</strong> or <strong>don't match</strong>. A person decides, and a task is created to fix the other system by hand.</div>`;
+    <div class="callout">This app never changes Xero, Dyspach or the WMS. Each check shows <strong>match</strong> or <strong>don't match</strong>. A person decides, and a task is created to fix the other system by hand.</div>`;
   if (show("Under-billing")) {
     h += `<div class="card"><h2>Under-billing · ${MONTH}</h2><p class="sub">Should have billed = CLM rate × WMS volume (Thomax export). Billed = Xero invoice lines. Click a line for the working.</p><div class="tw"><table><thead><tr><th>Client</th><th>Service</th><th class="r">WMS volume</th><th class="r">Should bill</th><th class="r">Billed</th><th class="r">Gap</th><th>Status</th><th>Actions</th></tr></thead><tbody>
     ${ub.map(L => { const c = M.clients.find(x => x.id === L.client); const l = c.lines.find(x => x.code === L.code);
@@ -992,7 +992,7 @@ function pLeakage(M) {
       const k = c.id + "|" + code, dy = DYSPATCH_RATE[k], wm = WMS_RATE[k], clm = c.rates[code];
       if (dy != null || wm != null) rows.push({ c, code, clm, dy: dy != null ? money(dy) : money(clm), wm: wm || money(clm), ok: false });
     }));
-    h += `<div class="card"><h2>Rate checks · CLM vs Dyspatch vs WMS</h2><p class="sub">CLM is the master for client prices. Only mismatches are listed; ${CLIENTS.length * BILLABLE.length - rows.length} other rates match. Sometimes Dyspatch holds the newer, correct price, so a person decides.</p><div class="tw"><table><thead><tr><th>Client</th><th>Service</th><th class="r">CLM</th><th class="r">Dyspatch</th><th class="r">WMS</th><th>Result</th><th>Actions</th></tr></thead><tbody>
+    h += `<div class="card"><h2>Rate checks · CLM vs Dyspach vs WMS</h2><p class="sub">CLM is the master for client prices. Only mismatches are listed; ${CLIENTS.length * BILLABLE.length - rows.length} other rates match. Sometimes Dyspach holds the newer, correct price, so a person decides.</p><div class="tw"><table><thead><tr><th>Client</th><th>Service</th><th class="r">CLM</th><th class="r">Dyspach</th><th class="r">WMS</th><th>Result</th><th>Actions</th></tr></thead><tbody>
     ${rows.map(r => `<tr class="clickable" data-row="rc|${r.c.id}|${r.code}"><td class="sup">${esc(r.c.short)}</td><td>${esc(C(r.code).name)}</td><td class="r num">${money(r.clm)}</td><td class="r num">${r.dy}</td><td class="r num">${esc(r.wm)}</td><td><span class="pill p-red">don't match</span></td><td class="actions"><button class="lnk" data-act="clmupd" data-c="${r.c.short}">CLM is wrong · update CLM</button><button class="lnk" data-act="extask" data-c="${r.c.short}">Other system is wrong · create task</button></td></tr>`).join("")}
     </tbody></table></div></div>`;
   }
@@ -1030,7 +1030,7 @@ function pRates(M) {
     <div class="kpi green"><div class="l">Change / month</div><div class="v">${m0(newM - curM)}</div><div class="s">${m0((newM - curM) * 12)} a year</div></div>
     <div class="kpi"><div class="l">Account management</div><div class="v">${m0(tickets.cost)}</div><div class="s">${tickets.vol} Front tickets a month, not billed</div></div></div>
   <div class="card"><h2>Services · ${esc(c.name)}</h2><p class="sub">Costs are internal and never leave FA. The schedule sent to CLM for the client contains rates only.</p><div class="tw"><table><thead><tr><th>Service</th><th class="r">Current rate</th><th class="r">Cost</th><th>Margin</th><th class="r">3-mo avg volume</th><th class="r">New rate</th><th>New margin</th><th class="r">+ $ / month</th></tr></thead><tbody>${tr}</tbody></table></div>
-  <div class="row" style="margin-top:12px"><button class="btn primary" data-act="sendclm">Send schedule of rates to CLM</button><span class="meta">Creates an amendment draft in CLM. Nothing changes in Dyspatch, the WMS or Xero.</span></div></div>`;
+  <div class="row" style="margin-top:12px"><button class="btn primary" data-act="sendclm">Send schedule of rates to CLM</button><span class="meta">Creates an amendment draft in CLM. Nothing changes in Dyspach, the WMS or Xero.</span></div></div>`;
 }
 
 function chartSVG(points, base) {
@@ -1075,7 +1075,7 @@ function pData() {
     ["wms", "WMS · volumes", "3 systems", "Thomax · 3PLWMS · Logiwa"],
     ["xero", "Accounting · Xero", "Read-only, everything", "Ledger · reports · payroll · files"],
     ["front", "Client service · Front", "Read-only", "Emails · tickets · files"],
-    ["rates", "Contracts & rates", "CLM master", "CLM · Dyspatch export"],
+    ["rates", "Contracts & rates", "CLM master", "CLM · Dyspach export"],
     ["ai", "AI · Claude", "Reads files", "Invoices · attachments"]
   ];
   let h = `<div class="ph"><div><h1>Data sources</h1><p>Everything this app reads. It only reads; nothing is ever written back. History is stored in the app's own database, so it stays after a system is switched off.</p></div></div>
@@ -1139,7 +1139,7 @@ function pData() {
   }
   if (dsTab === "rates") {
     h += `<div class="card"><h2>CLM <span class="pill p-grey">Later</span></h2><p class="sub">Master for client prices and contract dates. Used for the under-billing check and rate reviews; CLM asks this app for cost and margin.</p><div class="row"><button class="btn" data-act="src" data-n="CLM">Add key</button></div></div>
-    <div class="card"><h2>Dyspatch <span class="pill p-grey">Export file</span></h2><p class="sub">For the rate checks (CLM vs Dyspatch) and as the rate source until CLM is live. API not confirmed, so a rate export upload is enough.</p><div class="row"><button class="btn" data-act="src" data-n="Dyspatch">Upload rate export</button></div></div>`;
+    <div class="card"><h2>Dyspach <span class="pill p-grey">Export file</span></h2><p class="sub">For the rate checks (CLM vs Dyspach) and as the rate source until CLM is live. API not confirmed, so a rate export upload is enough.</p><div class="row"><button class="btn" data-act="src" data-n="Dyspach">Upload rate export</button></div></div>`;
   }
   return h;
 }
@@ -1378,7 +1378,7 @@ function rowHTML(type, id) {
     </tbody></table></div>
     <div class="tsec"><div class="tsec-h">Last 3 months (WMS)</div><table><tbody>${MONTHS.map((m, i) => `<tr><td>${m} 2026</td><td class="r num">${num(Math.round(l.vol * c.trend[i]))}</td></tr>`).join("")}<tr class="tot"><td>Average</td><td class="r num">${num(l.avg3)}</td></tr></tbody></table></div>
     <div class="tsec"><div class="tsec-h">This month</div><div class="formula">Should bill = ${num(l.vol)} × ${money(l.rate)} = ${money(l.expected)}<br>Billed in Xero = ${money(l.billed)}<br>Cost = ${num(l.vol)} × ${money(l.unitCost)} = ${money(l.cost)}<br>Margin = ${money(l.billed - l.cost)}</div></div>
-    <div class="tsec"><div class="tsec-h">Rate in each system</div><table><tbody><tr><td>CLM</td><td class="r num">${money(l.rate)}</td></tr><tr><td>Dyspatch</td><td class="r num">${dy != null ? money(dy) : money(l.rate)}</td></tr><tr><td>WMS</td><td class="r num">${wm ? esc(wm) : money(l.rate)}</td></tr></tbody></table>${dy != null || wm ? '<span class="pill p-red">don\'t match</span>' : '<span class="pill p-green">match</span>'}</div>
+    <div class="tsec"><div class="tsec-h">Rate in each system</div><table><tbody><tr><td>CLM</td><td class="r num">${money(l.rate)}</td></tr><tr><td>Dyspach</td><td class="r num">${dy != null ? money(dy) : money(l.rate)}</td></tr><tr><td>WMS</td><td class="r num">${wm ? esc(wm) : money(l.rate)}</td></tr></tbody></table>${dy != null || wm ? '<span class="pill p-red">don\'t match</span>' : '<span class="pill p-green">match</span>'}</div>
     <div class="row"><button class="btn" data-review="${cid}">Rate review for ${esc(c.short)}</button><button class="btn" data-goto="model|Standard minutes">How the cost is built</button></div>`);
   }
   if (type === "wl") {
@@ -1396,8 +1396,8 @@ function rowHTML(type, id) {
   }
   if (type === "rc") {
     const [cid, code] = id.split("|"), c = cl(cid), dy = DYSPATCH_RATE[id], wm = WMS_RATE[id];
-    return (`<h3>Rate check · ${esc(c.short)} · ${esc(C(code).name)}</h3><table><tbody><tr><td>CLM (master)</td><td class="r num">${money(c.rates[code])}</td></tr><tr><td>Dyspatch</td><td class="r num">${dy != null ? money(dy) : money(c.rates[code])}</td></tr><tr><td>WMS</td><td class="r num">${wm ? esc(wm) : money(c.rates[code])}</td></tr></tbody></table>
-    <div class="callout" style="margin-top:8px">CLM is the master, but Dyspatch sometimes holds the newer, correct price. You decide which is right; this app never changes Dyspatch or the WMS.</div>
+    return (`<h3>Rate check · ${esc(c.short)} · ${esc(C(code).name)}</h3><table><tbody><tr><td>CLM (master)</td><td class="r num">${money(c.rates[code])}</td></tr><tr><td>Dyspach</td><td class="r num">${dy != null ? money(dy) : money(c.rates[code])}</td></tr><tr><td>WMS</td><td class="r num">${wm ? esc(wm) : money(c.rates[code])}</td></tr></tbody></table>
+    <div class="callout" style="margin-top:8px">CLM is the master, but Dyspach sometimes holds the newer, correct price. You decide which is right; this app never changes Dyspach or the WMS.</div>
     <div class="actions"><button class="btn" data-act="clmupd" data-c="${esc(c.short)}">CLM is wrong · update CLM</button><button class="btn" data-act="extask" data-c="${esc(c.short)}">Other system is wrong · create task</button></div>`);
   }
   if (type === "api") {

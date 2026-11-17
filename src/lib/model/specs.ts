@@ -72,7 +72,7 @@ export const ENTITY_FIELDS: Record<string, Record<string, FieldSpec>> = {
     type: { label: "Type", kind: "select", options: [["B2C", "B2C"], ["B2B", "B2B"], ["MIXED", "Mixed"]] },
     sites: { label: "Sites", kind: "list", optional: true, hint: "smi, par" },
     xeroContactId: { label: "Xero contact ID", kind: "text", optional: true },
-    dyspatchCustomerId: { label: "Dyspatch Customer ID (= WMS tenant ID)", kind: "text", optional: true },
+    dyspatchCustomerId: { label: "Dyspach Customer ID (= WMS tenant ID)", kind: "text", optional: true },
     thomaxTenantId: { label: "Thomax tenant", kind: "text", optional: true },
     p3lClientId: { label: "3PLWMS client", kind: "text", optional: true },
     logiwaClientId: { label: "Logiwa client", kind: "text", optional: true },

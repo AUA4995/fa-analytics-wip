@@ -32,7 +32,7 @@ const STATUS_LABEL = { OPEN: "Open", TASK: "Task created", EXPLAINED: "Explained
 
 type Item = Awaited<ReturnType<typeof prisma.leakageItem.findMany>>[number];
 
-/** Leakage (brief §5, §7): revenue not collected. The app never changes Xero, Dyspatch or the WMS. */
+/** Leakage (brief §5, §7): revenue not collected. The app never changes Xero, Dyspach or the WMS. */
 export default async function LeakagePage({ searchParams }: { searchParams: SP }) {
   await requireUser();
   const sp = await searchParams;
@@ -47,7 +47,7 @@ export default async function LeakagePage({ searchParams }: { searchParams: SP }
   const people = [...new Set([...staff.map((s) => s.name), ...(await prisma.staff.findMany({ where: { pool: { in: ["admin", "supervisor", "csr"] } }, select: { name: true } })).map((s) => s.name)])];
   return (
     <WithSubNav page="leakage" current={section}>
-      <PageHeader title={section === "overview" ? "Leakage" : (({ underbilling: "Under-billing", underpricing: "Under-pricing", ratechecks: "Rate checks", log: "Leakage log" }) as Record<string, string>)[section]} subtitle="Revenue not collected. A person decides; fixes in Xero, Dyspatch or the WMS are tasks done by hand." actions={<DetectButton />} />
+      <PageHeader title={section === "overview" ? "Leakage" : (({ underbilling: "Under-billing", underpricing: "Under-pricing", ratechecks: "Rate checks", log: "Leakage log" }) as Record<string, string>)[section]} subtitle="Revenue not collected. A person decides; fixes in Xero, Dyspach or the WMS are tasks done by hand." actions={<DetectButton />} />
       {section === "overview" && <Overview items={items} cn={cn} card={one(sp.card) ?? null} />}
       {section === "underbilling" && <ItemsTable items={items.filter((i) => i.kind !== "RATE_MISMATCH" && !i.imported)} cn={cn} title="Under-billing and weekly minimums" sub="WMS volume × rate vs what was billed in Xero, per client per service per month; weekly invoice totals under the client's minimum." />}
       {section === "underpricing" && <UnderPricing />}
@@ -70,7 +70,13 @@ function stats(items: Item[]) {
 
 async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) => string; card: string | null }) {
   const s = stats(items);
-  const mism = (await rateChecks()).filter((r) => !r.match);
+  const checks = await rateChecks();
+  const mism = checks.filter((r) => !r.match);
+  // Batch 2 review: a 0 must not read as "checked, nothing wrong" when the inputs aren't there yet
+  const [rates, sales, vols, ords, snaps] = await Promise.all([prisma.clientRate.count(), prisma.xeroSale.count(), prisma.volumeLine.count(), prisma.orderFact.count(), prisma.rateSnapshot.count()]);
+  const canDetect = rates > 0 && sales > 0 && vols + ords > 0;
+  const canCompare = rates > 0 && snaps > 0;
+  const missing = [!rates && "client rates (CLM / Settings → Clients)", !sales && "Xero sales", !(vols + ords) && "WMS volumes"].filter(Boolean).join(", ");
   const tile = (k: string, l: string, v: string, sub: string, tone = "") => (
     <Link href={card === k ? "/leakage" : `/leakage?card=${k}`} className={"kpi clickable " + tone + (card === k ? " on" : "")} aria-pressed={card === k} scroll={false}>
       <div className="l">{l}</div>
@@ -85,10 +91,10 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
   return (
     <>
       <div className="kpis tabtiles ovtiles">
-        {tile("found", "Found", aud(s.foundTot, 0), `${s.found.length} findings`)}
+        {tile("found", "Found", canDetect || s.found.length ? aud(s.foundTot, 0) : "no data yet", canDetect || s.found.length ? `${s.found.length} findings` : `needs ${missing}`)}
         {tile("rec", "Recovered", aud(s.recTot, 0), `${s.rec.length} · ≈ 100% to profit`, "green")}
-        {tile("open", "Open", String(s.open.length), `${aud(s.openTot, 0)} still to bill`, s.open.length ? "red" : "")}
-        {tile("mism", "Rate mismatches", String(mism.length), "CLM vs Dyspatch vs WMS")}
+        {tile("open", "Open", canDetect || s.found.length ? String(s.open.length) : "no data yet", canDetect || s.found.length ? `${aud(s.openTot, 0)} still to bill` : "nothing checked yet", s.open.length ? "red" : "")}
+        {tile("mism", "Rate mismatches", canCompare ? String(mism.length) : "no data yet", canCompare ? "CLM vs Dyspach vs WMS" : "needs client rates + a Dyspach or WMS rate export")}
         {tile("rate", "Recovery rate", pc(s.rate), s.days != null ? `avg ${Math.round(s.days)} days to recover` : "no recoveries yet")}
       </div>
       <p className="meta" style={{ margin: "4px 0 10px" }}>
@@ -313,13 +319,18 @@ async function RateChecks({ onlyMismatch = false }: { onlyMismatch?: boolean }) 
   return (
     <>
       {!onlyMismatch && (
-        <Card title="Rate exports" sub="CLM (or Settings until CLM connects) vs Dyspatch vs the WMS. Upload the Dyspatch and WMS rate exports as CSV; their APIs replace this later.">
+        <p className="meta" style={{ margin: "0 0 10px" }}>
+          <NotConnected source="clm" /> <NotConnected source="dyspach" />
+        </p>
+      )}
+      {!onlyMismatch && (
+        <Card title="Rate exports" sub="CLM (or Settings until CLM connects) vs Dyspach vs the WMS. Upload the Dyspach and WMS rate exports as CSV; their APIs replace this later.">
           <div className="row" style={{ marginBottom: 8 }}>
             {(["DYSPATCH", "WMS"] as const).map((s) => {
               const x = snaps.find((y) => y.source === s);
               return (
                 <span key={s} className="small">
-                  <strong>{s === "DYSPATCH" ? "Dyspatch" : "WMS"}</strong>: {x ? `${x._count._all} rates · ${au(x._max.asOf)}` : "not loaded"}
+                  <strong>{s === "DYSPATCH" ? "Dyspach" : "WMS"}</strong>: {x ? `${x._count._all} rates · ${au(x._max.asOf)}` : "not loaded"}
                 </span>
               );
             })}
@@ -338,7 +349,7 @@ async function RateChecks({ onlyMismatch = false }: { onlyMismatch?: boolean }) 
                   <th>Client</th>
                   <th>Service</th>
                   <th className="r">CLM / Settings</th>
-                  <th className="r">Dyspatch</th>
+                  <th className="r">Dyspach</th>
                   <th className="r">WMS</th>
                   <th>Decides</th>
                 </tr>

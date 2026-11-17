@@ -39,7 +39,7 @@ const POOLS = {
 };
 const OVH = [
   { id: "equip", name: "Machinery (forklifts, high reach, order pickers)", src: "Xero: equipment lease, repairs & maintenance", amount: 14500, driver: "Pallet moves", unit: "move", total: 3100 },
-  { id: "soft", name: "Software (WMS, Dyspatch, Xero, Front)", src: "Xero: subscriptions", amount: 11200, driver: "Orders", unit: "order", total: 98000 },
+  { id: "soft", name: "Software (WMS, Dyspach, Xero, Front)", src: "Xero: subscriptions", amount: 11200, driver: "Orders", unit: "order", total: 98000 },
   { id: "admin", name: "Admin & management", src: "Xero: admin wages, insurance, office, utilities", amount: 52000, driver: "Labour minutes used", unit: "minute", total: null }
 ];
 const SERVICES = [

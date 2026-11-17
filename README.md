@@ -7,7 +7,7 @@ Clickable demo with made-up data: `docs/demo/index.html`.
 **Stack:** Next.js (TypeScript) · PostgreSQL + Prisma 7 · pg-boss · same foundation as the FA Accounts Hub
 (sign-in with 2FA, users, company, branding, layout).
 
-**Rules:** Xero, the WMS, Front and Dyspatch are **read-only** (the only exception: report emails sent through Front).
+**Rules:** Xero, the WMS, Front and Dyspach are **read-only** (the only exception: report emails sent through Front).
 Keys live only in `.env`, never in the repo. Costs, margins and pay are internal. No made-up numbers: until a source is
 connected, a page says "no data yet".
 
@@ -19,7 +19,7 @@ connected, a page says "no data yet".
 | 2 | Settings and logs: rules, sites, clients, suppliers, staff & allocation matrix, services & minutes, cost pools, Xero account and WMS code mapping; Logs on every value; CSV import | ✅ |
 | 3 | Data sources: WMS file imports (Thomax, 3PLWMS, Logiwa) with column mapping, overlap and duplicate checks; Xero read (accounts, contacts, sales lines since 2021, monthly P&L, AU Payroll); Front tickets per client; nightly jobs. Thomax API waits for Thomax's API details | ✅ |
 | 4 | Cost engine (TDABC / Full absorption, unused capacity by resource, cost per order B2C / B2B) + Cost & margin pages with every number opening its calculation; client rates until CLM | ✅ |
-| 5 | Leakage (under-billing per service via Xero item codes, weekly minimums, under-pricing, rate checks with Dyspatch / WMS exports, log + import), rate review (calendar, stages, workbench), tasks verified on resolve, notifications after syncs | ✅ |
+| 5 | Leakage (under-billing per service via Xero item codes, weekly minimums, under-pricing, rate checks with Dyspach / WMS exports, log + import), rate review (calendar, stages, workbench), tasks verified on resolve, notifications after syncs | ✅ |
 | 6 | Reports (screen = PDF, Front email: dry run / draft / auto, schedules, pre-send brake), Contacts & recipients, Finance (P&L, cash & debt, working capital, concentration, bank pack with approval; Xero balance sheet + bills read), KPI (targets in Rules, site filter, scorecard), Improvements & savings (idea → initiative, proposed calculation and plan, steps → tasks, roadmap) | ✅ |
 | 7 | Main Overview dashboard (incl. provisional break-even), API connections (connected systems, keys we give out, /api/v1), tests, hosting notes (docs/HOSTING.md, docs/API.md) | ✅ |
 

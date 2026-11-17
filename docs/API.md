@@ -25,12 +25,12 @@ Errors are JSON `{ "error": "..." }`: 401 = no / unknown / revoked / expired key
 `POST /tasks` body:
 
 ```json
-{ "title": "Check new rates in Dyspatch", "detail": "Signed 24/10", "owner": "Asal Artikbaeva", "due": "2026-11-01",
+{ "title": "Check new rates in Dyspach", "detail": "Signed 24/10", "owner": "Asal Artikbaeva", "due": "2026-11-01",
   "link": "https://clm.example/contract/123", "clientId": "…", "by": "person in your app", "externalId": "contract-123-rates" }
 ```
 
 `externalId` makes the call safe to repeat: while a task with the same id is open, no second one is made. The task shows
 the key's name as "Where", and Logs record the key's name (plus `by`).
 
-Rules: read-only except `tasks:write`; nothing here writes to Xero, Front, Dyspatch or the WMS; pay by person is never
+Rules: read-only except `tasks:write`; nothing here writes to Xero, Front, Dyspach or the WMS; pay by person is never
 returned. Every call updates the key's "last used" and call count.

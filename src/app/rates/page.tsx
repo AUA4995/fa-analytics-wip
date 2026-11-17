@@ -58,14 +58,22 @@ function Calendar({ clients, reviews }: { clients: Awaited<ReturnType<typeof pri
         if (j >= 0 && j < 12 && a < c.renewalDate) ev.push({ k: j, type: "CPI", label: `CPI on the anniversary ${au(a)}` });
       }
     }
-    for (const m of months) if (m.getUTCMonth() === 6) ev.push({ k: idx(m), type: "CARRIER", label: "AusPost July increase → postage rates (Dyspatch SELL cards)" });
+    for (const m of months) if (m.getUTCMonth() === 6) ev.push({ k: idx(m), type: "CARRIER", label: "AusPost July increase → postage rates (Dyspach SELL cards)" });
     for (const r of reviews.filter((x) => x.clientId === c.id && x.due)) {
       const i = idx(r.due!);
       if (i >= 0 && i < 12) ev.push({ k: i, type: r.type, label: `${TYPES[r.type][0]} · due ${au(r.due)} · ${STAGES[r.stage]}`, id: r.id });
     }
     return { c, ev };
   });
-  if (!clients.length) return <EmptyState title="No clients yet">Add clients in Settings → Clients.</EmptyState>;
+  if (!clients.length)
+    return (
+      <>
+        <p className="meta">
+          <NotConnected source="clm" />
+        </p>
+        <EmptyState title="No clients yet">Add clients in Settings → Clients.</EmptyState>
+      </>
+    );
   return (
     <>
       <div className="row small" style={{ marginBottom: 8 }}>

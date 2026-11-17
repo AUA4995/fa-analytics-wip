@@ -308,9 +308,9 @@ function ContractsSection() {
           <Pill tone="grey">not connected</Pill> CLM is the master for client rates. It connects with an API key once CLM gives one out; then rates, renewal dates and review clauses are read from it (Rate review calendar).
         </p>
       </Card>
-      <Card title="Dyspatch rate export">
+      <Card title="Dyspach rate export">
         <p className="small" style={{ marginTop: 0 }}>
-          <Pill tone="grey">not connected</Pill> No confirmed API yet (ask Varun). A rate export file can be loaded here for the CLM vs Dyspatch vs WMS rate checks (Leakage, chunk 5).
+          <Pill tone="grey">not connected</Pill> No confirmed API yet (ask Varun). A rate export file can be loaded here for the CLM vs Dyspach vs WMS rate checks (Leakage, chunk 5).
         </p>
       </Card>
     </div>

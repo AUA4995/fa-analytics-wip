@@ -137,7 +137,7 @@ export function Workbench({ clientId, lines, reviewId, saved, floor, ticketsCost
           Send schedule of rates to CLM
         </button>
         <span className="pill p-amber">Coming soon</span>
-        <span className="meta">Will create an amendment draft in CLM (rates only — costs never leave FA). Nothing changes in Dyspatch, the WMS or Xero.</span>
+        <span className="meta">Will create an amendment draft in CLM (rates only — costs never leave FA). Nothing changes in Dyspach, the WMS or Xero.</span>
       </div>
     </div>
   );

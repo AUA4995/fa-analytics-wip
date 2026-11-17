@@ -11,7 +11,7 @@ function rrEvents(c) {
   if (c.lines?.some?.(l => l.marginPctT != null && l.marginPctT < 0)) ev.push([1, "adh"]);
   return ev;
 }
-let RRSTAGES = ["Preparing", "Analysis", "Proposal", "Client negotiation", "Signed", "Rates in WMS & Dyspatch", "Checked on first invoice"];
+let RRSTAGES = ["Preparing", "Analysis", "Proposal", "Client negotiation", "Signed", "Rates in WMS & Dyspach", "Checked on first invoice"];
 let RRLIST = [
   { client: "mwu", type: "adh", stage: 2, owner: "Paul", due: "14/11/2026", note: "Order fee, pallet receiving and returns below cost" },
   { client: "11mode", type: "ren", stage: 0, owner: "Asal", due: "15/12/2026", note: "Renewal; returns rate mismatch to settle first" },
@@ -36,7 +36,7 @@ function rrHTML(type, id) {
   const M = model();
   if (type === "rrev") { const [cid, t, k] = id.split("|"), c = M.clients.find(x => x.id === cid);
     return `<h3>${esc(c.short)} · ${RR_TYPES[t][0]}</h3><dl class="dl"><dt>Month</dt><dd>${RR_MONTHS[+k]}</dd><dt>Contract renews</dt><dd>${c.renew}</dd><dt>Current margin (TDABC)</dt><dd>${pct(c.marginT)}</dd></dl>
-    <div class="callout">${t === "cpi" ? "Index rates by CPI on the contract anniversary (CLM holds the clause)." : t === "car" ? "Pass the carrier's July increase through to postage rates (Dyspatch SELL cards)." : t === "ren" ? "Full rate review before renewal: cost, margin, volumes, new schedule of rates." : "Started because a service is priced below cost."}</div>
+    <div class="callout">${t === "cpi" ? "Index rates by CPI on the contract anniversary (CLM holds the clause)." : t === "car" ? "Pass the carrier's July increase through to postage rates (Dyspach SELL cards)." : t === "ren" ? "Full rate review before renewal: cost, margin, volumes, new schedule of rates." : "Started because a service is priced below cost."}</div>
     <div class="row"><button class="btn primary" data-review="${cid}">Open in Workbench</button></div>`; }
   if (type === "rrp") { const r = RRLIST.find(x => x.client === id), c = M.clients.find(x => x.id === id);
     return `<h3>${esc(c.short)} · ${RR_TYPES[r.type][0]}</h3><dl class="dl"><dt>Stage</dt><dd><select data-rrstage="${id}" aria-label="Stage">${RRSTAGES.map((s, k) => `<option value="${k}" ${k === r.stage ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></dd><dt>Owner</dt><dd>${esc(r.owner)}</dd><dt>Due</dt><dd>${r.due}</dd><dt>Note</dt><dd>${esc(r.note)}</dd><dt>Margin now</dt><dd>${pct(c.marginT)} (TDABC)</dd></dl>

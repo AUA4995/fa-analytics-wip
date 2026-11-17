@@ -3,6 +3,7 @@ import { Sparkline, TargetLine } from "@/components/charts/charts";
 import { Card } from "@/components/ui/card";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
 import { PageHeader } from "@/components/ui/page-header";
+import { NotConnected } from "@/components/ui/not-connected";
 import { parsePanel } from "@/components/ui/panel";
 import { Pill } from "@/components/ui/pill";
 import { parseSection } from "@/components/ui/sections";
@@ -69,6 +70,11 @@ export default async function KpiPage({ searchParams }: { searchParams: Promise<
           </div>
         }
       />
+      {section === "people" && (
+        <p className="meta" style={{ margin: "0 0 10px" }}>
+          <NotConnected source="siena" />
+        </p>
+      )}
       {section === "overview" ? <Overview rows={rows} card={card} q={q} /> : <Tiles rows={rows.filter((r) => r.k.group === section)} q={q} site={site} />}
       {open && <KpiPanel r={open} d={d} site={site} />}
     </WithSubNav>

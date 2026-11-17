@@ -69,7 +69,7 @@ export async function runCheck(v: Verify | null): Promise<CheckResult> {
     }
     case "client-tenant": {
       const c = await prisma.client.findUnique({ where: { id: v.clientId } });
-      return c && (c.dyspatchCustomerId || c.thomaxTenantId || c.logiwaClientId || c.p3lClientId) ? { ok: true, message: "Confirmed: WMS / Dyspatch ID set", via: "Analytics" } : { ok: false, message: "Check failed: no WMS or Dyspatch ID on the client yet", via: "Analytics" };
+      return c && (c.dyspatchCustomerId || c.thomaxTenantId || c.logiwaClientId || c.p3lClientId) ? { ok: true, message: "Confirmed: WMS / Dyspach ID set", via: "Analytics" } : { ok: false, message: "Check failed: no WMS or Dyspach ID on the client yet", via: "Analytics" };
     }
     case "client-xero": {
       const c = await prisma.client.findUnique({ where: { id: v.clientId } });

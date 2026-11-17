@@ -42,16 +42,16 @@ function pLeakOverview(M) {
   <div class="kpis"><button class="kpi" data-goto="leakage|Under-billing"><div class="l">Found</div><div class="v">${m0(tot)}</div><div class="s">a month while unfixed</div></button>
     <button class="kpi green" data-goto="leakage|Leakage log"><div class="l">Recovered</div><div class="v">${m0(rec)}</div><div class="s">billed by hand in Xero</div></button>
     <button class="kpi red" data-goto="leakage|Under-billing"><div class="l">Open</div><div class="v">${LEAK.filter(L => L.status === "Open").length}</div><div class="s">need a decision</div></button>
-    <button class="kpi" data-goto="leakage|Rate checks"><div class="l">Rate mismatches</div><div class="v">${Object.keys(DYSPATCH_RATE).length + Object.keys(WMS_RATE).length}</div><div class="s">CLM vs Dyspatch vs WMS</div></button></div>
+    <button class="kpi" data-goto="leakage|Rate checks"><div class="l">Rate mismatches</div><div class="v">${Object.keys(DYSPATCH_RATE).length + Object.keys(WMS_RATE).length}</div><div class="s">CLM vs Dyspach vs WMS</div></button></div>
   <div class="grid2"><div class="card"><h2>By type</h2>${Object.entries(types).map(([k, v]) => `<div class="catbar"><span>${esc(k)}</span><span class="track"><i style="width:${v / mx * 100}%"></i></span><span class="num small">${m0(v)}</span></div>`).join("")}<h2 style="margin-top:14px">By status</h2><div class="chips">${Object.entries(stats).map(([k, v]) => `${stPill(k)} <span class="small">${v}</span>`).join(" ")}</div></div>
   <div class="card"><h2>Top 5 open</h2><div class="tw"><table><tbody>${LEAK.filter(L => L.status !== "Recovered").sort((a, b) => leakAmount(b, M) - leakAmount(a, M)).slice(0, 5).map(L => `<tr class="clickable" data-leak="${L.id}"><td class="sup">${esc(cl(L.client).short)}<div class="meta">${esc(L.cause)}</div></td><td class="r num">${money(leakAmount(L, M))}</td><td>${stPill(L.status)}</td></tr>`).join("")}</tbody></table></div></div></div>
-  <div class="callout">This app never changes Xero, Dyspatch or the WMS. A person decides, and a task is created to fix the other system by hand.</div>`;
+  <div class="callout">This app never changes Xero, Dyspach or the WMS. A person decides, and a task is created to fix the other system by hand.</div>`;
 }
 
 /* ===== Notifications ===== */
 let NOTIFS = [
   { id: "n1", kind: "staff", src: "Thomax", when: "23/10/2026 02:00", text: "New staff member in Thomax: J. Tran (code JTR04, Smithfield)", data: { name: "J. Tran", site: "smi", codes: { thomax: "JTR04", p3l: "", logiwa: "" } } },
-  { id: "n2", kind: "client", src: "Dyspatch export", when: "22/10/2026 16:20", text: "New client in Dyspatch: Peppr Foods (Customer ID 10458)", data: { name: "Peppr Foods", dyspatch: "10458" } },
+  { id: "n2", kind: "client", src: "Dyspach export", when: "22/10/2026 16:20", text: "New client in Dyspach: Peppr Foods (Customer ID 10458)", data: { name: "Peppr Foods", dyspatch: "10458" } },
   { id: "n3", kind: "supplier", src: "Xero", when: "22/10/2026 02:00", text: "New supplier in Xero: Bubble Pack Supplies Pty Ltd", data: { name: "Bubble Pack Supplies Pty Ltd" } }
 ];
 let CLIENTS_EXTRA = [], SUPPLIERS = [
@@ -68,7 +68,7 @@ function notifHTML() {
 function addNotifHTML(id) {
   const n = NOTIFS.find(x => x.id === id), d = n.data;
   if (n.kind === "staff") return `<h3>Add staff member</h3><p class="small muted">Pre-filled from ${esc(n.src)}. Complete the rest.</p>${staffForm(d)}<div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
-  if (n.kind === "client") return `<h3>Add client</h3><p class="small muted">Pre-filled from ${esc(n.src)}.</p><div class="formgrid"><label for="nc-n">Name</label><input id="nc-n" type="text" value="${esc(d.name)}"><label for="nc-s">Site</label><select id="nc-s"><option value="smi">Smithfield</option><option value="par">Parramatta</option></select><label for="nc-t">Type</label><select id="nc-t"><option>B2C</option><option>B2B</option><option>Mixed</option></select><label for="nc-st">Status</label><select id="nc-st"><option>Active</option><option>One-off services</option></select><label>Dyspatch Customer ID</label><input type="text" value="${esc(d.dyspatch)}" disabled></div><div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
+  if (n.kind === "client") return `<h3>Add client</h3><p class="small muted">Pre-filled from ${esc(n.src)}.</p><div class="formgrid"><label for="nc-n">Name</label><input id="nc-n" type="text" value="${esc(d.name)}"><label for="nc-s">Site</label><select id="nc-s"><option value="smi">Smithfield</option><option value="par">Parramatta</option></select><label for="nc-t">Type</label><select id="nc-t"><option>B2C</option><option>B2B</option><option>Mixed</option></select><label for="nc-st">Status</label><select id="nc-st"><option>Active</option><option>One-off services</option></select><label>Dyspach Customer ID</label><input type="text" value="${esc(d.dyspatch)}" disabled></div><div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
   return `<h3>Add supplier</h3><p class="small muted">Pre-filled from ${esc(n.src)}.</p><div class="formgrid"><label for="ns-n">Name</label><input id="ns-n" type="text" value="${esc(d.name)}"><label for="ns-p">Cost pool</label><select id="ns-p">${["Packaging", "Labour hire", "Rent", "Equipment", "Automation", "Software", "Admin"].map(o => `<option>${o}</option>`).join("")}</select><label for="ns-f">Fixed or variable</label><select id="ns-f"><option>Variable</option><option>Fixed</option></select><label for="ns-r">Passed through to a client</label><select id="ns-r"><option value="0">No · FA cost</option><option value="1">Yes · rebilled</option></select></div><div class="row"><button class="btn primary" data-savenotif="${id}">Save</button></div>`;
 }
 function staffForm(d = {}) {
@@ -96,7 +96,7 @@ function pRules() {
   return Object.entries(groups).map(([g, ks]) => `<div class="card"><h2>${esc(g)}</h2><p class="sub">Same values as in the details panels; a change here or there updates both and is logged.</p><dl class="dl setdl">${ks.map(k => setRow(k)).join("")}</dl></div>`).join("");
 }
 function pClientsSet() {
-  const all = [...CLIENTS.map(c => ({ name: c.name, site: SITES[c.site], type: c.type, st: "Active", cmc: c.cmc, ids: `Xero ✓ · Dyspatch ✓ · Thomax ✓ · Logiwa —`, id: c.id })), ...CLIENTS_EXTRA];
+  const all = [...CLIENTS.map(c => ({ name: c.name, site: SITES[c.site], type: c.type, st: "Active", cmc: c.cmc, ids: `Xero ✓ · Dyspach ✓ · Thomax ✓ · Logiwa —`, id: c.id })), ...CLIENTS_EXTRA];
   return `<div class="card"><h2>Clients</h2><p class="sub">Status, site, type, IDs in each system, CLM contract, weekly minimum, packing method. New clients arrive as notifications.</p><div class="tw"><table><thead><tr><th>Client</th><th>Status</th><th>Site</th><th>Type</th><th>CMC share</th><th>IDs</th><th>CLM</th></tr></thead><tbody>
   ${all.map(c => `<tr ${c.id ? `class="clickable" data-client="${c.id}"` : ""}><td class="sup">${esc(c.name)}</td><td><span class="pill ${c.st === "Active" ? "p-green" : "p-grey"}">${esc(c.st)}</span></td><td>${esc(c.site)}</td><td>${esc(c.type)}</td><td class="num">${c.cmc != null ? pct(c.cmc, 0) : "—"}</td><td class="meta">${esc(c.ids)}</td><td class="meta">${c.id ? "contract linked" : "not yet"}</td></tr>`).join("")}</tbody></table></div></div>`;
 }

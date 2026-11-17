@@ -2,12 +2,14 @@
 
 > **Current decision (02/11/2026, confirmed 11/11/2026):** Analytics runs locally — Asal's laptop for testing, then
 > the office Mac Mini behind a private connection (Sophos VPN or Tailscale). Not on Vercel, not on the internet.
-> Step-by-step: **docs/INSTALL-LOCAL.md**. The Docker notes below stay as an option for a server later.
+> Step-by-step: **docs/INSTALL-LOCAL.md** (install, backups, restore). The Docker notes below are only an option for
+> a private server inside the office later. In every case: **never reachable from the internet**, only from the office
+> network or the private connection; backups encrypted, one copy off-site (OneDrive) and one on the NAS.
 
 Same pattern as the Accounts Hub: one Next.js app + one PostgreSQL database, deployed from GitHub
 (`AUA4995/FA-Analytics`, branch `main`). Its **own database** — not the Hub's.
 
-## Why Docker (a long-running server), not Vercel
+## Why a long-running server, not Vercel
 
 The app runs background jobs inside the server process (pg-boss, stored in the same database):
 
@@ -19,8 +21,8 @@ The app runs background jobs inside the server process (pg-boss, stored in the s
 | `thomax-nightly` | 02:15 daily | Thomax copy: master tables in full + the last N days of every other table |
 | `thomax-history` | 20:05, then step by step until 06:00 | Thomax history load, month by month, until it reaches today |
 
-Serverless hosting (Vercel) stops the process between requests, so these would never run. Use Docker on the FA
-server / a VM (or any host that keeps one container running). **Run exactly one container** — two would both send
+Serverless hosting (Vercel) stops the process between requests, so these would never run. Use a computer that keeps
+the app running (the laptop for testing, then the office Mac Mini; Docker on an office server is also possible). **Run exactly one container** — two would both send
 the scheduled reports. (`JOBS_DISABLED=1` turns the jobs off on any extra instance.)
 
 ## 1. Database
@@ -32,9 +34,10 @@ CREATE USER fa_analytics WITH PASSWORD '…';
 CREATE DATABASE fa_analytics OWNER fa_analytics;
 ```
 
-Migrations run automatically when the container starts (`prisma migrate deploy`). Nightly backups (`pg_dump`) as for
-the Hub; the data that can't be re-read from Xero / WMS is the cost-model settings, rates, debt schedule, KPI targets,
-improvements, reports, recipients and logs.
+Migrations run with `npm run db:deploy` (Docker: automatically when the container starts). Daily **encrypted** backups
+with one copy off-site and one on the NAS — see docs/INSTALL-LOCAL.md section 6. The data that can't be re-read from
+Xero / WMS is the cost-model settings, rates, debt schedule, KPI targets, improvements, revenue protection cases,
+reports, recipients, logs — and the Thomax archive after Thomax ends.
 
 ## 2. Environment variables
 
@@ -43,7 +46,7 @@ Copy `.env.example` → `.env` on the server (never commit it). Required:
 | Variable | Notes |
 |---|---|
 | `DATABASE_URL` | `postgresql://fa_analytics:…@host:5432/fa_analytics?schema=public` |
-| `APP_URL` | public address, e.g. `https://analytics.fulfilmentaustralia.com.au` (used in email links and the Xero redirect) |
+| `APP_URL` | the address people open: `http://localhost:3002` on the laptop, the Mac Mini's private address later (used in email links and the Xero redirect). Never a public address |
 | `TOKEN_ENCRYPTION_KEY` | 32 random bytes base64 — `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Encrypts Xero tokens. Keep it forever (changing it = reconnect Xero) |
 | `AUTH_SECRET` | another random 32+ characters. Changing it = everyone sets up 2FA again |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | a **separate Xero app for Analytics** (developer.xero.com), read-only scopes |
@@ -62,7 +65,8 @@ docker build -t fa-analytics .
 docker run -d --name fa-analytics --restart unless-stopped --env-file .env -p 3002:3000 fa-analytics
 ```
 
-Put it behind the same HTTPS reverse proxy as the Hub (Caddy / nginx / IIS) on its own host name. Health check:
+Reach it only inside the office network or through the private connection (Sophos VPN / Tailscale) — no public host
+name, no port opened on the firewall. Health check:
 `GET /api/health` → `{"ok":true,"db":"up"}` (also used by Docker's HEALTHCHECK).
 
 **Update:** `git pull && docker build -t fa-analytics . && docker rm -f fa-analytics && docker run …` (same command).
@@ -85,4 +89,4 @@ out** — see `docs/API.md`. `/api/v1/*` needs a key, not a sign-in.
 
 ## 6. What the app writes outside itself
 
-Only report emails and drafts through Front. Xero, Dyspatch, WMS and Front data are read-only.
+Only report emails and drafts through Front. Xero, Dyspach, WMS and Front data are read-only.

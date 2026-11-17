@@ -23,10 +23,10 @@ export const SOURCES: ReadonlyArray<SourceDef> = [
     key: "hub",
     name: "Accounts Hub",
     owner: "Asal",
-    reads: "Billing calendar, payment terms, AP/AR status, cost classification. Read-only API key.",
+    reads: "Billing calendar, payment terms, AP/AR status, cost classification. Read-only API key. (The other way round, the Hub reads missed-billing results from Analytics — decision 11/11/2026.)",
     affects: [
       { where: "SLA → billing on time", href: "/operations?section=sla", until: "not measured yet" },
-      { where: "Leakage → missed billing results for the Hub", href: "/leakage", until: "the Hub reads them from Analytics (decision 11/11/2026)" },
+      { where: "Leakage → billing calendar and payment terms per client", href: "/leakage", until: "terms entered in Settings → Clients" },
     ],
     needs: "A read-only key from the Hub (Settings → API keys) once the Hub is live.",
   },
@@ -57,7 +57,6 @@ export const SOURCES: ReadonlyArray<SourceDef> = [
     reads: "Rosters and leave (staffing), CAR numbers and status (no staff names).",
     affects: [
       { where: "KPI → People", href: "/kpi?section=people", until: "Xero Payroll hours" },
-      { where: "Revenue protection → CAR links", href: "/", until: "CAR number typed on the case" },
     ],
     needs: "Access to the HR app repo and a read-only key from Marcus.",
   },

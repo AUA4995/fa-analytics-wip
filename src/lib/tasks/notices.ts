@@ -63,7 +63,7 @@ export async function addFromNotification(id: string, form: Record<string, strin
   } else if (n.kind === "NEW_CLIENT") {
     const c = await prisma.client.create({ data: { name: p.name, shortName: form.shortName || null, xeroContactId: p.xeroId, sites: form.site ? [form.site] : [] } });
     await logChange({ entity: "client", entityId: c.id, field: "_created", oldValue: null, newValue: { from: "Xero", name: c.name }, actor });
-    await createTask({ title: `Link ${c.name} to its WMS tenant / Dyspatch ID`, where: "Analytics", link: `/settings?section=clients&panel=client:${c.id}`, clientId: c.id, source: `client-tenant:${c.id}`, verify: { type: "client-tenant", clientId: c.id } });
+    await createTask({ title: `Link ${c.name} to its WMS tenant / Dyspach ID`, where: "Analytics", link: `/settings?section=clients&panel=client:${c.id}`, clientId: c.id, source: `client-tenant:${c.id}`, verify: { type: "client-tenant", clientId: c.id } });
     await createTask({ title: `Rates for ${c.name}`, detail: "From CLM once connected; until then enter them in Settings → Clients.", where: "Analytics", link: `/settings?section=clients&panel=client:${c.id}`, clientId: c.id, source: `client-rates:${c.id}`, verify: { type: "client-rates", clientId: c.id } });
     tasks += 2;
   } else if (n.kind === "NEW_TENANT") {
@@ -78,7 +78,7 @@ export async function addFromNotification(id: string, form: Record<string, strin
       c = await prisma.client.create({ data: { name, [field]: p.tenant } });
       await logChange({ entity: "client", entityId: c.id, field: "_created", oldValue: null, newValue: { from: "WMS tenant", tenant: p.tenant }, actor });
       await createTask({ title: `Create the Xero contact for ${name}`, where: "Xero", link: "https://go.xero.com/Contacts/", clientId: c.id, source: `xero-contact:${c.id}`, verify: { type: "xero-contact", name } });
-      await createTask({ title: `Set up ${name} in Dyspatch`, detail: "Customer ID must equal the WMS tenant ID. No Dyspatch API yet — close by hand.", where: "Dyspatch", clientId: c.id, source: `dyspatch:${c.id}` });
+      await createTask({ title: `Set up ${name} in Dyspach`, detail: "Customer ID must equal the WMS tenant ID. No Dyspach API yet — close by hand.", where: "Dyspach", clientId: c.id, source: `dyspatch:${c.id}` });
       await createTask({ title: `Link ${name} to its Xero contact`, where: "Analytics", link: `/settings?section=clients&panel=client:${c.id}`, clientId: c.id, source: `client-xero:${c.id}`, verify: { type: "client-xero", clientId: c.id } });
       tasks += 3;
     }

@@ -29,7 +29,7 @@ export async function runDetectionAction(): Promise<LeakState> {
   }
 }
 
-/** Create a task to fix it by hand (the app never changes Xero, Dyspatch or the WMS). */
+/** Create a task to fix it by hand (the app never changes Xero, Dyspach or the WMS). */
 export async function leakTaskAction(id: string, owner: string): Promise<LeakState> {
   const me = await assertUser();
   const l = await prisma.leakageItem.findUniqueOrThrow({ where: { id } });

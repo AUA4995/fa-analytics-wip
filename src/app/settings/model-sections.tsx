@@ -73,7 +73,7 @@ export async function RulesSection({ canEdit }: { canEdit: boolean }) {
 export async function ClientsSection({ canEdit }: { canEdit: boolean }) {
   const clients = await prisma.client.findMany({ orderBy: [{ status: "asc" }, { name: "asc" }] });
   return (
-    <Card title={`Clients · ${clients.length}`} sub="IDs link the same client across Xero, Dyspatch, the WMS and Front. Click a client for all its settings.">
+    <Card title={`Clients · ${clients.length}`} sub="IDs link the same client across Xero, Dyspach, the WMS and Front. Click a client for all its settings.">
       <div className="row" style={{ marginBottom: 10 }}>
         {canEdit && (
           <AddForm
@@ -87,7 +87,7 @@ export async function ClientsSection({ canEdit }: { canEdit: boolean }) {
           />
         )}
         {canEdit && <CsvImport entity="client" columns={cols("client")} />}
-        <span className="meta">Clients new in Xero, Dyspatch or the WMS will appear as notifications once Data sources are connected.</span>
+        <span className="meta">Clients new in Xero, Dyspach or the WMS will appear as notifications once Data sources are connected.</span>
       </div>
       {!clients.length ? (
         <p className="empty">No clients yet. Add them, import a CSV, or wait for the Xero / WMS sync.</p>
@@ -101,7 +101,7 @@ export async function ClientsSection({ canEdit }: { canEdit: boolean }) {
                 <th>Type</th>
                 <th>Sites</th>
                 <th>Xero</th>
-                <th>Dyspatch / WMS tenant</th>
+                <th>Dyspach / WMS tenant</th>
                 <th className="r">Weekly minimum</th>
                 <th className="r">CMC share</th>
               </tr>

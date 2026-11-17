@@ -2,9 +2,9 @@ import { prisma } from "@/lib/db";
 import { parseCsv } from "@/lib/model/csv";
 
 /**
- * Rate checks (brief §7): the same client rate as CLM (or Settings until CLM connects), Dyspatch and the WMS hold it.
+ * Rate checks (brief §7): the same client rate as CLM (or Settings until CLM connects), Dyspach and the WMS hold it.
  * The app only shows match / don't match; a person decides which is right; fixing another system is a task done by
- * hand. Dyspatch and WMS rates arrive as uploaded exports until their APIs are available.
+ * hand. Dyspach and WMS rates arrive as uploaded exports until their APIs are available.
  */
 
 export type RateSource = "DYSPATCH" | "WMS";

@@ -21,7 +21,7 @@ export const DEFAULT_POOLS = [
   { key: "automation_cmc", name: "Automation · CMC CartonWrap", kind: "OVERHEAD", site: null, driver: "MACHINE_ORDERS", description: "Lease, service, cartons — orders that go through the machine (rule F still open)" },
   { key: "automation_sort", name: "Automation · Opex Sure Sort", kind: "OVERHEAD", site: null, driver: "MACHINE_ORDERS", description: "Orders that go through the sorter" },
   { key: "packaging", name: "Packaging materials", kind: "OVERHEAD", site: null, driver: "ORDERS_PACKED", description: "Per order packed (rule H: actual per client — open)" },
-  { key: "software", name: "Software & systems", kind: "OVERHEAD", site: null, driver: "ORDERS", description: "WMS, Dyspatch, subscriptions" },
+  { key: "software", name: "Software & systems", kind: "OVERHEAD", site: null, driver: "ORDERS", description: "WMS, Dyspach, subscriptions" },
 ] as const;
 
 export async function ensureModelDefaults(db: PrismaClient): Promise<number> {

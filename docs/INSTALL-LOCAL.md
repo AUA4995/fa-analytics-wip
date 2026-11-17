@@ -5,7 +5,7 @@ Windows work laptop. Later the plan is the office Mac Mini (always on) with priv
 Tailscale) — see the last section. Docker is **not** needed (the work laptop can't run it).
 
 The app is one Next.js server plus one PostgreSQL database. The nightly jobs (Xero 05:30, Front 05:45, Thomax 02:15,
-Thomax history 20:00–06:00, report emails hourly) run **inside** the server, so they only run while the app is
+Thomax history 20:05–06:00, report emails hourly) run **inside** the server, so they only run while the app is
 running and the computer is awake. On a laptop that sleeps at night, press the **Sync now** buttons in the morning.
 
 ## 1. What you need (once)
@@ -26,7 +26,9 @@ running and the computer is awake. On a laptop that sleeps at night, press the *
    CREATE DATABASE fa_analytics OWNER fa_analytics;
    ```
 3. Settings file: `copy .env.example .env`, then open `.env` in Notepad and fill in:
-   - `DATABASE_URL` — the password from step 2.
+   - `DATABASE_URL` — the password from step 2. If the password has any of `@ : / # % ?` in it, it must be
+     URL-encoded (e.g. `@` → `%40`), or simply choose a password with only letters and digits.
+   - `APP_URL` — leave `http://localhost:3002` on the laptop.
    - `TOKEN_ENCRYPTION_KEY` and `AUTH_SECRET` — two different random values. Make each with
      `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. **Keep them forever** (losing
      `TOKEN_ENCRYPTION_KEY` means reconnecting Xero and re-entering the Thomax password). Save a copy in the password
@@ -39,8 +41,10 @@ running and the computer is awake. On a laptop that sleeps at night, press the *
    npm.cmd run db:seed
    npm.cmd run build
    ```
+   If the build stops with a "security" notice, just run `npm.cmd run build` again.
 5. Start: double-click `scripts\windows\start.cmd` (keep that window open), then open http://localhost:3002.
-   The first visit goes to **/setup** to create the owner account, then two-step sign-in.
+   The first visit goes to **/setup** to create the owner account, then two-step sign-in — have an authenticator app
+   (Microsoft or Google Authenticator) on your phone ready to scan the QR code.
 
 ## 3. Every day
 
@@ -67,25 +71,44 @@ Keys go into `.env` on your computer only — never into the repo or a chat. Res
 
 If a step fails, the script stops and nothing is started; send the message it shows.
 
-## 6. Backups (daily, encrypted, off-site)
+## 6. Backups (daily, encrypted, one copy off-site, one on the NAS)
 
 The data that can't be re-read from Xero / Thomax is the cost-model settings, rates, targets, improvements, revenue
 protection cases, reports and logs — and, after Thomax ends on 31/05/2027, the **Thomax archive itself**.
 
-1. Set three Windows user environment variables (Start → "Edit environment variables for your account"):
-   - `FA_BACKUP_DIR` — a folder inside OneDrive (that is the off-site copy).
+1. Database password file (so the password isn't kept in an environment variable): create the folder
+   `%APPDATA%\postgresql` and in it a text file `pgpass.conf` with one line:
+   `localhost:5432:*:fa_analytics:THE-DATABASE-PASSWORD`
+2. Set three Windows user environment variables (Start → "Edit environment variables for your account"):
+   - `FA_BACKUP_DIR` — a folder inside OneDrive (the off-site copy).
+   - `FA_BACKUP_NAS_DIR` — a folder on the office NAS (the on-site copy), e.g. `\\SMITHFIELD-NAS\Backups\Analytics`.
    - `FA_BACKUP_PASSPHRASE` — a long passphrase; keep it in the password manager (Asal + Marcus). Without it a backup
      can't be opened.
-   - `PGPASSWORD` — the `fa_analytics` database password.
-2. Task Scheduler → Create Basic Task → Daily (e.g. 13:00, when the laptop is on) → `scripts\windows\backup.cmd`.
-3. It keeps the last 30 daily backups.
+3. Task Scheduler → Create Basic Task → Daily (e.g. 13:00, when the laptop is on) → `scripts\windows\backup.cmd`.
+   Run it once by hand first and check both copies appear.
+4. Backups older than 30 days are deleted. `update.cmd` also takes a backup before every update.
 
-**Restore** (into an empty database):
-```powershell
-"C:\Program Files\Git\usr\bin\openssl.exe" enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in fa_analytics_YYYY-MM-DD_HHMM.dump.enc -out restore.dump -pass env:FA_BACKUP_PASSPHRASE
-pg_restore -h localhost -U fa_analytics -d fa_analytics --clean --if-exists restore.dump
-```
-Try a restore into a spare database once a month, so we know the backups work.
+### Monthly test restore (into a spare database — never the live one)
+
+Do this in **Command Prompt** (cmd), not PowerShell. The app can keep running; the live database isn't touched.
+
+1. Open SQL Shell (psql) as `postgres` and run: `CREATE DATABASE fa_restore_test OWNER fa_analytics;`
+2. In Command Prompt, go to the backup folder and decrypt the newest backup:
+   ```bat
+   cd /d "%FA_BACKUP_DIR%"
+   "C:\Program Files\Git\usr\bin\openssl.exe" enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in fa_analytics_YYYY-MM-DD_HHMMSS.dump.enc -out "%TEMP%\restore.dump" -pass env:FA_BACKUP_PASSPHRASE
+   "C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" -h localhost -U fa_analytics -d fa_restore_test "%TEMP%\restore.dump"
+   del "%TEMP%\restore.dump"
+   ```
+   (`del` matters: the decrypted file isn't encrypted.)
+3. Check it worked: in psql, `\c fa_restore_test` then `SELECT count(*) FROM "Client";` — it should match the app.
+4. Clean up: `DROP DATABASE fa_restore_test;`
+
+### Real restore (only if the live database is lost or broken)
+
+1. **Close the app window first.**
+2. Same as above, but restore into `fa_analytics` with `--clean --if-exists` added to `pg_restore`. This **replaces**
+   everything in the live database with the backup — anything entered after that backup is lost. Ask Claude if unsure.
 
 ## 7. Tests (developers only)
 

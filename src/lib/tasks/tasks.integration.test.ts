@@ -46,8 +46,8 @@ describe.skipIf(!hasDb)("tasks, notifications, leakage (integration)", () => {
     const rc = await recheckTasks();
     expect(rc.closed).toBeGreaterThanOrEqual(1);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).status).toBe("DONE");
-    const manual = await createTask({ title: `Set up ${T} in Dyspatch` });
-    expect((await resolveTask(manual.id, actor.name, "done in Dyspatch")).message).toBe("Confirmed by hand");
+    const manual = await createTask({ title: `Set up ${T} in Dyspach` });
+    expect((await resolveTask(manual.id, actor.name, "done in Dyspach")).message).toBe("Confirmed by hand");
   });
 
   it("notifies a new payroll employee once; Add to Analytics creates the staff member and a follow-up task", async () => {
