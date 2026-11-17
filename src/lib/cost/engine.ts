@@ -122,6 +122,8 @@ export interface PoolResult {
   rateF: number | null;
   unused: number;
   unitLabel: string;
+  /** Cost but no use measured from any client this month: Full absorption spreads it over all orders, TDABC = unused */
+  idle?: boolean;
 }
 export interface UnitCost {
   total: number;
@@ -297,6 +299,7 @@ export function runEngine(inp: EngineInput): EngineResult {
     const cost = parts.reduce((a, x) => a + x.amount, 0);
     let practical: number | null = null;
     let u = used.get(p.key) ?? 0;
+    const measured = u;
     let unitLabel = UNIT_LABEL[p.driver] ?? "unit";
     if (p.kind === "LABOUR" && p.driver === "MINUTES") {
       const util = p.site ? (s?.labourUtil ?? 0.85) : inp.rules.csrUtil;
@@ -320,8 +323,11 @@ export function runEngine(inp: EngineInput): EngineResult {
     const uEff = cap ? Math.min(u, cap) : u;
     const rateT = cap ? cost / cap : uEff > 0 ? cost / uEff : null;
     const rateF = uEff > 0 ? cost / uEff : null;
-    const unused = cap && rateT != null ? Math.max(0, cost - uEff * rateT) : 0;
-    return { key: p.key, name: p.name, kind: p.kind, site: p.site, driver: p.driver, cost: r2(cost), costParts: parts, practical: cap, used: uEff, usedPct: cap ? uEff / cap : null, rateT, rateF, unused: r2(unused), unitLabel };
+    // Nothing measured against any client (e.g. no storage volumes, CMC shares not set): no client carries it, so
+    // TDABC shows all of it as unused and Full absorption spreads it over all orders — never lost from the totals
+    const idle = cost > 0 && !(measured > 0) && !isClientDriver(p.driver) && p.driver !== "REVENUE";
+    const unused = idle ? cost : cap && rateT != null ? Math.max(0, cost - uEff * rateT) : 0;
+    return { key: p.key, name: p.name, kind: p.kind, site: p.site, driver: p.driver, cost: r2(cost), costParts: parts, practical: cap, used: uEff, usedPct: cap ? uEff / cap : null, rateT, rateF, unused: r2(unused), unitLabel, idle };
   });
   const pr = new Map(poolResults.map((p) => [p.key, p]));
   const rate = (k: string, v: Variant) => (v === "T" ? pr.get(k)?.rateT : pr.get(k)?.rateF) ?? 0;
@@ -388,10 +394,10 @@ export function runEngine(inp: EngineInput): EngineResult {
   const clientPools = poolResults.filter((p) => isClientDriver(p.driver) && p.cost > 0);
   // Full absorption spreads every dollar: a pool with cost but no measured use this month (e.g. a machine whose
   // orders aren't recorded yet) is spread over all orders in Full absorption; TDABC shows it as unused capacity.
-  const idlePools = poolResults.filter((p) => p.cost > 0 && !(p.used > 0) && !isClientDriver(p.driver) && p.driver !== "REVENUE");
+  const idlePools = poolResults.filter((p) => p.idle);
   const idleCost = idlePools.reduce((a, p) => a + p.cost, 0);
   for (const p of idlePools)
-    warnings.push(`${p.name}: no use measured this month — Full absorption spreads its ${money(p.cost, 0)} over all orders; TDABC shows it as unused capacity.`);
+    warnings.push(`${p.name}: no client use measured this month${p.driver === "PALLET_WEEKS" ? " (no storage volumes)" : ""} — Full absorption spreads its $${Math.round(p.cost).toLocaleString("en-AU")} over all orders; TDABC shows it as unused capacity.`);
   for (const p of clientPools) {
     if (p.driver === "TICKET_SCORE" && !totSupport) warnings.push(`${p.name}: no weighted ticket scores this month — spread by ${totRev ? "revenue" : "orders"} until there are (Data sources → Front → Recount).`);
     if (p.driver === "INVOICES_TICKETS" && !totInv && !totAcct) warnings.push(`${p.name}: no invoices or accounts tickets this month — spread by ${totRev ? "revenue" : "orders"} until there are.`);

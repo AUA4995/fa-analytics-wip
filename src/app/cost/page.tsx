@@ -219,7 +219,7 @@ function PoolsTable({ pools, variants }: { pools: PoolResult[]; variants: Varian
                 <td className="r">{p.usedPct != null ? <UBar pct={p.usedPct} /> : <span className="num">{num(p.used)}</span>}</td>
                 {variants.map((v) => (
                   <td key={v} className="r num">
-                    <strong>{aud(v === "T" ? p.rateT : p.rateF, 4)}</strong>
+                    {p.idle ? <span className="meta">{v === "F" ? "over all orders" : "no use measured"}</span> : <strong>{aud(v === "T" ? p.rateT : p.rateF, 4)}</strong>}
                   </td>
                 ))}
                 <td className="r num">{p.unused ? aud(p.unused, 0) : "—"}</td>

@@ -270,6 +270,21 @@ describe("cost engine", () => {
     expect(fB.lines.find((l) => l.code === "idle:automation_cmc")!.costF).toBeCloseTo(400);
     expect(fA.lines.find((l) => l.code === "idle:automation_cmc")!.costT).toBe(0);
     expect(r.base.F.all.cpo! - r.base.T.all.cpo!).toBeGreaterThan(1.99);
-    expect(r.warnings.some((w) => /CMC: no use measured/.test(w))).toBe(true);
+    expect(r.warnings.some((w) => /CMC: no client use measured/.test(w))).toBe(true);
+  });
+
+  it("round 6 — rent with no storage volumes (space use estimated) isn't lost: every dollar is in Full absorption, TDABC client costs + unused = total", () => {
+    const base = input();
+    const r = runEngine(input({ clients: base.clients.map((c) => ({ ...c, volumes: c.volumes.filter((v) => v.serviceCode !== "STO") })) }));
+    const rent = r.pools.find((p) => p.key === "rent_smi")!;
+    expect(rent.idle).toBe(true);
+    expect(rent.unused).toBe(4000);
+    const pools = r.pools.reduce((a, p) => a + p.cost, 0);
+    const clientsF = r.clients.reduce((a, c) => a + c.costF, 0);
+    const clientsT = r.clients.reduce((a, c) => a + c.costT, 0);
+    const unused = r.pools.reduce((a, p) => a + p.unused, 0);
+    expect(clientsF).toBeCloseTo(pools, 0);
+    expect(clientsT + unused).toBeCloseTo(pools, 0);
+    expect(r.warnings.some((w) => /Rent · Smithfield: no client use measured this month \(no storage volumes\)/.test(w))).toBe(true);
   });
 });
