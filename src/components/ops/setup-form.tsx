@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { saveOpsSetupAction } from "@/app/operations/actions";
 import type { FlowKey, OpsConfig, RoleKey } from "@/lib/ops/config";
 
@@ -9,10 +9,19 @@ type FlowInfo = Record<FlowKey, { title: string; defaultTable: string; roles: Re
 /** Operations → Setup: pick, per flow, the Thomax table and which of its fields mean client / created / done … */
 export function OpsSetupForm({ cfg, info, tables }: { cfg: OpsConfig; info: FlowInfo; tables: Array<{ name: string; label: string; fields: string[] }> }) {
   const [state, action, pending] = useActionState(saveOpsSetupAction, null);
+  const [, startSave] = useTransition();
   const [picked, setPicked] = useState<Record<FlowKey, string>>({ dispatch: cfg.flows.dispatch.table, receiving: cfg.flows.receiving.table, expected: cfg.flows.expected.table });
   const fieldsOf = (t: string) => tables.find((x) => x.name === t)?.fields ?? [];
   return (
-    <form action={action} className="stack">
+    <form
+      className="stack"
+      // No automatic reset after saving: the chosen fields stay on screen (and a second Save keeps them)
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        startSave(() => action(fd));
+      }}
+    >
       {(Object.keys(info) as FlowKey[]).map((k) => {
         const fields = fieldsOf(picked[k]);
         return (

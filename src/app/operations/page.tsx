@@ -15,7 +15,7 @@ import { NotConnected } from "@/components/ui/not-connected";
 import { OpsSetupForm } from "@/components/ops/setup-form";
 import { metPct, parsePeriod, periodRange, PERIODS, showWall, sydneyWallNow, type SlaCount } from "@/lib/ops/calc";
 import { FLOW_INFO, flowReady, getOpsConfig, type FlowKey, type OpsConfig } from "@/lib/ops/config";
-import { siteCodes, tenantNames } from "@/lib/ops/load";
+import { siteCodes, tenantNames, unreadableCount } from "@/lib/ops/load";
 import { pct, receivingView, slaView, trendsView, type Item } from "@/lib/ops/views";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +77,8 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
   const cfg = await getOpsConfig();
   const [names, sites, copied] = await Promise.all([tenantNames(), siteCodes(), prisma.thomaxRow.count()]);
   const now = sydneyWallNow();
-  const period = parsePeriod(one(sp.p));
+  // Dates typed in From/To mean a custom range even if the Period box wasn't changed
+  const period = one(sp.from) || one(sp.to) ? "custom" : parsePeriod(one(sp.p));
   const range = periodRange(period, now, { from: one(sp.from), to: one(sp.to) });
   const tenant = one(sp.client) || "";
   const siteKey = one(sp.site) || "";
@@ -86,7 +87,9 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
   const name = (t: string) => names.get(t) ?? (t ? `tenant ${t}` : "(no tenant)");
   const tenantOptions = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const siteNoCodes = site && !site.codes.length;
-  const flowsMissing = (section === "sla" ? ["dispatch", "receiving"] : section === "receiving" ? ["receiving", "expected"] : ["dispatch"]).filter((k) => !flowReady(cfg, k as FlowKey));
+  const flowsUsed: FlowKey[] = section === "sla" ? ["dispatch", "receiving"] : section === "receiving" ? ["receiving", "expected"] : ["dispatch"];
+  const flowsMissing = flowsUsed.filter((k) => !flowReady(cfg, k));
+  const unreadable = (await Promise.all(flowsUsed.filter((k) => flowReady(cfg, k)).map((k) => unreadableCount(cfg.flows[k])))).reduce((a, b) => a + b, 0);
 
   return (
     <>
@@ -143,6 +146,8 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
           {section !== "trends" && <>Period: {range.label}{period === "custom" ? " (From/To dates; at most 400 days)" : ""}. </>}
           Times are Sydney time as Thomax records them. <NotConnected source="logiwa" until="the Thomax copy" />
           {siteNoCodes && <> {site.name} has no WMS warehouse codes yet (Settings → Sites), so the site filter can&apos;t apply.</>}
+          {site && !siteNoCodes && flowsUsed.some((k) => !cfg.flows[k].roles.warehouse) && <> <strong>The site filter isn&apos;t applied</strong> — choose the Warehouse field in Operations → Setup.</>}
+          {unreadable > 0 && <> {unreadable.toLocaleString("en-AU")} rows have a date that can&apos;t be read and aren&apos;t counted.</>}
         </p>
       </Card>
       {!copied && (
@@ -168,14 +173,14 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
           </p>
         </Card>
       )}
-      {copied > 0 && section === "sla" && <Sla cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} />}
-      {copied > 0 && section === "receiving" && <Receiving cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} />}
-      {copied > 0 && section === "trends" && <Trends cfg={cfg} filter={filter} now={now} name={name} />}
+      {copied > 0 && section === "sla" && <Sla cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} />}
+      {copied > 0 && section === "receiving" && <Receiving cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} />}
+      {copied > 0 && section === "trends" && <Trends cfg={cfg} filter={filter} now={now} name={name} admin={admin} />}
     </>
   );
 }
 
-type ViewProps = { cfg: OpsConfig; from: Date; to: Date; filter: { tenants: string[] | null; warehouses: string[] | null }; now: Date; name: (t: string) => string };
+type ViewProps = { cfg: OpsConfig; from: Date; to: Date; filter: { tenants: string[] | null; warehouses: string[] | null }; now: Date; name: (t: string) => string; admin: boolean };
 
 const tone = (p: number | null): KpiTone => (p === null ? "normal" : p >= 0.97 ? "green" : p >= 0.9 ? "amber" : "red");
 
@@ -213,7 +218,7 @@ function CountsTable({ rows, name }: { rows: Array<{ tenant: string; c: SlaCount
   );
 }
 
-function ProblemTable({ items, name, doneLabel, dayEnd = false }: { items: Item[]; name: (t: string) => string; doneLabel: string; dayEnd?: boolean }) {
+function ProblemTable({ items, name, doneLabel, dayEnd = false, admin }: { items: Item[]; name: (t: string) => string; doneLabel: string; dayEnd?: boolean; admin: boolean }) {
   if (!items.length) return <p className="empty">None.</p>;
   return (
     <div className="tw">
@@ -232,7 +237,7 @@ function ProblemTable({ items, name, doneLabel, dayEnd = false }: { items: Item[
           {items.map((it, i) => (
             <tr key={i}>
               <td>{name(it.tenant)}</td>
-              <td>{it.ref ? <Link href={`/operations?section=lookup&q=${encodeURIComponent(it.ref)}`} className="lnk">{it.ref}</Link> : "—"}</td>
+              <td>{it.ref ? admin ? <Link href={`/operations?section=lookup&q=${encodeURIComponent(it.ref)}`} className="lnk">{it.ref}</Link> : it.ref : "—"}</td>
               <td>{showWall(it.created)}</td>
               <td>{dayEnd ? `${showWall(new Date(it.due.getTime() - 60_000)).slice(0, 10)} (end of day)` : showWall(it.due)}</td>
               <td>{showWall(it.done)}</td>
@@ -245,15 +250,15 @@ function ProblemTable({ items, name, doneLabel, dayEnd = false }: { items: Item[
   );
 }
 
-async function Sla({ cfg, from, to, filter, now, name }: ViewProps) {
+async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
   const v = await slaView(cfg, from, to, filter, now);
   const d = metPct(v.dispatch.total);
   const r = metPct(v.receiving.total);
   return (
     <>
       <KpiRow lead={false}>
-        <Kpi label="Dispatch on time" value={v.dispatch.ready ? pct(d) : "—"} tone={tone(d)} sub={v.dispatch.ready ? `${v.dispatch.total.total.toLocaleString("en-AU")} orders · ${v.dispatch.total.overdue} overdue now` : "setup needed"} />
-        <Kpi label={`Receiving within ${cfg.rules.receivingHours} h`} value={v.receiving.ready ? pct(r) : "—"} tone={tone(r)} sub={v.receiving.ready ? `${v.receiving.total.total.toLocaleString("en-AU")} receipts · ${v.receiving.total.overdue} overdue now` : "setup needed"} />
+        <Kpi label="Dispatch on time" value={v.dispatch.ready ? pct(d) : "—"} tone={tone(d)} sub={v.dispatch.ready ? `${v.dispatch.total.total.toLocaleString("en-AU")} orders · ${v.dispatch.total.overdue.toLocaleString("en-AU")} overdue now` : "setup needed"} />
+        <Kpi label={`Receiving within ${cfg.rules.receivingHours} h`} value={v.receiving.ready ? pct(r) : "—"} tone={tone(r)} sub={v.receiving.ready ? `${v.receiving.total.total.toLocaleString("en-AU")} receipts · ${v.receiving.total.overdue.toLocaleString("en-AU")} overdue now` : "setup needed"} />
         <Kpi label="Ticket replies (4 working hours)" value="—" sub="needs reply times from Front — coming soon" />
         <Kpi label="Billing on time" value="—" sub={<NotConnected source="hub" />} />
       </KpiRow>
@@ -269,7 +274,7 @@ async function Sla({ cfg, from, to, filter, now, name }: ViewProps) {
             <CountsTable rows={v.dispatch.byTenant} name={name} />
           </Card>
           <Card title="Late and overdue orders" sub="Oldest due first, up to 200.">
-            <ProblemTable items={v.dispatch.problems} name={name} doneLabel="Shipped" dayEnd />
+            <ProblemTable items={v.dispatch.problems} name={name} doneLabel="Shipped" dayEnd admin={admin} />
           </Card>
         </>
       )}
@@ -282,7 +287,7 @@ async function Sla({ cfg, from, to, filter, now, name }: ViewProps) {
   );
 }
 
-async function Receiving({ cfg, from, to, filter, now, name }: ViewProps) {
+async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps) {
   const v = await receivingView(cfg, from, to, filter, now);
   const sum = (k: "expected" | "arrived" | "received" | "open" | "late") => v.byTenant.reduce((s, x) => s + x[k], 0);
   return (
@@ -291,7 +296,7 @@ async function Receiving({ cfg, from, to, filter, now, name }: ViewProps) {
         <Kpi label="Expected (ASN)" value={v.ready.expected ? sum("expected").toLocaleString("en-AU") : "—"} sub={v.ready.expected ? "in the period" : "setup needed"} />
         <Kpi label="Arrived" value={v.ready.receiving ? sum("arrived").toLocaleString("en-AU") : "—"} />
         <Kpi label="Received" value={v.ready.receiving ? sum("received").toLocaleString("en-AU") : "—"} />
-        <Kpi label={`Waiting over ${cfg.rules.receivingHours} h`} value={v.ready.receiving ? v.waiting.length.toLocaleString("en-AU") : "—"} tone={v.waiting.length ? "red" : "normal"} sub="arrived in the last 60 days" />
+        <Kpi label={`Waiting over ${cfg.rules.receivingHours} h`} value={v.ready.receiving ? v.waitingCount.toLocaleString("en-AU") : "—"} tone={v.waitingCount ? "red" : "normal"} sub="now · arrived in the last 60 days" />
       </KpiRow>
       <p className="meta">
         Expected and received deliveries are counted separately: Thomax&apos;s link between an ASN and its receipt isn&apos;t known yet, so they aren&apos;t matched one to one. Emails from clients about deliveries (no ASN yet) join when Front events are added.
@@ -353,8 +358,8 @@ async function Receiving({ cfg, from, to, filter, now, name }: ViewProps) {
           </div>
         </Card>
       )}
-      <Card title={`Waiting longer than ${cfg.rules.receivingHours} hours`} sub="Arrived but not received, oldest first, up to 200.">
-        <ProblemTable items={v.waiting} name={name} doneLabel="Received" />
+      <Card title={`Waiting longer than ${cfg.rules.receivingHours} hours · ${v.waitingCount.toLocaleString("en-AU")}`} sub={`Now: arrived in the last 60 days but not received, oldest first${v.waitingCount > 200 ? " — first 200 shown" : ""}.`}>
+        <ProblemTable items={v.waiting} name={name} doneLabel="Received" admin={admin} />
       </Card>
     </>
   );
@@ -385,7 +390,7 @@ async function Trends({ cfg, filter, now, name }: Omit<ViewProps, "from" | "to">
               <tr>
                 {v.outlook.map((o) => (
                   <td key={o.day.toISOString()} className="r" title={`${o.basis} weeks of history`}>
-                    {o.value === null ? <span className="meta">not enough history</span> : Math.round(o.value).toLocaleString("en-AU")}
+                    {o.holiday ? <span className="meta">public holiday</span> : o.value === null ? <span className="meta">not enough history</span> : Math.round(o.value).toLocaleString("en-AU")}
                   </td>
                 ))}
               </tr>

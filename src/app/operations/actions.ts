@@ -16,7 +16,7 @@ export async function saveOpsSetupAction(_: OpsActionState | null, form: FormDat
       for (const [r] of FLOW_INFO[k].roles) roles[r] = String(form.get(`${k}.${r}`) ?? "");
       flows[k] = { table: String(form.get(`${k}.table`) ?? ""), roles };
     }
-    await saveOpsConfig({
+    const saved = await saveOpsConfig({
       flows,
       b2bValues: String(form.get("b2bValues") ?? ""),
       cutoffHour: String(form.get("cutoffHour") ?? ""),
@@ -25,7 +25,9 @@ export async function saveOpsSetupAction(_: OpsActionState | null, form: FormDat
       holidays: String(form.get("holidays") ?? ""),
     });
     revalidatePath("/operations");
-    return { ok: true, message: "Saved." };
+    const { flowReady } = await import("@/lib/ops/config");
+    const missing = FLOW_KEYS.filter((k) => !flowReady(saved, k)).map((k) => FLOW_INFO[k].title);
+    return { ok: true, message: missing.length ? `Saved — still needed before numbers show: the required fields for ${missing.join(", ")}.` : "Saved." };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }

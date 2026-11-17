@@ -57,7 +57,7 @@ run("Operations over the Thomax copy", () => {
     const all = await loadFlow(cfg.flows.dispatch, w("2026-11-16T00:00:00"), w("2026-11-18T00:00:00"));
     expect(all.rows.map((r) => r.ref).sort()).toEqual(["A1", "A2", "B1", "B2"]);
     const b2 = all.rows.find((r) => r.ref === "B2")!;
-    expect(b2.created.toISOString()).toBe("2026-11-17T00:00:00.000Z"); // /Date()/ is UTC ms
+    expect(b2.created.toISOString()).toBe("2026-11-17T11:00:00.000Z"); // /Date()/ is UTC ms → Sydney wall-clock (AEDT +11), as in Order lookup
     expect(b2.done).toBeNull(); // unreadable date → not done
     const t1 = await loadFlow(cfg.flows.dispatch, w("2026-11-16T00:00:00"), w("2026-11-18T00:00:00"), { tenants: ["T1"] });
     expect(t1.rows).toHaveLength(2);

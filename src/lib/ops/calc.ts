@@ -104,19 +104,26 @@ export function mondayOf(d: Date): Date {
  * Only weekdays with at least `minWeeks` weeks of history get a figure; otherwise null ("not enough history").
  * Days are whole days before `today` (today is not complete yet).
  */
-export function sameWeekdayOutlook(daily: ReadonlyMap<string, number>, today: Date, opts: { days?: number; weeks?: number; minWeeks?: number; firstDay?: Date | null } = {}): Array<{ day: Date; value: number | null; basis: number }> {
+export function sameWeekdayOutlook(daily: ReadonlyMap<string, number>, today: Date, opts: { days?: number; weeks?: number; minWeeks?: number; firstDay?: Date | null; holidays?: ReadonlySet<string> } = {}): Array<{ day: Date; value: number | null; basis: number; holiday?: boolean }> {
   const days = opts.days ?? 7;
   const weeks = opts.weeks ?? 8;
   const minWeeks = opts.minWeeks ?? 4;
   const t0 = startOfDay(today);
-  const out: Array<{ day: Date; value: number | null; basis: number }> = [];
+  const out: Array<{ day: Date; value: number | null; basis: number; holiday?: boolean }> = [];
+  const hol = opts.holidays ?? new Set<string>();
   for (let i = 0; i < days; i++) {
     const day = new Date(t0.getTime() + i * DAY);
+    // A public holiday ahead isn't forecast like a normal day
+    if (hol.has(ymdUtc(day))) {
+      out.push({ day, value: null, basis: 0, holiday: true });
+      continue;
+    }
     const vals: number[] = [];
     for (let w = 1; w <= weeks; w++) {
       const past = new Date(day.getTime() - w * 7 * DAY);
       if (past >= t0) continue;
       if (opts.firstDay && past < startOfDay(opts.firstDay)) continue;
+      if (hol.has(ymdUtc(past))) continue; // a past holiday would drag the average down
       vals.push(daily.get(ymdUtc(past)) ?? 0);
     }
     out.push({ day, value: vals.length >= minWeeks ? vals.reduce((a, b) => a + b, 0) / vals.length : null, basis: vals.length });

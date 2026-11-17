@@ -85,6 +85,14 @@ describe("same-weekday outlook", () => {
     expect(o[0].value).toBe(45);
     expect(o[0].basis).toBe(8);
   });
+  it("holidays: past ones are left out of the average, future ones aren't forecast", () => {
+    const daily = new Map<string, number>();
+    for (let k = 1; k <= 8; k++) daily.set(ymdUtc(new Date(Date.UTC(2026, 10, 17 - 7 * k))), 10 * k);
+    const o = sameWeekdayOutlook(daily, today, { holidays: new Set(["2026-11-10", "2026-11-18"]) });
+    expect(o[0].basis).toBe(7);
+    expect(o[0].value).toBe(50);
+    expect(o[1]).toMatchObject({ value: null, holiday: true });
+  });
   it("not enough history → null", () => {
     const o = sameWeekdayOutlook(new Map(), today, { firstDay: w("2026-11-01T00:00:00") });
     expect(o[0].value).toBeNull();

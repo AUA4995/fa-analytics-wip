@@ -97,12 +97,30 @@ export async function dailyCounts(flow: Flow, from: Date, to: Date, filter: Flow
   return prisma.$queryRawUnsafe(sql, ...params);
 }
 
-/** First day with any data for the flow (for "not enough history" notes). */
-export async function firstDay(flow: Flow): Promise<Date | null> {
+/** First day with any data for the flow and the same filter (a new client has little history of its own). */
+export async function firstDay(flow: Flow, filter: FlowFilter = {}): Promise<Date | null> {
   const r = fieldParams(flow);
-  if (!r.created) return null;
-  const rows = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(`SELECT to_char(min(fa_try_ts(data->>$2)), 'YYYY-MM-DD') AS d FROM "ThomaxRow" WHERE "table" = $1`, flow.table, r.created);
+  if (!r.created || !r.tenant) return null;
+  const params: unknown[] = [flow.table, r.created, r.tenant];
+  let where = `"table" = $1`;
+  if (filter.tenants) {
+    params.push(filter.tenants);
+    where += ` AND data->>$3 = ANY($${params.length}::text[])`;
+  }
+  if (filter.warehouses && r.warehouse) {
+    params.push(r.warehouse, filter.warehouses.map((w) => w.toUpperCase()));
+    where += ` AND upper(data->>$${params.length - 1}) = ANY($${params.length}::text[])`;
+  }
+  const rows = await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(`SELECT to_char(min(fa_try_ts(data->>$2)), 'YYYY-MM-DD') AS d FROM "ThomaxRow" WHERE ${where} AND $3::text IS NOT NULL`, ...params);
   return rows[0]?.d ? new Date(`${rows[0].d}T00:00:00Z`) : null;
+}
+
+/** Rows of a flow's table whose "created" value can't be read as a date (they can't be counted anywhere). */
+export async function unreadableCount(flow: Flow): Promise<number> {
+  const r = fieldParams(flow);
+  if (!r.created) return 0;
+  const rows = await prisma.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM "ThomaxRow" WHERE "table" = $1 AND fa_try_ts(data->>$2) IS NULL`, flow.table, r.created);
+  return rows[0]?.n ?? 0;
 }
 
 export async function flowHasRows(cfg: OpsConfig, k: FlowKey): Promise<boolean> {

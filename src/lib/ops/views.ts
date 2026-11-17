@@ -72,8 +72,10 @@ export interface ReceivingView {
   byTenant: Array<{ tenant: string; expected: number; arrived: number; received: number; open: number; late: number }>;
   /** Per receipt type (if the type field is set): arrived / received */
   byType: Array<{ type: string; arrived: number; received: number }>;
-  /** Waiting longer than the target, arrived up to 60 days before the period end, oldest first */
+  /** Waiting longer than the target now, arrived in the last 60 days, oldest first (up to 200 shown) */
   waiting: Item[];
+  /** How many are waiting in total (the list above is cut at 200) */
+  waitingCount: number;
   /** Expected in the period with no matching receipt yet are not matched line by line (Thomax link fields unknown) */
   capped: boolean;
 }
@@ -105,7 +107,8 @@ export async function receivingView(cfg: OpsConfig, from: Date, to: Date, filter
       tt.arrived++;
       if (r.done) tt.received++;
     }
-    const recent = await loadFlow(cfg.flows.receiving, new Date(to.getTime() - 60 * DAY), to, filter);
+    // "Waiting now" is about today, whatever period is chosen
+    const recent = await loadFlow(cfg.flows.receiving, new Date(now.getTime() - 60 * DAY), new Date(now.getTime() + DAY), filter);
     capped ||= recent.capped;
     for (const r of recent.rows) {
       if (r.done) continue;
@@ -119,6 +122,7 @@ export async function receivingView(cfg: OpsConfig, from: Date, to: Date, filter
     byTenant: [...by.values()].sort((x, y) => y.arrived + y.expected - (x.arrived + x.expected)),
     byType: [...types.values()].sort((x, y) => y.arrived - x.arrived),
     waiting: waiting.slice(0, 200),
+    waitingCount: waiting.length,
     capped,
   };
 }
@@ -129,7 +133,7 @@ export interface TrendsView {
   /** tenant → counts per week (same order as weeks) */
   rows: Array<{ tenant: string; counts: number[]; total: number }>;
   totals: number[];
-  outlook: Array<{ day: Date; value: number | null; basis: number }>;
+  outlook: Array<{ day: Date; value: number | null; basis: number; holiday?: boolean }>;
   firstDay: Date | null;
 }
 
@@ -139,7 +143,7 @@ export async function trendsView(cfg: OpsConfig, flow: FlowKey, filter: FlowFilt
   const thisMon = mondayOf(now);
   const from = new Date(thisMon.getTime() - weeks * 7 * DAY);
   const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + DAY);
-  const [counts, first] = await Promise.all([dailyCounts(cfg.flows[flow], from, to, filter), firstDay(cfg.flows[flow])]);
+  const [counts, first] = await Promise.all([dailyCounts(cfg.flows[flow], from, to, filter), firstDay(cfg.flows[flow], filter)]);
   const weekKeys = Array.from({ length: weeks + 1 }, (_, i) => ymdUtc(new Date(from.getTime() + i * 7 * DAY)));
   const idx = new Map(weekKeys.map((k, i) => [k, i]));
   const byT = new Map<string, number[]>();
@@ -154,7 +158,7 @@ export async function trendsView(cfg: OpsConfig, flow: FlowKey, filter: FlowFilt
   }
   const rows = [...byT.entries()].map(([tenant, cs]) => ({ tenant, counts: cs, total: cs.reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total);
   const totals = weekKeys.map((_, i) => rows.reduce((s, r) => s + r.counts[i], 0));
-  return { ready: true, weeks: weekKeys, rows, totals, outlook: sameWeekdayOutlook(daily, now, { firstDay: first }), firstDay: first };
+  return { ready: true, weeks: weekKeys, rows, totals, outlook: sameWeekdayOutlook(daily, now, { firstDay: first, holidays: new Set(cfg.rules.holidays) }), firstDay: first };
 }
 
 export function pct(v: number | null): string {
