@@ -149,6 +149,7 @@ function BaseCost({ run, variants, vsel, tile, q, admin }: { run: CostRun; varia
           {tile === "minutes" && <MinutesTable run={run} variants={variants} admin={admin} />}
           {tile === "overheads" && <PoolsTable pools={r.pools.filter((p) => p.kind === "OVERHEAD")} variants={variants} />}
           <Card title="Cost per order by size" sub={`Orders this month from the WMS · B2B = more than ${run.input.rules.b2bUnits} units (Settings → Rules)`}>
+            <div className="tw">
             <table>
               <thead>
                 <tr>
@@ -177,6 +178,7 @@ function BaseCost({ run, variants, vsel, tile, q, admin }: { run: CostRun; varia
                 ))}
               </tbody>
             </table>
+            </div>
             <p className="meta" style={{ marginBottom: 0 }}>
               An order = services marked “one per order” + packing (CMC / manual by the orders-weighted CMC share) + units × per-unit floor services.
             </p>
@@ -362,6 +364,7 @@ function UnusedTable({ run }: { run: CostRun }) {
       {!u.rows.length ? (
         <p className="empty">No pool has a practical capacity this month (labour needs paid hours; space needs pallet positions; machines need a capacity in Settings → Cost pools).</p>
       ) : (
+        <div className="tw">
         <table>
           <thead>
             <tr>
@@ -390,6 +393,7 @@ function UnusedTable({ run }: { run: CostRun }) {
             </tr>
           </tbody>
         </table>
+        </div>
       )}
     </Card>
   );
@@ -734,6 +738,7 @@ function ClientPanel({ c, month }: { c: ClientResult; month: string }) {
       </dl>
       <div className="tsec">
         <div className="tsec-h">Services · click a line for its calculation</div>
+        <div className="tw">
         <table>
           <thead>
             <tr>
@@ -759,6 +764,7 @@ function ClientPanel({ c, month }: { c: ClientResult; month: string }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
       <Link href={`/settings?section=clients&panel=client:${c.id}`} className="lnk">
         Client settings (IDs, CMC share, weekly minimum)
