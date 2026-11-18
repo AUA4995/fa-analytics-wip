@@ -42,9 +42,13 @@ export async function decideRateAction(clientId: string, serviceCode: string, ri
   return { ok: true, message: `Tasks created to fix ${fix.join(" and ")}.` };
 }
 
-export async function createReviewAction(clientId: string, type: "CPI" | "CARRIER" | "RENEWAL" | "ADHOC", due: string | null, note: string | null): Promise<RateState> {
+/** Starts an ad-hoc review to hold proposed rates. Review types and due dates are scheduled in the CLM, not here. */
+export async function createReviewAction(clientId: string, _type?: unknown, _due?: unknown, note?: string | null): Promise<RateState> {
   const me = await assertUser();
-  const r = await prisma.rateReview.create({ data: { clientId, type, due: due ? new Date(due + "T00:00:00Z") : null, note, owner: me.name, createdBy: me.name } });
+  if (!(await prisma.client.findUnique({ where: { id: String(clientId) }, select: { id: true } }))) return { ok: false, message: "Unknown client." };
+  const type = "ADHOC" as const;
+  const due = null;
+  const r = await prisma.rateReview.create({ data: { clientId, type, due, note: typeof note === "string" ? note.slice(0, 2000) : null, owner: me.name, createdBy: me.name } });
   await logChange({ entity: "review", entityId: r.id, field: "_created", oldValue: null, newValue: { clientId, type, due }, actor: actor(me) });
   revalidatePath("/cost");
   return { ok: true, message: "Review started.", id: r.id };

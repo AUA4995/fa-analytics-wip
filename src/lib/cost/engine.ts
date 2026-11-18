@@ -306,13 +306,13 @@ export function runEngine(inp: EngineInput): EngineResult {
       practical = (lab?.hours ?? 0) * 60 * util;
       unitLabel = "minute";
       if (!lab?.hours && cost) warnings.push(`${p.name}: no paid hours from payroll — cost per minute can't be worked out.`);
-      if (practical && u > practical) warnings.push(`${p.name}: activity minutes (${Math.round(u)}) are more than practical capacity (${Math.round(practical)}) — standard minutes may be too high or utilisation too low.`);
+      if (practical && u > practical) warnings.push(`${p.name}: activity minutes (${Math.round(u).toLocaleString("en-AU")}) are more than practical capacity (${Math.round(practical).toLocaleString("en-AU")}) — standard minutes may be too high or utilisation too low.`);
     } else if (p.driver === "PALLET_WEEKS" && s && (s.palletPositions || s.binPositions || s.bayPositions)) {
       // Rent by space type (batch 3): bins and bays in pallet-equivalents; left out while their size isn't set
       const bins = s.binPositions && inp.rules.binSize ? s.binPositions * inp.rules.binSize : 0;
       const bays = s.bayPositions && inp.rules.baySize ? s.bayPositions * inp.rules.baySize : 0;
-      if (s.binPositions && !inp.rules.binSize) warnings.push(`${s.name}: ${s.binPositions} bins aren't in rent capacity yet — set the bin size in pallet-equivalents (Settings → Rules).`);
-      if (s.bayPositions && !inp.rules.baySize) warnings.push(`${s.name}: ${s.bayPositions} bays aren't in rent capacity yet — set the bay size in pallet-equivalents (Settings → Rules).`);
+      if (s.binPositions && !inp.rules.binSize) warnings.push(`${s.name}: ${s.binPositions.toLocaleString("en-AU")} bins aren't in rent capacity yet — set the bin size in pallet-equivalents (Settings → Rules).`);
+      if (s.bayPositions && !inp.rules.baySize) warnings.push(`${s.name}: ${s.bayPositions.toLocaleString("en-AU")} bays aren't in rent capacity yet — set the bay size in pallet-equivalents (Settings → Rules).`);
       practical = ((s.palletPositions ?? 0) + bins + bays) * WEEKS(inp.days);
       // No storage volumes measured → Full absorption spreads rent over the space used (positions used ÷ total)
       if (u === 0 && s.spaceUtil != null) u = practical * s.spaceUtil;
@@ -397,7 +397,9 @@ export function runEngine(inp: EngineInput): EngineResult {
   const idlePools = poolResults.filter((p) => p.idle);
   const idleCost = idlePools.reduce((a, p) => a + p.cost, 0);
   for (const p of idlePools)
-    warnings.push(`${p.name}: no client use measured this month${p.driver === "PALLET_WEEKS" ? " (no storage volumes)" : ""} — Full absorption spreads its $${Math.round(p.cost).toLocaleString("en-AU")} over all orders; TDABC shows it as unused capacity.`);
+    warnings.push(
+      `${p.name}: no client use measured this month${p.driver === "PALLET_WEEKS" ? " (no storage volumes)" : ""} — ${totalOrders ? `Full absorption spreads its $${Math.round(p.cost).toLocaleString("en-AU")} over all orders` : `no orders either, so its $${Math.round(p.cost).toLocaleString("en-AU")} can't be spread in Full absorption`}; TDABC shows it as unused capacity.`,
+    );
   for (const p of clientPools) {
     if (p.driver === "TICKET_SCORE" && !totSupport) warnings.push(`${p.name}: no weighted ticket scores this month — spread by ${totRev ? "revenue" : "orders"} until there are (Data sources → Front → Recount).`);
     if (p.driver === "INVOICES_TICKETS" && !totInv && !totAcct) warnings.push(`${p.name}: no invoices or accounts tickets this month — spread by ${totRev ? "revenue" : "orders"} until there are.`);

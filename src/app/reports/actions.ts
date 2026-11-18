@@ -82,7 +82,8 @@ export async function sendNowAction(id: string, mode: string): Promise<RepState>
 
 /** External finance: the owner (or Mark through the owner) approves before anything goes to lenders. */
 export async function approveReportAction(id: string): Promise<RepState> {
-  const me = await assertOwner();
+  const me = await assertOwner().catch(() => null);
+  if (!me) return { ok: false, message: "Only an owner can approve a report." };
   await prisma.report.update({ where: { id }, data: { approvedBy: me.name, approvedAt: new Date() } });
   await logChange({ entity: "report", entityId: id, field: "approved", oldValue: null, newValue: me.name, actor: actor(me) });
   revalidatePath("/reports");

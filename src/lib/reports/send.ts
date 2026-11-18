@@ -67,6 +67,9 @@ export async function sendReport(reportId: string, by: { name: string; email: st
     const bad = checks.filter((c) => !c.ok);
     if (bad.length) return block(`recipient${bad.length > 1 ? "s" : ""} not allowed: ${bad.map((b) => `${b.email} (${b.why})`).join(", ")}`);
   }
+  // The first send of a client report is always a draft — checked here, for every path (button, schedule, API)
+  if (mode !== "DRY_RUN" && mode !== "DRAFT" && r.cls === "CLIENT_SAFE" && !(await prisma.reportSend.count({ where: { reportId, mode: "DRAFT", ok: true } })))
+    return { ok: false, message: "The first client send is always a draft — use “Save as draft in Front” first, check it, then send." };
   const { pdf, built, fileName, summary } = await reportPdf(reportId, { withSummary: true });
   const problems = await scanReport(r, built);
   if (problems.length) return block(problems.join("; "));

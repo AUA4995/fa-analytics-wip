@@ -221,7 +221,7 @@ function PoolsTable({ pools, variants }: { pools: PoolResult[]; variants: Varian
                 <td className="r num">{aud(p.cost, 0)}</td>
                 <td className="small">per {p.unitLabel}</td>
                 <td className="r num">{p.practical ? num(p.practical) : <span className="meta">—</span>}</td>
-                <td className="r">{p.usedPct != null ? <UBar pct={p.usedPct} /> : <span className="num">{num(p.used)}</span>}</td>
+                <td className="r">{p.idle ? <span className="meta">—</span> : p.usedPct != null ? <UBar pct={p.usedPct} /> : <span className="num">{num(p.used)}</span>}</td>
                 {variants.map((v) => (
                   <td key={v} className="r num">
                     {p.idle ? <span className="meta">{v === "F" ? "over all orders" : "no use measured"}</span> : <strong>{aud(v === "T" ? p.rateT : p.rateF, 4)}</strong>}
@@ -384,7 +384,7 @@ function UnusedTable({ run }: { run: CostRun }) {
               <ClickableRow key={p.key} panel={`pool:${p.key}`}>
                 <td className="sup">{p.name}</td>
                 <td className="r num">{aud(p.cost, 0)}</td>
-                <td>{p.usedPct != null && <UBar pct={p.usedPct} />}</td>
+                <td>{!p.idle && p.usedPct != null && <UBar pct={p.usedPct} />}</td>
                 <td className="r num">
                   <strong>{aud(p.unused, 0)}</strong>
                 </td>

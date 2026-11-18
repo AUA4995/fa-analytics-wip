@@ -35,4 +35,19 @@ describe.skipIf(!isTestDatabase())("updateReportAction (integration)", () => {
     const r = await prisma.report.findUniqueOrThrow({ where: { id } });
     expect([r.approvedAt, r.cls, r.name]).toEqual([null, "EXTERNAL", "Bank pack Nov"]);
   });
+
+  it("a client report's first send is always a draft, whichever button or path sends it", async () => {
+    const cl = await prisma.client.create({ data: { name: "Draft-rule test client" } });
+    await prisma.recipient.create({ data: { list: "CLIENT", name: "Ops", email: "ops@draft-rule.test", clientId: cl.id, createdBy: "test" } });
+    const c = await prisma.report.create({ data: { name: "Client pack test", template: "workload", period: "MONTH", cls: "CLIENT_SAFE", clientId: cl.id, createdBy: "T", recipients: ["ops@draft-rule.test"] } });
+    try {
+      expect(await act.sendNowAction(c.id, "AUTO")).toMatchObject({ ok: false, message: expect.stringMatching(/first client send is always a draft/) });
+      expect(await act.approveReportAction(c.id)).toMatchObject({ ok: false, message: "Only an owner can approve a report." });
+    } finally {
+      await prisma.reportSend.deleteMany({ where: { reportId: c.id } });
+      await prisma.report.delete({ where: { id: c.id } });
+      await prisma.recipient.deleteMany({ where: { clientId: cl.id } });
+      await prisma.client.delete({ where: { id: cl.id } });
+    }
+  });
 });
