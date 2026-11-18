@@ -5,12 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
 import { parsePanel } from "@/components/ui/panel";
 import { Workbench, type WbLine } from "@/components/work/workbench";
-import { ReviewEditor, NewReview } from "@/components/work/review-editor";
 import { LogsButton } from "@/components/model/editable";
 import { prisma } from "@/lib/db";
 import { availableMonths, buildInput, loadCostRun } from "@/lib/cost/load";
 import { getRules } from "@/lib/model/store";
-import { STAGES, TYPES } from "@/lib/rates/review";
+import { TYPES } from "@/lib/rates/review";
 
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -29,7 +28,6 @@ export async function RateWorkbench({ sp, me }: { sp: SP; me: string }) {
       {one(sp.moved) && <p className="meta">The rate review calendar and the stages board now live in CLM — Analytics keeps the workbench (costs, margins and the effect of new rates).</p>}
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
         <NotConnected source="clm" until="review dates and stages are kept in CLM; proposed rates are saved here" />
-        <NewReview clients={clients.map((c) => ({ id: c.id, name: c.shortName || c.name }))} />
       </div>
       <WorkbenchSection clients={clients} clientId={one(sp.client) ?? clients[0]?.id ?? null} reviewId={one(sp.review) ?? null} />
       {panel?.kind === "review" && <ReviewPanel id={panel.id} cn={cn} me={me} />}
@@ -65,7 +63,7 @@ async function WorkbenchSection({ clients, clientId, reviewId }: { clients: Awai
           </Link>
         ))}
       </div>
-      <Card title={`${c?.name} · ${review ? `review: ${TYPES[review.type][0]}, ${STAGES[review.stage]}` : "no review open — saving starts one"}`} sub={`Costs from ${run.month} (TDABC, ${run.input.sites.find((s) => s.key === siteKey)?.name ?? siteKey}); volumes = average of ${months.join(", ")}.`}>
+      <Card title={`${c?.name} · ${review ? `review: ${TYPES[review.type][0]}` : "no review open — saving starts one"}`} sub={`Costs from ${run.month} (TDABC, ${run.input.sites.find((s) => s.key === siteKey)?.name ?? siteKey}); volumes = average of ${months.join(", ")}.`}>
         {!lines.length ? (
           <p className="empty">No rated services or volumes for this client yet.</p>
         ) : (
@@ -80,11 +78,11 @@ async function WorkbenchSection({ clients, clientId, reviewId }: { clients: Awai
 async function ReviewPanel({ id, cn }: { id: string; cn: (id: string) => string; me: string }) {
   const r = await prisma.rateReview.findUnique({ where: { id } });
   if (!r) return null;
-  const users = await prisma.user.findMany({ where: { active: true }, select: { name: true } });
   return (
     <Drawer label="Rate review">
       <DrawerHeader kicker={TYPES[r.type][0]} title={cn(r.clientId)} />
-      <ReviewEditor id={r.id} stage={r.stage} owner={r.owner ?? ""} due={r.due ? r.due.toISOString().slice(0, 10) : ""} note={r.note ?? ""} stages={STAGES} people={users.map((u) => u.name)} />
+      {/* Stage, owner and due date live in the CLM's rate review calendar (decision 16/11) — not edited here */}
+      <p className="meta">Stage, owner and due date are tracked in the CLM (rate review calendar). Analytics keeps only the proposed rates.</p>
       <div className="tsec">
         <div className="tsec-h">Proposed rates</div>
         {Object.keys(r.newRates as object).length ? (
@@ -104,17 +102,6 @@ async function ReviewPanel({ id, cn }: { id: string; cn: (id: string) => string;
         <Link href={`/cost?section=workbench&client=${r.clientId}&review=${r.id}`} className="lnk">
           Open in the workbench
         </Link>
-      </div>
-      <div className="tsec">
-        <div className="tsec-h">Stages</div>
-        <ol className="small" style={{ paddingLeft: 18, margin: 0 }}>
-          {STAGES.map((s, k) => (
-            <li key={s} style={{ fontWeight: k === r.stage ? 700 : 400, color: k < r.stage ? "var(--green)" : undefined }}>
-              {s}
-              {k === r.stage ? " · now" : ""}
-            </li>
-          ))}
-        </ol>
       </div>
       <LogsButton entity="review" id={r.id} count={0} />
     </Drawer>

@@ -49,17 +49,14 @@ export async function createReviewAction(clientId: string, type: "CPI" | "CARRIE
   return { ok: true, message: "Review started.", id: r.id };
 }
 
-export async function updateReviewAction(id: string, data: { stage?: number; owner?: string; due?: string | null; note?: string; newRates?: Record<string, number>; target?: number | null; closed?: boolean }): Promise<RateState> {
+/** Analytics saves only the proposed rates and target margin; stage, owner and due date live in the CLM (16/11). */
+export async function updateReviewAction(id: string, data: { note?: string; newRates?: Record<string, number>; target?: number | null }): Promise<RateState> {
   const me = await assertUser();
   const cur = await prisma.rateReview.findUniqueOrThrow({ where: { id } });
   const upd: Record<string, unknown> = {};
-  if (data.stage != null) upd.stage = Math.max(0, Math.min(6, data.stage));
-  if (data.owner != null) upd.owner = data.owner;
-  if (data.due !== undefined) upd.due = data.due ? new Date(data.due + "T00:00:00Z") : null;
-  if (data.note != null) upd.note = data.note;
-  if (data.newRates) upd.newRates = data.newRates;
-  if (data.target !== undefined) upd.target = data.target;
-  if (data.closed != null) upd.closed = data.closed;
+  if (typeof data.note === "string") upd.note = data.note.slice(0, 2000);
+  if (data.newRates && typeof data.newRates === "object") upd.newRates = Object.fromEntries(Object.entries(data.newRates).filter(([k, v]) => /^[A-Za-z0-9_.-]{1,40}$/.test(k) && Number.isFinite(v)));
+  if (data.target === null || (typeof data.target === "number" && Number.isFinite(data.target))) upd.target = data.target;
   await prisma.rateReview.update({ where: { id }, data: upd });
   for (const [k, v] of Object.entries(upd)) await logChange({ entity: "review", entityId: id, field: k, oldValue: (cur as Record<string, unknown>)[k] ?? null, newValue: v as never, actor: actor(me) });
   revalidatePath("/cost");
