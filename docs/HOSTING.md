@@ -51,6 +51,7 @@ Copy `.env.example` → `.env` on the server (never commit it). Required:
 | `AUTH_SECRET` | another random 32+ characters. Changing it = everyone sets up 2FA again |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | a **separate Xero app for Analytics** (developer.xero.com), read-only scopes |
 | `XERO_REDIRECT_URI` | `<APP_URL>/api/xero/callback` — must match the Xero app exactly |
+| `TRUST_PROXY` | leave unset on the laptop and on a plain Mac Mini install. Set `1` only behind a reverse proxy that adds `X-Forwarded-For` — then sign-in and API limits also count per address (otherwise those per-address limits are off; per-email, per-account and per-key limits always apply) |
 | `FRONT_API_TOKEN` | Front API token (sends report emails / drafts, counts tickets) |
 | `ANTHROPIC_API_KEY` | optional — empty = AI summaries off |
 | `JOBS_DISABLED` | optional, `1` only on extra instances |

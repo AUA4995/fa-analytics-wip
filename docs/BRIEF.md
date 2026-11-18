@@ -44,7 +44,7 @@
 - **★ Notifications** icon in the top bar (§13).
 
 ## 5. Menu
-Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate review · Reports · KPI · Finance · Tasks. Bottom: Data sources · API connections · Settings.
+Main: Overview · Operations · Cost & margin · Leakage · Revenue protection · Improvements & savings · Reports · KPI · Finance · Tasks. Bottom: Data sources · API connections · Settings. (Rate review left the menu on 16/11/2026: its calendar and stages live in the CLM; the workbench is under Cost & margin.)
 
 **Overview principle (★ every menu's Overview, same as the main dashboard):** a short summary of that topic — a few cards, 1–2 charts, top 5 items, no repeating the sub-menu tables. **Clicking a card opens its detail in place on the same page (card turns dark); clicking it again shows everything.** Every line and card is clickable, filterable and opens details.
 
@@ -59,7 +59,9 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
   - **Cost to serve** — what a specific client costs, depending on how complex they are: cost, billed, margin per client; drivers vs average (SKUs per order, B2B/B2C, returns, tickets, storage); lines below cost → rate review; staff working on the client with their % (editable, "Add staff member"). TDABC / Full absorption switch applies. Cards: margin % all clients · clients under 15% floor · cost per order range (cheapest–dearest client) · $ a month on below-cost lines.
 - **Leakage:** Overview · Under-billing · Under-pricing · Rate checks · Leakage log. ★ Overview cards: **Found · Recovered · Open · Rate mismatches · Recovery rate %** (with average days to recover = found date → billed in Xero). Recovered detail: client, what, $, Xero invoice, date, who, days to recover; recovered money ≈ 100% to profit (work already done and paid for). Open detail: age, owner, next step. Default view: found vs recovered by month, by type and status, top 5 open.
 - **★ Improvements & savings:** Overview · Ideas · Initiatives (§9a).
-- **Rate review:** Calendar · In progress · Workbench (§8). **Reports** (§9). **KPI:** Overview · Operations · People · Finance · Warehouse · Quality & clients (§9).
+- **Operations** (§9c): Order lookup · Receiving · SLA · Returns (coming soon) · Trends & forecast · Setup.
+- **Revenue protection** (§9f): cases where FA stopped or failed to stop a loss — avoided, recovered, lost.
+- **Rate workbench** sits under **Cost & margin** (§8). **Reports** (§9). **KPI:** Overview · Operations · People · Finance · Warehouse · Quality & clients (§9).
 - **★ Finance** (bank / lender reporting, §9b). **Tasks:** Open · Snoozed · Done (§13).
 - **API connections:** Connected to · Keys we give out. **Settings:** Company · Users · Contacts & recipients · Login & security · Branding · Rules · Clients · Suppliers · Staff & allocation · mapping tables (§14).
 
@@ -92,7 +94,10 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - **Rate checks:** CLM vs Dyspach vs WMS → match / don't match; a person decides which is right.
 - **Leakage statuses:** Open · Task created · Explained · Recovered. Leakage log replaces FA_Leakage_Log.xlsx (import).
 
-## 8. Rate review
+## 8. Rate review — calendar and stages in the CLM; workbench in Analytics
+> **Decision 16/11/2026:** the review calendar and the stages board belong to the CLM. Analytics keeps only the
+> **workbench** (Cost & margin → Rate workbench: costs, margins, proposed rates and their effect). Stage, owner and due
+> date are not edited in Analytics. The text below about the calendar and stages describes the CLM side.
 - **Review types:** Annual CPI increase (contract anniversary) · Carrier rate pass-through (e.g. AusPost July increase → Dyspach SELL) · Contract renewal · Ad-hoc / below-cost review (started by the app when a line goes below cost).
 - **Calendar:** clients × next 12 months, a coloured dot per review type; dates come **from CLM** (coming soon; demo dates). Click → details + "Open in Workbench".
 - **In progress:** board of open reviews by stage: Preparing → Analysis → Proposal → Client negotiation → Signed → Rates in WMS & Dyspach → Checked on first invoice. Card = client, type, owner, due date; stage changeable in the panel. Source: CLM (coming soon).
@@ -150,7 +155,19 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - Built from Xero (full read access) + WMS order history. Forecast seasonal on full history.
 - **Report type External finance:** company totals only; no client rates/margins, no pay by person; **client names hidden by default** ("Client A, B, C"), can be shown manually; must reconcile to Xero and lodged figures; forecasts labelled; **approval (Mark or the accountant) before sending**.
 
-## 9c. ★ WMS / SLA (planned — discussing; no demo or code yet)
+## 9c. ★ Operations (built 17/11/2026)
+> **What is built:** a full read-only copy of Thomax (all tables and fields from 2021, through the Query API — the same as
+> Power BI; history loads at night) and the **Operations** menu: **Order lookup** (admins; the order/receipt/stock trail
+> across tables) · **Receiving** (expected vs arrived vs received by client and type; waiting longer than the target now)
+> · **SLA** (same-day dispatch with the 14:00 cut-off and B2B +2 working days; receiving within 48 h; by client) ·
+> **Returns** (coming soon) · **Trends & forecast** (orders per week per client; next 7 days = same-weekday average,
+> holidays skipped) · **Setup** (which Thomax fields mean client / created / done …, the SLA rules and NSW holidays).
+> **Dropped:** the morning plan 06:00 and afternoon check 13:00 — Marcus already sends those reports from Thomax.
+> Ticket SLA needs Front, invoicing SLA the Accounts Hub — shown as "not connected" until then.
+> The HR app's Workforce Planning reads `/api/v1/workload/daily` and `/api/v1/inbound` (docs/API.md).
+> The planning notes below are kept for history.
+
+### Earlier plan (superseded where it differs from the box above)
 - **Source:** Thomax Query API (Logiwa later), read-only. Fields still to confirm (see §15) before the demo.
 - **Site filter on every WMS / SLA page:** All · Smithfield · Parramatta (company-wide or per warehouse).
 - **Sub-menus:** Overview · Morning plan 06:00 · Afternoon check 13:00 · Receiving · Returns (coming soon) · SLA.
@@ -170,6 +187,11 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - **Snapshots** at 06:00 and 13:00 are stored (plan vs actual); "Refresh now" in the day. Times configurable.
 - **Delivery:** on the page **and** by email (Front, internal recipients, PDF + short summary), email switchable off in settings.
 - **Front events:** extracted in Analytics, in the existing Front connection (which already reads emails for client admin complexity) — one more element: deliveries, embargoes, sales, launches, pickups. Workforce Planning in Marcus's HR platform reads them through the Analytics API.
+
+## 9f. Revenue protection (built 17/11/2026)
+- Cases where someone stopped a loss (avoided), got money back (recovered), or the loss happened (lost, not prevented):
+  what happened, $ it would have cost, $ it cost, status and evidence. Amounts not yet known are marked TBC and are
+  not counted. **No staff names** — corrective action reports (CARs) live in the HR app.
 
 ## 9d. Notifications panel (coming soon — to discuss)
 - A separate notifications menu / panel (top or bottom of the app): urgent things Analytics notices, e.g. something serious read from the Accounts Hub. **Not designed yet — discuss with Asal before building.** The demo shows a "coming soon" placeholder so it isn't forgotten. (Today's "New since the last sync" list on Tasks stays as it is.)
@@ -220,10 +242,10 @@ Main: Overview · Cost & margin · Leakage · Improvements & savings · Rate rev
 - Cost to serve cards — confirm the four.
 - Break-even: fixed vs variable split and casual share with Mark; orders, revenue or both. **Built provisionally:** cost of services = variable, overheads + interest = fixed (last 3 months of the Xero P&L), shown in revenue and orders.
 - Asal's old client workload report (upload) → may adjust report layouts.
-- CLM link for the rate review calendar, stages and "Send schedule of rates" (coming soon in the demo).
+- CLM link for proposed rates and "Send schedule of rates" (the calendar and stages are the CLM's own).
 - Thomax cluster code + first test query; retention and full export at exit (support@thomax.com).
 - Xero granular scope names; Asal's payroll access. Dyspach API (ask Varun). DTS email domain.
 - **To enter in the app once live:** debt schedule (Finance → Cash & debt), KPI targets (Settings → Rules; most start empty), internal domains and report recipients (Settings → Contacts & recipients), staff positions (for suggested project people).
-- **KPIs waiting for data:** dispatch before cut-off, dock-to-stock, returns 48 h, slow stock, stock accuracy (Thomax API); overtime (Xero Payroll earnings lines); mis-pick and damage (a Front tag or claims log — which?).
+- **KPIs waiting for data:** dispatch before cut-off, dock-to-stock, returns 48 h, slow stock, stock accuracy (Thomax API); mis-pick and damage (a Front tag or claims log — which?).
 - **Bank pack:** confirm the bank's actual list; tax and obligations (BAS, super, payroll tax) are manual for now.
 - FA service catalogue (FA_Charge_Code_Catalogue_v1.xlsx) and real cost pools from Xero. Time study for pack, receiving, returns, CMC pre-pack.
