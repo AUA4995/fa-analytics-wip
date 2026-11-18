@@ -149,10 +149,10 @@ function BaseCost({ run, variants, vsel, tile, q, admin }: { run: CostRun; varia
               </Link>
             ))}
           </div>
-          {tile === "pools" && <PoolsTable pools={r.pools} variants={variants} />}
+          {tile === "pools" && <PoolsTable pools={r.pools} variants={variants} hasOrders={run.result.clients.some((c) => c.orders > 0)} />}
           {tile === "labour" && <LabourTable run={run} admin={admin} />}
           {tile === "minutes" && <MinutesTable run={run} variants={variants} admin={admin} />}
-          {tile === "overheads" && <PoolsTable pools={r.pools.filter((p) => p.kind === "OVERHEAD")} variants={variants} />}
+          {tile === "overheads" && <PoolsTable pools={r.pools.filter((p) => p.kind === "OVERHEAD")} variants={variants} hasOrders={run.result.clients.some((c) => c.orders > 0)} />}
           <Card title="Cost per order by size" sub={`Orders this month from the WMS · B2B = more than ${run.input.rules.b2bUnits} units (Settings → Rules)`}>
             <div className="tw">
             <table>
@@ -194,7 +194,7 @@ function BaseCost({ run, variants, vsel, tile, q, admin }: { run: CostRun; varia
   );
 }
 
-function PoolsTable({ pools, variants }: { pools: PoolResult[]; variants: Variant[] }) {
+function PoolsTable({ pools, variants, hasOrders = true }: { pools: PoolResult[]; variants: Variant[]; hasOrders?: boolean }) {
   return (
     <Card title="Cost pools" sub="Cost this month, how much of its practical capacity was used, and the rate it charges per driver unit. Click a pool for its calculation.">
       <div className="tw">
@@ -224,7 +224,7 @@ function PoolsTable({ pools, variants }: { pools: PoolResult[]; variants: Varian
                 <td className="r">{p.idle ? <span className="meta">—</span> : p.usedPct != null ? <UBar pct={p.usedPct} /> : <span className="num">{num(p.used)}</span>}</td>
                 {variants.map((v) => (
                   <td key={v} className="r num">
-                    {p.idle ? <span className="meta">{v === "F" ? "over all orders" : "no use measured"}</span> : <strong>{aud(v === "T" ? p.rateT : p.rateF, 4)}</strong>}
+                    {p.idle ? <span className="meta">{v === "F" ? (hasOrders ? "over all orders" : "not spread (no orders)") : "no use measured"}</span> : <strong>{aud(v === "T" ? p.rateT : p.rateF, 4)}</strong>}
                   </td>
                 ))}
                 <td className="r num">{p.unused ? aud(p.unused, 0) : "—"}</td>
