@@ -16,32 +16,46 @@
   --header: var(--brand-accent, #010028);
   --blue-solid: var(--brand-blue, #1f54ee);
   --blue: var(--brand-blue, #1f54ee);
-  --ink: var(--brand-ink, #14132e);
+  --ink: var(--brand-ink, #010028);
   --card: #ffffff;
   --mix: #ffffff;
-  --hover: rgba(255,255,255,.7);
+  --hover: #f0f0f2;
   --hi: var(--header);
-  --ink-2: color-mix(in srgb, var(--ink) 80%, var(--mix));
-  --grey: #74738a;
+  --ink-2: #272648;
+  --grey: #52526d;
+  --faint: #6c6b82;
   --blue-mid: color-mix(in srgb, var(--blue) 65%, var(--mix));
   --blue-light: color-mix(in srgb, var(--blue) 35%, var(--mix));
   --blue-wash: color-mix(in srgb, var(--blue) 9%, var(--mix));
   --blue-deep: color-mix(in srgb, var(--blue) 75%, black);
-  --surface: #f6f5f9;
-  --border: #e6e4ee;
-  --app-bg: #F5F3F5;
-  --side-bg: #f3f2f7;
-  --side-w: 248px;
-  --rail-w: 68px;
+  --surface: #f5f5f6;
+  --border: #e6e6ea;
+  --border-strong: #dbdbe1;
+  --app-bg: #f5f3f5;
+  /* The navy menu and top bar, the same in both looks (Arezzo's dark tokens on its bars) */
+  --side-bg: #09082e;
+  --side-border: #1d1c40;
+  --side-ink: #f5f3f5;
+  --side-muted: #9e9ead;
+  --side-hover: rgba(255,255,255,.05);
+  --side-active: #151439;
+  --side-icon: #6e8fff;
+  --bar-bg: rgba(14,13,51,.9);
+  --side-w: 240px;
+  --rail-w: 64px;
+  --shadow-xs: 0 1px 2px rgba(1,0,40,.05);
+  --shadow-pop: 0 12px 32px rgba(1,0,40,.14), 0 2px 6px rgba(1,0,40,.06);
+  --ring: color-mix(in srgb, #1f54ee 35%, transparent);
+  --display: "Overused Grotesk", "Inter", "Segoe UI", system-ui, sans-serif;
   --red: #b42318;
-  --red-bg: #fde8e7;
-  --red-line: #f1a7a1;
+  --red-bg: #fdeceb;
+  --red-line: #f5b5af;
   --red-wash: #fff8f7;
-  --amber: #9a5b00;
-  --amber-bg: #fff3dc;
+  --amber: #9a5a00;
+  --amber-bg: #fdf2df;
   --amber-line: #f2c46d;
-  --green: #1e7a3c;
-  --green-bg: #e3f5e8;
+  --green: #0e7a3a;
+  --green-bg: #e9f7ef;
   --green-line: #9fd6ae;
   --purple: #5b3cc4;
   --purple-bg: #efeafe;
@@ -65,28 +79,33 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #e9e8f3;
-  --ink-2: #c6c4d8;
-  --grey: #9a98b2;
+  --ink: #f5f3f5;
+  --ink-2: #ebebee;
+  --grey: #9e9ead;
+  --faint: #8d8c9e;
   --blue: color-mix(in srgb, var(--brand-blue, #1f54ee) 62%, white);
   --blue-deep: color-mix(in srgb, var(--brand-blue, #1f54ee) 38%, white);
-  --hi: color-mix(in srgb, var(--brand-blue, #1f54ee) 58%, #0b0a1f);
-  --card: #17162d;
-  --mix: #17162d;
-  --hover: rgba(255,255,255,.06);
-  --surface: #1e1d36;
-  --border: #2e2c4a;
-  --app-bg: #0e0d21;
-  --side-bg: #121126;
-  --red: #ff8f86;
-  --red-bg: #3b1719;
+  --hi: #00024f;
+  --card: #0e0d33;
+  --mix: #0e0d33;
+  --hover: #151439;
+  --surface: #09082e;
+  --border: #1d1c40;
+  --border-strong: #2a294a;
+  --app-bg: #010028;
+  --side-bg: #09082e;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-pop: 0 12px 36px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+  --ring: color-mix(in srgb, #6e8fff 40%, transparent);
+  --red: #ff7a70;
+  --red-bg: #321b39;
   --red-line: #6e2b2e;
   --red-wash: #2a1420;
-  --amber: #f3b84e;
-  --amber-bg: #33250b;
+  --amber: #f5b94a;
+  --amber-bg: #312535;
   --amber-line: #6d4d14;
-  --green: #72d692;
-  --green-bg: #102e1b;
+  --green: #3dd68c;
+  --green-bg: #132a3d;
   --green-line: #255c37;
   --purple: #bba9ff;
   --purple-bg: #261d46;
@@ -113,28 +132,33 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --ink: #e9e8f3;
-    --ink-2: #c6c4d8;
-    --grey: #9a98b2;
+    --ink: #f5f3f5;
+    --ink-2: #ebebee;
+    --grey: #9e9ead;
+    --faint: #8d8c9e;
     --blue: color-mix(in srgb, var(--brand-blue, #1f54ee) 62%, white);
     --blue-deep: color-mix(in srgb, var(--brand-blue, #1f54ee) 38%, white);
-    --hi: color-mix(in srgb, var(--brand-blue, #1f54ee) 58%, #0b0a1f);
-    --card: #17162d;
-    --mix: #17162d;
-    --hover: rgba(255,255,255,.06);
-    --surface: #1e1d36;
-    --border: #2e2c4a;
-    --app-bg: #0e0d21;
-    --side-bg: #121126;
-    --red: #ff8f86;
-    --red-bg: #3b1719;
+    --hi: #00024f;
+    --card: #0e0d33;
+    --mix: #0e0d33;
+    --hover: #151439;
+    --surface: #09082e;
+    --border: #1d1c40;
+    --border-strong: #2a294a;
+    --app-bg: #010028;
+    --side-bg: #09082e;
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-pop: 0 12px 36px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+    --ring: color-mix(in srgb, #6e8fff 40%, transparent);
+    --red: #ff7a70;
+    --red-bg: #321b39;
     --red-line: #6e2b2e;
     --red-wash: #2a1420;
-    --amber: #f3b84e;
-    --amber-bg: #33250b;
+    --amber: #f5b94a;
+    --amber-bg: #312535;
     --amber-line: #6d4d14;
-    --green: #72d692;
-    --green-bg: #102e1b;
+    --green: #3dd68c;
+    --green-bg: #132a3d;
     --green-line: #255c37;
     --purple: #bba9ff;
     --purple-bg: #261d46;
@@ -207,59 +231,79 @@
   .muted { color: var(--grey); }
   .small { font-size: 12px; }
 
-  /* ---------- shell: left menu ---------- */
-  .side { position: fixed; top: 0; bottom: 0; left: 0; width: var(--side-w); background: var(--side-bg); border-right: 1px solid var(--border); z-index: 15; display: flex; flex-direction: column; padding: calc(14px + env(safe-area-inset-top, 0px)) 10px calc(10px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px)); transition: transform .18s ease, box-shadow .18s ease; }
-  .app:not(.pinned) .side { width: var(--rail-w); transition: width .16s ease, box-shadow .16s ease; overflow: hidden; }
-  .app:not(.pinned).peek .side { width: var(--side-w); box-shadow: 8px 0 30px rgba(1,0,40,.12); }
+  /* ---------- shell: left menu (Arezzo's sidebar, 01/11/2026) ---------- */
+  .side { position: fixed; top: 0; bottom: 0; left: 0; width: var(--side-w); background: var(--side-bg); border-right: 1px solid var(--side-border); color: var(--side-ink); color-scheme: dark; z-index: 15; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); transition: transform .18s ease, box-shadow .18s ease; }
+  .app:not(.pinned) .side { width: var(--rail-w); transition: width .2s cubic-bezier(.2,0,0,1), box-shadow .16s ease; overflow: hidden; }
+  .app:not(.pinned).peek .side { width: var(--side-w); box-shadow: 8px 0 30px rgba(1,0,40,.24); }
   .app:not(.pinned):not(.peek) .side-nav a > span:not(.count),
-  .app:not(.pinned):not(.peek) .side-app,
   .app:not(.pinned):not(.peek) .user .who,
   .app:not(.pinned):not(.peek) .user .pin,
-  .app:not(.pinned):not(.peek) .side-top .pin,
+  .app:not(.pinned):not(.peek) .rail-toggle span,
   .app:not(.pinned):not(.peek) .side-top .logo-full { display: none; }
-  .app:not(.pinned):not(.peek) .side-nav .count { position: absolute; margin: 0; transform: translate(14px, -10px); padding: 0 5px; font-size: 10px; }
-  .app:not(.pinned):not(.peek) .side-nav a { justify-content: center; padding: 10px 0; position: relative; }
-  .app:not(.pinned):not(.peek) .side-top { justify-content: center; padding: 0 0 10px; }
-  .app:not(.pinned):not(.peek) .user { justify-content: center; padding: 6px 0 0; }
-  .side-top .logo-mark { display: none; height: 34px; width: auto; }
+  .app:not(.pinned):not(.peek) .side-nav .count { position: absolute; top: 2px; right: 2px; margin: 0; height: 16px; min-width: 16px; padding: 0 4px; font-size: 10px; }
+  .app:not(.pinned):not(.peek) .side-nav a { justify-content: center; padding: 0; position: relative; }
+  .app:not(.pinned):not(.peek) .side-top { justify-content: center; padding: 0; }
+  .app:not(.pinned):not(.peek) .user { justify-content: center; padding: 6px 0; }
+  .app:not(.pinned):not(.peek) .rail-toggle { justify-content: center; padding: 0; }
+  .side-top .logo-mark { display: none; width: 28px; height: 28px; }
   .app:not(.pinned):not(.peek) .side-top .logo-mark { display: block; }
-  .side-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px 6px; }
+  .side-top { display: flex; align-items: center; height: 48px; flex: none; padding: 0 16px; }
   .side-top .logo-full { display: block; }
-  .side-top .logo-full img { height: 38px; width: auto; max-width: 170px; object-fit: contain; object-position: left center; }
-  .pin { border: 1px solid transparent; background: none; color: var(--grey); border-radius: 6px; padding: 5px; display: inline-flex; }
-  .pin:hover { background: var(--card); border-color: var(--border); color: var(--ink); }
-  .app.pinned .side-top .pin { color: var(--blue); }
-  .side-app { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey); padding: 8px 12px 6px; white-space: nowrap; }
-  .side-nav { display: grid; gap: 2px; }
-  .side-nav a { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid transparent; background: none; color: var(--ink-2); padding: 9px 12px; border-radius: 10px; font-size: 15px; text-align: left; white-space: nowrap; text-decoration: none; }
-  .side-nav a svg { width: 19px; height: 19px; flex: none; color: var(--ink-2); }
-  .side-nav a:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
-  .side-nav a[aria-current="page"] { background: var(--card); border-color: var(--border); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(1,0,40,.04); }
-  .side-nav a[aria-current="page"] svg { color: var(--blue); }
-  .count { margin-left: auto; background: color-mix(in srgb, var(--blue) 12%, var(--mix)); color: var(--blue-deep); border-radius: 9px; padding: 0 7px; font-size: 11px; font-weight: 600; }
+  .side-top .logo-full img { display: block; height: 23px; width: auto; max-width: 208px; object-fit: contain; object-position: left center; }
+  .pin { border: 0; background: none; color: var(--side-muted); border-radius: 8px; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .pin svg { width: 16px; height: 16px; }
+  .pin:hover { background: var(--side-hover); color: var(--side-ink); }
+  .side-nav { display: grid; gap: 1px; padding: 4px 10px 12px; }
+  .side-nav a { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; box-sizing: border-box; border: 1px solid transparent; background: none; color: var(--side-muted); padding: 0 8px; border-radius: 8px; font-size: 13px; line-height: 20px; font-weight: 500; text-align: left; white-space: nowrap; text-decoration: none; transition: background-color .15s, color .15s; }
+  .side-nav a svg { width: 16px; height: 16px; flex: none; color: var(--side-muted); transition: color .15s; }
+  .side-nav a:hover { background: var(--side-hover); color: var(--side-ink); text-decoration: none; }
+  .side-nav a:hover svg { color: var(--side-ink); }
+  .side-nav a[aria-current="page"] { background: var(--side-active); border-color: var(--side-border); color: var(--side-ink); font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  .side-nav a[aria-current="page"] svg { color: var(--side-icon); }
+  .count { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; height: 18px; min-width: 18px; box-sizing: border-box; background: var(--side-active); color: var(--side-muted); border-radius: 9px; padding: 0 6px; font-size: 11px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .side-nav a[aria-current="page"] .count { background: #1f54ee; color: var(--white); }
   .side-spacer { flex: 1; }
-  .side-bottom { border-top: 1px solid var(--border); padding-top: 10px; display: grid; gap: 10px; }
-  .user { display: flex; align-items: center; gap: 10px; padding: 6px 8px 0; }
+  .side-bottom { border-top: 1px solid var(--side-border); padding: 8px 0; display: grid; gap: 4px; }
+  .side-bottom .side-nav { padding-top: 0; padding-bottom: 4px; }
+  .side-bottom .side-nav + .user { border-top: 1px solid var(--side-border); }
+  .user { display: flex; align-items: center; gap: 10px; padding: 8px 18px 2px; }
   .user form { display: contents; }
-  .avatar { width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--blue) 14%, var(--mix)); color: var(--blue-deep); display: grid; place-items: center; font-size: 13px; font-weight: 600; flex: none; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: #16184a; color: var(--side-icon); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
   .user .who { flex: 1; min-width: 0; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .user .who strong { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
-  .user .who span { font-size: 12px; color: var(--grey); }
+  .user .who strong { display: block; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--side-ink); overflow: hidden; text-overflow: ellipsis; }
+  .user .who span { font-size: 11px; line-height: 16px; color: var(--side-muted); }
+  .rail-toggle { display: flex; align-items: center; gap: 10px; height: 32px; margin: 0 8px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--side-muted); font-size: 12px; font-weight: 500; text-align: left; }
+  .rail-toggle svg { width: 16px; height: 16px; flex: none; }
+  .rail-toggle:hover { background: var(--side-hover); color: var(--side-ink); }
 
-  /* ---------- shell: main column ---------- */
-  .mainwrap { min-height: 100vh; transition: margin-left .18s ease; }
+  /* ---------- shell: main column (Arezzo's 48px navy top bar; the page fills the window — Batch 4d item 8) ---------- */
+  .mainwrap { min-height: 100vh; transition: margin-left .2s cubic-bezier(.2,0,0,1); }
   .app.pinned .mainwrap { margin-left: var(--side-w); }
   .app:not(.pinned) .mainwrap { margin-left: var(--rail-w); }
-  .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--card); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; min-height: 58px; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .menu-btn { border: 1px solid var(--border); background: var(--card); border-radius: 8px; padding: 6px; display: none; color: var(--ink); }
-  .crumb { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .crumb span { color: var(--grey); font-weight: 400; }
-  .topbar .right { margin-left: auto; display: flex; gap: 12px; align-items: center; color: var(--ink-2); font-size: 14px; }
+  .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bar-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--side-border); color: var(--side-ink); color-scheme: dark; display: flex; align-items: center; gap: 12px; height: 48px; box-sizing: content-box; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+  .menu-btn { border: 0; background: none; border-radius: 8px; width: 36px; height: 36px; display: none; align-items: center; justify-content: center; color: var(--side-muted); }
+  .menu-btn svg { width: 20px; height: 20px; }
+  .menu-btn:hover { background: var(--side-hover); color: var(--side-ink); }
+  .crumb { font-family: var(--display); font-weight: 600; font-size: 14px; line-height: 20px; color: var(--side-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .crumb span { font-family: var(--sans); color: var(--side-muted); font-weight: 400; font-size: 13px; }
+  .topbar .right { margin-left: auto; display: flex; gap: 12px; align-items: center; color: var(--side-muted); font-size: 12px; }
+  .theme-toggle { border: 0; background: none; border-radius: 8px; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--side-muted); }
+  .theme-toggle svg { width: 18px; height: 18px; }
+  .theme-toggle:hover { background: var(--side-hover); color: var(--side-ink); }
+  /* Analytics-only parts of the menu, in the Hub's navy look */
+  .side .logo-full img.on-light { display: none; }
+  .side .logo-full img.on-dark { display: block; }
+  .side-app { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--side-muted); padding: 4px 18px 6px; white-space: nowrap; }
+  .app:not(.pinned):not(.peek) .side-app { display: none; }
+  .app:not(.pinned):not(.peek) .user .who, .app:not(.pinned):not(.peek) .user .pin { display: none; }
+  .app:not(.pinned):not(.peek) .user { justify-content: center; padding: 6px 0 0; }
+  .app.pinned .side-top .pin { color: var(--side-icon); }
+  .side-top { justify-content: space-between; gap: 8px; }
   .main { padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   /* Pages sit next to the menu (left-aligned) so the sub-menu is never far from it on wide screens. */
   .page { max-width: 1680px; margin: 0; display: grid; gap: 20px; min-width: 0; }
   .withsub { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; }
-  .subnav { position: sticky; top: 86px; display: grid; gap: 2px; }
+  .subnav { position: sticky; top: 72px; display: grid; gap: 2px; }
   .subnav a { text-align: left; color: var(--ink-2); padding: 9px 12px; border-radius: 8px; font-size: 14px; text-decoration: none; }
   .subnav a:hover { background: var(--hover); text-decoration: none; }
   .subnav a[aria-current="true"] { background: color-mix(in srgb, var(--blue) 9%, var(--mix)); color: var(--blue); font-weight: 500; }
@@ -402,7 +446,7 @@
     .app:not(.pinned) .side-top .logo-mark { display: none !important; }
     .app:not(.pinned) .side-top .logo-full, .app:not(.pinned) .side-nav a > span:not(.count), .app:not(.pinned) .side-app, .app:not(.pinned) .user .who { display: revert !important; }
     .app:not(.pinned) .user .pin { display: inline-flex !important; }
-    .app:not(.pinned) .side-nav a { justify-content: flex-start !important; padding: 9px 12px !important; }
+    .app:not(.pinned) .side-nav a { justify-content: flex-start !important; padding: 0 8px !important; }
     .app:not(.pinned) .side-nav .count { position: static !important; transform: none !important; margin-left: auto !important; }
     .app:not(.pinned) .side-top, .app:not(.pinned) .user { justify-content: flex-start !important; }
     .menu-btn { display: inline-flex; }
