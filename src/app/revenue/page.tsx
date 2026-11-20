@@ -61,7 +61,7 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
   return (
     <WithSubNav page="revenue" current={section}>
       <PageHeader title="Revenue protection" subtitle={section === "cases" ? "Every case: what happened, what it would have cost, what it cost, and the lesson. Amounts not known yet stay empty — never guessed." : "Money protected: cost avoided + leakage recovered − losses not prevented. The weekly figure for Mark."} />
-      {section === "overview" ? <Overview ins={ins} recovered={recovered} improvements={improvements} card={typeof sp.card === "string" ? sp.card : null} cases={cases} cn={cn} /> : <Cases cases={cases} cn={cn} />}
+      {section === "overview" ? <Overview ins={ins} recovered={recovered} improvements={improvements} card={typeof sp.card === "string" && ["week", "month", "fy"].includes(sp.card) ? sp.card : null} cases={cases} cn={cn} /> : <Cases cases={cases} cn={cn} />}
       {section === "cases" && admin && (
         <Card title="Add a case">
           <CaseForm v={toValues()} clients={clientOpts} canEdit />

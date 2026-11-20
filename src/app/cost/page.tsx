@@ -85,7 +85,7 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
       ) : section === "base" ? (
         <BaseCost run={run} variants={variants} vsel={vsel ?? null} tile={one(sp.tile) ?? "pools"} q={q} admin={isAdminRole(me.role)} />
       ) : (
-        <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} card={one(sp.card) ?? null} />
+        <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} card={["xero", "under", "cpo", "below"].includes(one(sp.card) ?? "") ? one(sp.card)! : null} />
       )}
       {hasData && section === "base" && <PackagingAndSoftware admin={isAdminRole(me.role)} />}
       {section !== "workbench" && <Warnings run={run} admin={isAdminRole(me.role)} />}
