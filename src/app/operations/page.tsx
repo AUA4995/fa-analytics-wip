@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -88,6 +89,14 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
   const name = (t: string) => names.get(t) ?? (t ? `tenant ${t}` : "(no tenant)");
   const tenantOptions = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const siteNoCodes = site && !site.codes.length;
+  // Third-level tabs keep every filter in the address
+  const tabHref = (k: string) => {
+    const p = new URLSearchParams();
+    for (const [key, val] of Object.entries(sp)) if (key !== "tab" && key !== "panel" && typeof val === "string" && val) p.set(key, val);
+    p.set("tab", k);
+    return `/operations?${p.toString()}`;
+  };
+  const tabProps = { rawTab: one(sp.tab), tabHref };
   const flowsUsed: FlowKey[] = section === "sla" ? ["dispatch", "receiving"] : section === "receiving" ? ["receiving", "expected"] : ["dispatch"];
   const flowsMissing = flowsUsed.filter((k) => !flowReady(cfg, k));
   const unreadable = (await Promise.all(flowsUsed.filter((k) => flowReady(cfg, k)).map((k) => unreadableCount(cfg.flows[k])))).reduce((a, b) => a + b, 0);
@@ -186,14 +195,14 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
           </p>
         </Card>
       )}
-      {copied > 0 && section === "sla" && <Sla cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} />}
-      {copied > 0 && section === "receiving" && <Receiving cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} />}
-      {copied > 0 && section === "trends" && <Trends cfg={cfg} filter={filter} now={now} name={name} admin={admin} />}
+      {copied > 0 && section === "sla" && <Sla cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} {...tabProps} />}
+      {copied > 0 && section === "receiving" && <Receiving cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} {...tabProps} />}
+      {copied > 0 && section === "trends" && <Trends cfg={cfg} filter={filter} now={now} name={name} admin={admin} {...tabProps} />}
     </>
   );
 }
 
-type ViewProps = { cfg: OpsConfig; from: Date; to: Date; filter: { tenants: string[] | null; warehouses: string[] | null }; now: Date; name: (t: string) => string; admin: boolean };
+type ViewProps = { cfg: OpsConfig; from: Date; to: Date; filter: { tenants: string[] | null; warehouses: string[] | null }; now: Date; name: (t: string) => string; admin: boolean; rawTab: string | undefined; tabHref: (k: string) => string };
 
 const tone = (p: number | null): KpiTone => (p === null ? "normal" : p >= 0.97 ? "green" : p >= 0.9 ? "amber" : "red");
 
@@ -263,7 +272,7 @@ function ProblemTable({ items, name, doneLabel, dayEnd = false, admin }: { items
   );
 }
 
-async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
+async function Sla({ cfg, from, to, filter, now, name, admin, rawTab, tabHref }: ViewProps) {
   const v = await slaView(cfg, from, to, filter, now);
   const d = metPct(v.dispatch.total);
   const r = metPct(v.receiving.total);
@@ -281,17 +290,33 @@ async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
         {cfg.rules.holidays.length ? `${cfg.rules.holidays.length} public holidays excluded.` : "No public holidays entered yet."}
       </p>
       {(v.dispatch.capped || v.receiving.capped) && <p className="msg-err">Very large period — only the first 300,000 rows were used. Choose a shorter period.</p>}
-      {v.dispatch.ready && (
-        <>
-          <Card title="Dispatch by client">
-            <CountsTable rows={v.dispatch.byTenant} name={name} />
-          </Card>
-          <Card title="Late and overdue orders" sub="Oldest due first, up to 200.">
-            <ProblemTable items={v.dispatch.problems} name={name} doneLabel="Shipped" dayEnd admin={admin} />
-          </Card>
-        </>
+      <SlaTabs v={v} name={name} admin={admin} rawTab={rawTab} tabHref={tabHref} />
+    </>
+  );
+}
+
+function SlaTabs({ v, name, admin, rawTab, tabHref }: { v: Awaited<ReturnType<typeof slaView>>; name: (t: string) => string; admin: boolean; rawTab: string | undefined; tabHref: (k: string) => string }) {
+  const late = v.dispatch.total.late + v.dispatch.total.overdue;
+  const tabs = [
+    ...(v.dispatch.ready ? [{ key: "dispatch", label: "Dispatch by client" }, { key: "late", label: "Late & overdue", count: late, dot: late > 0 }] : []),
+    ...(v.receiving.ready ? [{ key: "receiving", label: "Receiving by client" }] : []),
+  ];
+  if (!tabs.length) return null;
+  const tab = pickTab(rawTab, tabs);
+  return (
+    <>
+      <PageTabs label="SLA" tabs={tabs} current={tab} href={tabHref} />
+      {tab === "dispatch" && (
+        <Card title="Dispatch by client">
+          <CountsTable rows={v.dispatch.byTenant} name={name} />
+        </Card>
       )}
-      {v.receiving.ready && (
+      {tab === "late" && (
+        <Card title="Late and overdue orders" sub="Oldest due first, up to 200.">
+          <ProblemTable items={v.dispatch.problems} name={name} doneLabel="Shipped" dayEnd admin={admin} />
+        </Card>
+      )}
+      {tab === "receiving" && (
         <Card title="Receiving by client">
           <CountsTable rows={v.receiving.byTenant} name={name} />
         </Card>
@@ -300,7 +325,7 @@ async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
   );
 }
 
-async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps) {
+async function Receiving({ cfg, from, to, filter, now, name, admin, rawTab, tabHref }: ViewProps) {
   const v = await receivingView(cfg, from, to, filter, now);
   const sum = (k: "expected" | "arrived" | "received" | "open" | "late") => v.byTenant.reduce((s, x) => s + x[k], 0);
   return (
@@ -315,6 +340,14 @@ async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps)
         Expected and received deliveries are counted separately: Thomax&apos;s link between an ASN and its receipt isn&apos;t known yet, so they aren&apos;t matched one to one. Emails from clients about deliveries (no ASN yet) join when Front events are added.
       </p>
       {v.capped && <p className="msg-err">Very large period — only the first 300,000 rows were used. Choose a shorter period.</p>}
+      {(() => {
+        const showType = v.byType.length > 0 && !!cfg.flows.receiving.roles.type;
+        const tabs = [{ key: "clients", label: "By client" }, ...(showType ? [{ key: "types", label: "By receipt type" }] : []), { key: "waiting", label: `Waiting over ${cfg.rules.receivingHours} h`, count: v.waitingCount, dot: v.waitingCount > 0 }];
+        const tab = pickTab(rawTab, tabs);
+        return (
+          <>
+            <PageTabs label="Receiving" tabs={tabs} current={tab} href={tabHref} />
+            {tab === "clients" && (
       <Card title="By client">
         {!v.byTenant.length ? (
           <p className="empty">Nothing in this period.</p>
@@ -347,7 +380,8 @@ async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps)
           </div>
         )}
       </Card>
-      {v.byType.length > 0 && cfg.flows.receiving.roles.type && (
+            )}
+            {tab === "types" && (
         <Card title="By receipt type">
           <div className="tw">
             <table>
@@ -371,14 +405,24 @@ async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps)
           </div>
         </Card>
       )}
+            {tab === "waiting" && (
       <Card title={`Waiting longer than ${cfg.rules.receivingHours} hours · ${v.waitingCount.toLocaleString("en-AU")}`} sub={`Now: arrived in the last 60 days but not received, oldest first${v.waitingCount > 200 ? " — first 200 shown" : ""}.`}>
         <ProblemTable items={v.waiting} name={name} doneLabel="Received" admin={admin} />
       </Card>
+            )}
+          </>
+        );
+      })()}
     </>
   );
 }
 
-async function Trends({ cfg, filter, now, name }: Omit<ViewProps, "from" | "to">) {
+const TREND_TABS = [
+  { key: "weeks", label: "Orders per week" },
+  { key: "outlook", label: "Next 7 days — outlook" },
+];
+
+async function Trends({ cfg, filter, now, name, rawTab, tabHref }: Omit<ViewProps, "from" | "to">) {
   const v = await trendsView(cfg, "dispatch", filter, now);
   if (!v.ready) return null;
   const wk = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
@@ -387,6 +431,8 @@ async function Trends({ cfg, filter, now, name }: Omit<ViewProps, "from" | "to">
       <p className="meta" style={{ margin: "0 0 10px" }}>
         <NotConnected source="sales" until="history only — new clients from the Sales app aren't in the outlook" />
       </p>
+      <PageTabs label="Trends" tabs={TREND_TABS} current={pickTab(rawTab, TREND_TABS)} href={tabHref} />
+      {pickTab(rawTab, TREND_TABS) === "outlook" && (
       <Card title="Next 7 days — outlook" sub="Average orders on the same weekday over the last 8 weeks. Shown only with at least 4 weeks of history; not a promise, just the usual pattern.">
         <div className="tw">
           <table>
@@ -411,6 +457,8 @@ async function Trends({ cfg, filter, now, name }: Omit<ViewProps, "from" | "to">
           </table>
         </div>
       </Card>
+      )}
+      {pickTab(rawTab, TREND_TABS) === "weeks" && (
       <Card title="Orders per week" sub="Week starting Monday; the last column is this week so far.">
         {!v.rows.length ? (
           <p className="empty">No orders in the last 12 weeks.</p>
@@ -453,6 +501,7 @@ async function Trends({ cfg, filter, now, name }: Omit<ViewProps, "from" | "to">
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }
