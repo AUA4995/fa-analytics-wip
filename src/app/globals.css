@@ -291,7 +291,9 @@
   .theme-toggle svg { width: 18px; height: 18px; }
   .theme-toggle:hover { background: var(--side-hover); color: var(--side-ink); }
   /* Third-level tabs (same as the Accounts Hub's .ctabs): menu → sub-menu → these tabs across the content */
-  .ctabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 14px; overflow-x: auto; scrollbar-width: none; }
+  .ctabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 14px; }
+  /* Phones: one row that scrolls sideways instead of several rows */
+  @media (max-width: 720px) { .ctabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } }
   .ctabs::-webkit-scrollbar { display: none; }
   .ctabs a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; margin-bottom: -1px; font-size: 14px; color: var(--ink-2); text-decoration: none; border: 1px solid transparent; border-radius: 8px 8px 0 0; white-space: nowrap; flex: 0 0 auto; }
   .ctabs a:hover { color: var(--ink); background: var(--surface); text-decoration: none; }

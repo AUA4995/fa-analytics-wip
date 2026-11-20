@@ -1,3 +1,4 @@
+import { PageTabs } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
@@ -92,8 +93,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             </div>
             {cur.template === "workload" && <p className="meta">Click a card to filter the tables (all · single-SKU · B2C · B2B).</p>}
           </Card>
-          <ReportView rep={built} kpiLinks={kpiLinks} />
           {cur.sends.length > 0 && (
+            <PageTabs
+              label="Report"
+              tabs={[{ key: "report", label: "Report" }, { key: "sends", label: "Last sends", count: cur.sends.length }]}
+              current={one("tab") === "sends" ? "sends" : "report"}
+              href={(k) => `/reports?r=${cur.id}${k === "sends" ? "&tab=sends" : ""}`}
+            />
+          )}
+          {one("tab") !== "sends" && <ReportView rep={built} kpiLinks={kpiLinks} />}
+          {cur.sends.length > 0 && one("tab") === "sends" && (
             <Card title="Last sends">
               <div className="tw">
                 <table>
