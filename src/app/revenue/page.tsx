@@ -141,7 +141,7 @@ function Overview({ ins, recovered, improvements, card, cases, cn }: { card: str
         </div>
       </Card>
       {card && p[card as "week" | "month" | "fy"] && (
-        <Cases cases={cases.filter((c) => c.date >= p[card as "week" | "month" | "fy"].from && c.date < p[card as "week" | "month" | "fy"].to)} cn={cn} empty="No cases in this period." />
+        <Cases cases={cases.filter((c) => c.date >= p[card as "week" | "month" | "fy"].from && c.date < p[card as "week" | "month" | "fy"].to)} cn={cn} empty="No cases in this period." base={`/revenue?card=${card}`} />
       )}
       <Card title="Ongoing savings (separate)" sub="Verified improvements save every month — a rate, so they're shown here, not added to the one-off figures above.">
         {improvements.length ? (
@@ -159,7 +159,7 @@ function Overview({ ins, recovered, improvements, card, cases, cn }: { card: str
   );
 }
 
-function Cases({ cases, cn, empty }: { cases: Awaited<ReturnType<typeof prisma.revenueCase.findMany>>; cn: (c: { clientId: string | null; clientName: string | null }) => string; empty?: string }) {
+function Cases({ cases, cn, empty, base = "/revenue?section=cases" }: { cases: Awaited<ReturnType<typeof prisma.revenueCase.findMany>>; cn: (c: { clientId: string | null; clientName: string | null }) => string; empty?: string; base?: string }) {
   if (!cases.length) return empty ? <p className="empty">{empty}</p> : <EmptyState title="No cases yet">Add the first case below.</EmptyState>;
   return (
     <Card title={`Cases · ${cases.length}`} sub="Click a case to see and edit it.">
@@ -184,7 +184,7 @@ function Cases({ cases, cn, empty }: { cases: Awaited<ReturnType<typeof prisma.r
                   <td>{au(c.date)}</td>
                   <td>{cn(c)}</td>
                   <td>
-                    <Link href={`/revenue?section=cases&panel=case:${c.id}`} className="lnk" scroll={false}>
+                    <Link href={`${base}&panel=case:${c.id}`} className="lnk" scroll={false}>
                       {c.title}
                     </Link>
                     {c.pending && <div className="meta small">to confirm: {c.pending}</div>}

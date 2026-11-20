@@ -318,7 +318,7 @@ async function Receiving({ cfg, from, to, filter, now, name, admin, card, cardHr
       <KpiRow lead={false}>
         <Kpi label="Expected (ASN)" value={v.ready.expected ? sum("expected").toLocaleString("en-AU") : "—"} sub={v.ready.expected ? "in the period · click for clients" : "setup needed"} href={v.ready.expected ? cardHref("expected") : undefined} on={card === "expected"} />
         <Kpi label="Arrived" value={v.ready.receiving ? sum("arrived").toLocaleString("en-AU") : "—"} sub={v.ready.receiving ? "click for clients and receipt types" : undefined} href={v.ready.receiving ? cardHref("arrived") : undefined} on={card === "arrived"} />
-        <Kpi label="Received" value={v.ready.receiving ? sum("received").toLocaleString("en-AU") : "—"} sub={v.ready.receiving ? "click for clients still open" : undefined} href={v.ready.receiving ? cardHref("received") : undefined} on={card === "received"} />
+        <Kpi label="Received" value={v.ready.receiving ? sum("received").toLocaleString("en-AU") : "—"} sub={v.ready.receiving ? "click for clients with received deliveries" : undefined} href={v.ready.receiving ? cardHref("received") : undefined} on={card === "received"} />
         <Kpi label={`Waiting over ${cfg.rules.receivingHours} h`} value={v.ready.receiving ? v.waitingCount.toLocaleString("en-AU") : "—"} tone={v.waitingCount ? "red" : "normal"} sub="now · arrived in the last 60 days" href={v.ready.receiving ? cardHref("waiting") : undefined} on={card === "waiting"} />
       </KpiRow>
       <p className="meta">
@@ -326,7 +326,7 @@ async function Receiving({ cfg, from, to, filter, now, name, admin, card, cardHr
       </p>
       {v.capped && <p className="msg-err">Very large period — only the first 300,000 rows were used. Choose a shorter period.</p>}
       {card !== "waiting" && (
-      <Card title={`By client${card === "expected" ? " · with expected deliveries" : card === "received" ? " · with receipts still open" : card === "arrived" ? " · with arrivals" : ""}`}>
+      <Card title={`By client${card === "expected" ? " · with expected deliveries" : card === "received" ? " · with received deliveries" : card === "arrived" ? " · with arrivals" : ""}`}>
         {!v.byTenant.length ? (
           <p className="empty">Nothing in this period.</p>
         ) : (
@@ -344,7 +344,7 @@ async function Receiving({ cfg, from, to, filter, now, name, admin, card, cardHr
               </thead>
               <tbody>
                 {v.byTenant
-                  .filter((x) => (card === "expected" ? x.expected > 0 : card === "arrived" ? x.arrived > 0 : card === "received" ? x.open > 0 : true))
+                  .filter((x) => (card === "expected" ? x.expected > 0 : card === "arrived" ? x.arrived > 0 : card === "received" ? x.received > 0 : true))
                   .map((x) => (
                   <tr key={x.tenant}>
                     <td>{name(x.tenant)}</td>
