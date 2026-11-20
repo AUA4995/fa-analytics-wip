@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "prisma generate && next dev -p 3002",
     "build": "prisma generate && next build",
+    "vercel-build": "sh scripts/vercel-build.sh",
     "start": "next start -p 3002",
     "lint": "eslint",
     "test": "vitest run",

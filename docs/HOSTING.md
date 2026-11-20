@@ -1,5 +1,8 @@
 # FA Analytics — hosting notes (for Marcus)
 
+> **Update 20/11/2026:** the plan is now Vercel + Marcus's Postgres, like the Accounts Hub — see docs/DEPLOY-VERCEL.md.
+> The laptop install below still works. The Mac Mini option is dropped.
+
 > **Current decision (02/11/2026, confirmed 11/11/2026):** Analytics runs locally — Asal's laptop for testing, then
 > the office Mac Mini behind a private connection (Sophos VPN or Tailscale). Not on Vercel, not on the internet.
 > Step-by-step: **docs/INSTALL-LOCAL.md** (install, backups, restore). The Docker notes below are only an option for

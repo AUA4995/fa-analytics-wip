@@ -1,5 +1,7 @@
 import { PgBoss } from "pg-boss";
 import { jobsSchema, pgConnectionString } from "@/lib/db-url";
+import { jobsRunner } from "./runner";
+import { doFrontTickets, doReportTick, doXeroSync, type FrontJob, type XeroJob } from "./work";
 
 /**
  * Background jobs (pg-boss, in the same PostgreSQL database under its own schema — see jobsSchema()).
@@ -61,32 +63,15 @@ export async function startScheduler(): Promise<void> {
     const { getCreds, nightlyMissed } = await import("@/lib/thomax/sync");
     if ((await getCreds()) && (await nightlyMissed(new Date()))) await b.send(QUEUE_THOMAX_NIGHTLY, {}, { startAfter: 300, singletonKey: "thomax-nightly-catchup" });
   })().catch((err) => console.error("[jobs] Thomax catch-up check failed:", err));
-  await b.work<{ kind?: "FULL" | "INCREMENTAL"; by?: string }>(QUEUE_XERO_SYNC, async ([job]) => {
-    const { getConnection } = await import("@/lib/xero/auth");
-    if (!(await getConnection())) return;
-    const { runXeroSync } = await import("@/lib/xero/sync");
-    const { recordFailure, recordSuccess } = await import("@/lib/integrations/status");
-    try {
-      await runXeroSync(job.data?.kind ?? "INCREMENTAL", job.data?.by ?? null);
-      await recordSuccess("xero");
-      await (await import("./after-sync")).afterSync(job.data?.by ?? null);
-    } catch (err) {
-      await recordFailure("xero", err);
-      throw err;
-    }
+  // The work itself is shared with the Vercel cron tick (src/lib/jobs/work.ts)
+  await b.work<XeroJob>(QUEUE_XERO_SYNC, async ([job]) => {
+    await doXeroSync(job.data ?? {});
   });
-  await b.work<{ months?: number; by?: string }>(QUEUE_FRONT_TICKETS, async ([job]) => {
-    const { isFrontConfigured } = await import("@/lib/front/client");
-    if (!isFrontConfigured()) return;
-    const { syncFrontTickets } = await import("@/lib/front/tickets");
-    await syncFrontTickets(job.data?.months ?? 2, job.data?.by ?? null);
-    // Batch 3: weighted ticket scores for the last 2 full weeks (or more when recounting history)
-    const { syncTicketScores } = await import("@/lib/tickets/sync");
-    await syncTicketScores(job.data?.months && job.data.months > 2 ? Math.min(104, Math.round(job.data.months * 4.35)) : 2, job.data?.by ?? null);
+  await b.work<FrontJob>(QUEUE_FRONT_TICKETS, async ([job]) => {
+    await doFrontTickets(job.data ?? {});
   });
   await b.work(QUEUE_REPORT_TICK, async () => {
-    const { runReportTick } = await import("@/lib/reports/send");
-    await runReportTick();
+    await doReportTick();
   });
   await b.work(QUEUE_THOMAX_NIGHTLY, async ([job]) => {
     const { getCreds, nightly } = await import("@/lib/thomax/sync");
@@ -114,8 +99,15 @@ export async function startScheduler(): Promise<void> {
   console.log("[jobs] scheduler started");
 }
 
-/** Queue a job now (buttons on Data sources). */
+/** Queue a job now (buttons on Data sources). On Vercel it waits for the next cron tick (at most 5 minutes). */
 export async function enqueue(queue: string, data: object): Promise<string | null> {
+  if (jobsRunner() === "cron") {
+    const { QUEUE_KEYS, queueForTick } = await import("./tick");
+    const key = { [QUEUE_XERO_SYNC]: QUEUE_KEYS.xero, [QUEUE_FRONT_TICKETS]: QUEUE_KEYS.front, [QUEUE_THOMAX_NIGHTLY]: QUEUE_KEYS.thomaxNightly, [QUEUE_THOMAX_HISTORY]: QUEUE_KEYS.thomaxHistory }[queue];
+    if (!key) throw new Error(`Unknown job ${queue}`);
+    await queueForTick(key, data);
+    return key;
+  }
   const b = await getBoss();
   return b.send(queue, data, { singletonKey: `${queue}-manual` });
 }

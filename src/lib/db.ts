@@ -17,7 +17,9 @@ function createClient(): PrismaClient {
   const schema = dbSchema(connectionString);
   // search_path = the app's schema, so raw SQL ($queryRaw: rate limits, 2FA, snapshots) finds the same tables as the
   // Prisma models — e.g. Asal's laptop keeps them in "accounts_hub" inside the CLM database, not "public".
-  const adapter = new PrismaPg({ connectionString: pgConnectionString(connectionString), options: searchPathOption(schema) }, { schema });
+  // Vercel (batch 7): many short-lived functions share Marcus's Postgres — keep each one's pool small
+  const pool = process.env.VERCEL ? { max: Number(process.env.DB_POOL_MAX ?? 3), idleTimeoutMillis: 10_000 } : {};
+  const adapter = new PrismaPg({ connectionString: pgConnectionString(connectionString), options: searchPathOption(schema), ...pool }, { schema });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],

@@ -22,7 +22,8 @@ export async function syncXeroAction(kind: "FULL" | "INCREMENTAL"): Promise<Data
     }
     const { enqueue, QUEUE_XERO_SYNC } = await import("@/lib/jobs/scheduler");
     await enqueue(QUEUE_XERO_SYNC, { kind, by: me.name });
-    return { ok: true, message: `${kind === "FULL" ? "Full re-read" : "Sync"} started in the background — refresh this page in a minute or two.${kind === "FULL" ? " The first full read of history since 2021 can take a while (Xero allows 60 calls a minute)." : ""}` };
+    const { jobsRunner } = await import("@/lib/jobs/runner");
+    return { ok: true, message: `${kind === "FULL" ? "Full re-read" : "Sync"} ${jobsRunner() === "cron" ? "queued — it starts within 5 minutes; refresh this page after that" : "started in the background — refresh this page in a minute or two"}.${kind === "FULL" ? " The first full read of history since 2021 can take a while (Xero allows 60 calls a minute)." : ""}` };
   } catch (err) {
     return { ok: false, message: plainError(err) };
   }
@@ -33,7 +34,8 @@ export async function recountFrontAction(months: number): Promise<DataActionStat
     const me = await assertAdmin();
     const { enqueue, QUEUE_FRONT_TICKETS } = await import("@/lib/jobs/scheduler");
     await enqueue(QUEUE_FRONT_TICKETS, { months, by: me.name });
-    return { ok: true, message: "Counting in the background — refresh in a minute." };
+    const { jobsRunner } = await import("@/lib/jobs/runner");
+    return { ok: true, message: jobsRunner() === "cron" ? "Queued — counting starts within 5 minutes; refresh after that." : "Counting in the background — refresh in a minute." };
   } catch (err) {
     return { ok: false, message: plainError(err) };
   }

@@ -509,6 +509,8 @@ export interface StepResult {
   stopped: string | null;
   /** Stopped only because another Thomax copy was running — try again a little later */
   busy?: boolean;
+  /** Nightly: tables this run got to (copied or failed), so the next Vercel tick tonight doesn't try them again */
+  tried?: string[];
 }
 
 /** Heartbeat of the run in progress (every page): a run with no heartbeat for 20 minutes is treated as dead. */
@@ -604,20 +606,29 @@ export async function historyStep(maxWindows = 6, now = new Date(), opts?: Thoma
  * Nightly: MASTER tables in full; TRANSACTIONAL the last `recheckDays` days up to tomorrow (only for tables whose
  * history has reached that point), plus rows with no date.
  */
-export async function nightly(now = new Date(), opts?: ThomaxOptions): Promise<StepResult> {
+export async function nightly(now = new Date(), opts?: ThomaxOptions & { skip?: string[] }): Promise<StepResult> {
   const creds = await getCreds();
   if (!creds) return noCreds();
   if (await runningRun()) return { windows: 0, rows: 0, remaining: 0, errors: [], stopped: "Another Thomax copy is still running.", busy: true };
-  const tables = await readyTables();
-  if (!tables.length) return { windows: 0, rows: 0, remaining: 0, errors: [], stopped: "No table is saved yet — Explore, check and save the tables first." };
+  const all = await readyTables();
+  if (!all.length) return { windows: 0, rows: 0, remaining: 0, errors: [], stopped: "No table is saved yet — Explore, check and save the tables first." };
+  // Vercel (batch 7): one function can't run all night — each tick carries on with the tables not tried yet tonight
+  const skip = new Set(opts?.skip ?? []);
+  const tables = all.filter((t) => !skip.has(t.name));
+  if (!tables.length) return { windows: 0, rows: 0, remaining: 0, errors: [], stopped: null, tried: [] };
   const conn = await prisma.thomaxConnection.findUniqueOrThrow({ where: { id: "thomax" } });
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const from = new Date(today.getTime() - conn.recheckDays * DAY);
   const to = new Date(today.getTime() + 2 * DAY);
-  const res: StepResult = { windows: 0, rows: 0, remaining: 0, errors: [], stopped: null };
+  const res: StepResult = { windows: 0, rows: 0, remaining: 0, errors: [], stopped: null, tried: [] };
   const run = { id: await startRun("nightly") };
   for (const t of tables) {
     if (res.stopped) break;
+    if (opts?.signal?.aborted) {
+      res.stopped = "Stopped (time limit).";
+      break;
+    }
+    res.tried!.push(t.name);
     try {
       if (t.kind === "MASTER" || !t.dateField) {
         const r = await copyMaster(creds, t, opts);
@@ -648,9 +659,13 @@ export async function nightly(now = new Date(), opts?: ThomaxOptions): Promise<S
         await loginRefused(err);
         res.stopped = "Thomax refused the login — stopped.";
       } else if (isNetworkError(err)) res.stopped = "Thomax can't be reached — stopped (tried again tomorrow, or press Sync now).";
-      else if (opts?.signal?.aborted) res.stopped = "Stopped (time limit).";
+      else if (opts?.signal?.aborted) {
+        res.stopped = "Stopped (time limit).";
+        res.tried!.pop(); // cut off part-way: try this table again on the next tick
+      }
     }
   }
+  res.remaining = tables.length - res.tried!.length;
   await finishRun(run.id, res);
   return res;
 }

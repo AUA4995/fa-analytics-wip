@@ -14,6 +14,8 @@ const PUBLIC_EXACT = new Set([
   "/request-access",
   "/access/approve",
   "/access/decline",
+  // Vercel Cron (batch 7): checked by CRON_SECRET inside the handler
+  "/api/cron/tick",
 ]);
 // /api/v1/ is authenticated by API key inside each handler (lib/apikeys), not by the session cookie
 const PUBLIC_PREFIXES = ["/_next/", "/brand/", "/api/v1/"];

@@ -128,7 +128,9 @@ export async function runThomaxAction(what: "nightly" | "history"): Promise<Data
     }
     const { enqueue, QUEUE_THOMAX_HISTORY, QUEUE_THOMAX_NIGHTLY } = await import("@/lib/jobs/scheduler");
     await enqueue(what === "nightly" ? QUEUE_THOMAX_NIGHTLY : QUEUE_THOMAX_HISTORY, what === "history" ? { anyTime: true } : {});
-    return ok(what === "nightly" ? "Sync started in the background — refresh in a few minutes." : "History load started: the first step runs now, the rest continues step by step between 20:00 and 06:00. Refresh to see progress.");
+    const { jobsRunner } = await import("@/lib/jobs/runner");
+    const soon = jobsRunner() === "cron" ? "starts within 5 minutes" : "runs now";
+    return ok(what === "nightly" ? `Sync queued — it ${soon}; refresh in a few minutes.` : `History load: the next step ${soon} and loading carries on step by step until the history is in. Refresh to see progress.`);
   } catch (err) {
     return fail(err);
   }

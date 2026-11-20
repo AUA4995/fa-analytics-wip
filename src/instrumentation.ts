@@ -7,6 +7,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NEXT_PHASE === "phase-production-build") return;
   try {
+    // Vercel: no long-running process — Vercel Cron calls /api/cron/tick instead (src/lib/jobs/runner.ts)
+    const { jobsRunner } = await import("@/lib/jobs/runner");
+    if (jobsRunner() === "cron") return;
     const { startScheduler } = await import("@/lib/jobs/scheduler");
     await startScheduler();
   } catch (err) {
