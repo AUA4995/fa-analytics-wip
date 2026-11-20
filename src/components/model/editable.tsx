@@ -158,7 +158,7 @@ export function LogsButton({ entity, id, field, spec, count }: { entity: string;
             lines.map((l) => (
               <span key={l.id} className="log-line">
                 <span className="meta">
-                  {new Date(l.at).toLocaleString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} · {l.actorName}
+                  {new Date(l.at).toLocaleString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Australia/Sydney" })} · {l.actorName}
                   {l.actorType !== "USER" ? ` (${l.actorType === "API_KEY" ? "API key" : "sync"})` : ""}
                 </span>
                 <span>

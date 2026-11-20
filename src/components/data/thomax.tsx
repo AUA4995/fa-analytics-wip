@@ -66,7 +66,7 @@ export function ThomaxButtons({ owner }: { owner: boolean }) {
       <button type="button" className="btn primary" disabled={pending} onClick={() => run(() => runThomaxAction("nightly"))}>
         Sync now
       </button>
-      <button type="button" className="btn" disabled={pending} onClick={() => confirm("Start loading history now? It keeps going, step by step, until the history is loaded — also during the day, when it shares Thomax with Power BI and the daily emails (they may be a little slower). Close the app to pause it.") && run(() => runThomaxAction("history"))}>
+      <button type="button" className="btn" disabled={pending} onClick={() => confirm("Start loading history now? It keeps going, step by step, until the history is loaded — also during the day, when it shares Thomax with Power BI and the daily emails (they may be a little slower). On a laptop, closing the app pauses it; on Vercel it runs for 3 hours, then carries on each night 20:00–06:00.") && run(() => runThomaxAction("history"))}>
         Load history now
       </button>
       {owner && (

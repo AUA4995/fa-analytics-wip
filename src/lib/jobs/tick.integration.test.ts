@@ -59,4 +59,18 @@ describe.skipIf(!isTestDatabase())("cron tick (integration)", () => {
     await t.runTick({ now: new Date("2026-11-19T18:50:00Z"), maxMs: 61_000 });
     expect(calls).toEqual([]);
   });
+
+  it("a second button press is merged, not lost; a failed daily job is retried up to 3 times", async () => {
+    await t.queueForTick(t.QUEUE_KEYS.xero, { kind: "FULL", by: "A" });
+    await t.queueForTick(t.QUEUE_KEYS.xero, { kind: "INCREMENTAL", by: "B" });
+    await t.runTick({ now: new Date("2026-11-19T17:10:00Z") });
+    expect(calls).toContain("xero:FULL");
+    const work = await import("./work");
+    calls.length = 0;
+    vi.mocked(work.doXeroSync).mockClear();
+    vi.mocked(work.doXeroSync).mockRejectedValue(new Error("Xero down"));
+    for (const m of [50, 55, 59]) await t.runTick({ now: new Date(`2026-11-19T18:${m}:00Z`) });
+    await t.runTick({ now: new Date("2026-11-19T19:05:00Z") });
+    expect(vi.mocked(work.doXeroSync).mock.calls.filter((c) => (c[0] as { kind?: string }).kind === "INCREMENTAL").length).toBe(3);
+  });
 });

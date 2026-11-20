@@ -31,14 +31,20 @@ export function sydney(now: Date): { ymd: string; hour: number; minute: number }
   return { ymd: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour), minute: Number(p.minute) };
 }
 
-/** Claim a slot: true once, false for every later caller (unique Setting key). */
+/** Claim a slot: true once, false for every later caller (unique Setting key; no error logged for the losers). */
 export async function claimSlot(slot: string): Promise<boolean> {
-  try {
-    await prisma.setting.create({ data: { key: `cron:slot:${slot}`, value: { at: new Date().toISOString() } } });
-    return true;
-  } catch {
-    return false;
-  }
+  const value = JSON.stringify({ at: new Date().toISOString() });
+  const n = await prisma.$executeRaw`INSERT INTO "Setting" ("key", "value", "updatedAt") VALUES (${`cron:slot:${slot}`}, ${value}::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
+  return n === 1;
+}
+
+/** A daily job that failed is tried again on later ticks, at most 3 times a day (then waits for tomorrow). */
+async function releaseAfterFailure(slot: string): Promise<void> {
+  const key = `cron:fail:${slot}`;
+  const row = await prisma.setting.findUnique({ where: { key } });
+  const tries = ((row?.value as { tries?: number } | null)?.tries ?? 0) + 1;
+  await prisma.setting.upsert({ where: { key }, create: { key, value: { tries } }, update: { value: { tries } } });
+  if (tries < 3) await prisma.setting.deleteMany({ where: { key: `cron:slot:${slot}` } });
 }
 
 /** Take a queued button request (deleted as it is taken, so only one tick gets it). */
@@ -49,9 +55,19 @@ async function take<T>(key: string): Promise<T | null> {
   return del.count === 1 ? ((row.value ?? {}) as T) : null;
 }
 
-/** Queue work for the next tick (cron mode's enqueue). A second press before the tick replaces the first. */
+/**
+ * Queue work for the next tick (cron mode's enqueue). A second press before the tick is merged, never lost: Xero
+ * "Full re-read" wins over a normal sync, Front keeps the longest recount, history keeps "any time".
+ */
 export async function queueForTick(key: string, data: object): Promise<void> {
-  await prisma.setting.upsert({ where: { key }, create: { key, value: data as never }, update: { value: data as never } });
+  const prev = ((await prisma.setting.findUnique({ where: { key } }))?.value ?? null) as Record<string, unknown> | null;
+  const next: Record<string, unknown> = { ...(prev ?? {}), ...(data as Record<string, unknown>) };
+  if (prev) {
+    if (prev.kind === "FULL") next.kind = "FULL";
+    if (typeof prev.months === "number" && typeof next.months === "number") next.months = Math.max(prev.months, next.months);
+    if (prev.anyTime) next.anyTime = true;
+  }
+  await prisma.setting.upsert({ where: { key }, create: { key, value: next as never }, update: { value: next as never } });
 }
 
 export async function runTick(opts: { now?: Date; startedAt?: number; maxMs?: number } = {}): Promise<TickReport> {
@@ -80,13 +96,16 @@ export async function runTick(opts: { now?: Date; startedAt?: number; maxMs?: nu
 
   // 2. daily / hourly schedules
   const mins = s.hour * 60 + s.minute;
+  const daily = async (slot: string, job: string, fn: () => Promise<string>) => {
+    if (!(await claimSlot(slot))) return;
+    await run(job, fn);
+    if (!report.ran.at(-1)?.ok) await releaseAfterFailure(slot);
+  };
   if (mins >= 5 * 60 + 30) {
-    if (left() > 120_000 && (await claimSlot(`xero-sync:${s.ymd}`))) await run("xero-sync", () => doXeroSync({ kind: "INCREMENTAL" }));
-    else if (left() <= 120_000) report.waiting.push("xero-sync");
+    if (left() > 120_000) await daily(`xero-sync:${s.ymd}`, "xero-sync", () => doXeroSync({ kind: "INCREMENTAL" }));
+    else report.waiting.push("xero-sync");
   }
-  if (mins >= 5 * 60 + 45) {
-    if (left() > 90_000 && (await claimSlot(`front-tickets:${s.ymd}`))) await run("front-tickets", () => doFrontTickets({ months: 2 }));
-  }
+  if (mins >= 5 * 60 + 45 && left() > 90_000) await daily(`front-tickets:${s.ymd}`, "front-tickets", () => doFrontTickets({ months: 2 }));
   if (s.minute >= 5 && left() > 60_000 && (await claimSlot(`reports:${s.ymd}:${String(s.hour).padStart(2, "0")}`))) await run("reports", () => doReportTick(now));
 
   // 3. Thomax
@@ -100,7 +119,7 @@ export async function runTick(opts: { now?: Date; startedAt?: number; maxMs?: nu
         const r = await nightly(new Date(), { signal: AbortSignal.timeout(Math.max(10_000, left())), skip: qn ? [] : tried.tables ?? [] });
         const tables = [...new Set([...(qn ? [] : tried.tables ?? []), ...(r.tried ?? [])])];
         if (!r.busy) await prisma.setting.upsert({ where: { key: nightKey }, create: { key: nightKey, value: { tables, done: r.remaining === 0 && !r.stopped } }, update: { value: { tables, done: r.remaining === 0 && !r.stopped } } });
-        report.ran.push({ job: "thomax-nightly", ok: !r.errors.length, summary: r.busy ? "another copy is running" : `${r.windows} tables, ${r.rows} rows${r.remaining ? `, ${r.remaining} left for the next tick` : ""}${r.stopped ? ` — ${r.stopped}` : ""}` });
+        report.ran.push({ job: "thomax-nightly", ok: !r.errors.length, summary: r.busy ? "another copy is running" : `${r.windows} tables, ${r.rows} rows${r.remaining ? `, ${r.remaining} left for the next tick` : ""}${r.stopped ? ` — ${r.stopped}` : ""}${r.errors.length ? ` — ${r.errors.length} problem${r.errors.length === 1 ? "" : "s"}, first: ${r.errors[0]}` : ""}` });
       }
     }
     // "Keep loading now" carries on outside 20:00–06:00 for 3 hours only, so Thomax isn't loaded all business day

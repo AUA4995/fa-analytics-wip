@@ -32,7 +32,7 @@ export function XeroCard(props: XeroCardProps) {
           {props.status.state === "connected" ? "Connected" : props.status.state === "error" ? "Problem" : "Not connected"}
         </span>
         {props.connected && <strong>{props.tenantName}</strong>}
-        <span className="meta">Last read: {props.lastSyncAt ? new Date(props.lastSyncAt).toLocaleString("en-AU") : "never"}</span>
+        <span className="meta">Last read: {props.lastSyncAt ? new Date(props.lastSyncAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney" }) : "never"}</span>
       </div>
       <p className={props.status.state === "error" ? "msg-err" : "meta"} style={{ margin: 0 }}>
         {props.status.headline}
