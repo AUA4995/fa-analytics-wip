@@ -12,6 +12,9 @@ export const maxDuration = 800;
  */
 export async function GET(request: Request) {
   const startedAt = Date.now();
+  const secret = (process.env.CRON_SECRET ?? "").trim();
+  // A secret that's set but too short refuses every call — say why in the log, so the cron doesn't fail silently
+  if (secret && secret.length < 16) console.warn("[cron] CRON_SECRET is set but shorter than 16 characters — every tick is refused. Use a longer secret.");
   if (!isCronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (jobsRunner() !== "cron") return Response.json({ error: "Background jobs run on pg-boss here (not on Vercel) — the cron tick is off." }, { status: 409 });
   try {
