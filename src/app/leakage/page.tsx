@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { leakageInputs } from "@/lib/leakage/inputs";
 import { NotConnected } from "@/components/ui/not-connected";
@@ -49,12 +50,12 @@ export default async function LeakagePage({ searchParams }: { searchParams: SP }
   return (
     <WithSubNav page="leakage" current={section}>
       <PageHeader title={section === "overview" ? "Leakage" : (({ underbilling: "Under-billing", underpricing: "Under-pricing", ratechecks: "Rate checks", log: "Leakage log" }) as Record<string, string>)[section]} subtitle="Revenue not collected. A person decides; fixes in Xero, Dyspach or the WMS are tasks done by hand." actions={<DetectButton />} />
-      {section === "overview" && <Overview items={items} cn={cn} card={one(sp.card) ?? null} />}
+      {section === "overview" && <Overview items={items} cn={cn} card={one(sp.card) ?? null} rawTab={one(sp.tab)} />}
       {section === "underbilling" && <UnderBillingNote />}
       {section === "underbilling" && <ItemsTable items={items.filter((i) => i.kind !== "RATE_MISMATCH" && !i.imported)} cn={cn} title="Under-billing and weekly minimums" sub="WMS volume × rate vs what was billed in Xero, per client per service per month; weekly invoice totals under the client's minimum." />}
       {section === "underpricing" && <UnderPricing />}
-      {section === "ratechecks" && <RateChecks />}
-      {section === "log" && <LogSection items={items} cn={cn} />}
+      {section === "ratechecks" && <RateChecks rawTab={one(sp.tab)} />}
+      {section === "log" && <LogSection items={items} cn={cn} rawTab={one(sp.tab)} />}
       {panel?.kind === "leak" && <LeakPanel item={items.find((i) => i.id === panel.id) ?? null} cn={cn} people={people} />}
     </WithSubNav>
   );
@@ -80,7 +81,14 @@ function stats(items: Item[]) {
   return { found, rec, open, recTot, foundTot, openTot: open.reduce((a, i) => a + Number(i.gap), 0), rate: foundTot ? recTot / foundTot : null, days: dayList.length ? dayList.reduce((a, b) => a + b, 0) / dayList.length : null };
 }
 
-async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) => string; card: string | null }) {
+const OVERVIEW_TABS = [
+  { key: "month", label: "Found vs recovered by month" },
+  { key: "type", label: "By type and status" },
+  { key: "top", label: "Top 5 open" },
+];
+
+async function Overview({ items, cn, card, rawTab }: { items: Item[]; cn: (id: string) => string; card: string | null; rawTab: string | undefined }) {
+  const tab = pickTab(rawTab, OVERVIEW_TABS);
   const s = stats(items);
   const checks = await rateChecks();
   const mism = checks.filter((r) => !r.match);
@@ -162,7 +170,8 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
       )}
       {!card && (
         <>
-          <div className="grid2">
+          <PageTabs label="Leakage overview" tabs={OVERVIEW_TABS} current={tab} href={(k) => `/leakage?tab=${k}`} />
+            {tab === "month" && (
             <Card title="Found vs recovered by month">
               {!months.length ? (
                 <p className="empty">Nothing found yet.</p>
@@ -191,6 +200,8 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
                 })
               )}
             </Card>
+            )}
+            {tab === "type" && (
             <Card title="By type and status">
               {byKind.map(([l, v]) => (
                 <div key={l} className="catbar">
@@ -209,8 +220,8 @@ async function Overview({ items, cn, card }: { items: Item[]; cn: (id: string) =
                 ))}
               </div>
             </Card>
-          </div>
-          <ItemsTable items={s.open.sort((a, b) => Number(b.gap) - Number(a.gap)).slice(0, 5)} cn={cn} title="Top 5 open" />
+            )}
+          {tab === "top" && <ItemsTable items={s.open.sort((a, b) => Number(b.gap) - Number(a.gap)).slice(0, 5)} cn={cn} title="Top 5 open" />}
         </>
       )}
     </>
@@ -322,8 +333,10 @@ async function UnderPricing() {
   );
 }
 
-async function RateChecks({ onlyMismatch = false }: { onlyMismatch?: boolean }) {
+async function RateChecks({ onlyMismatch = false, rawTab }: { onlyMismatch?: boolean; rawTab?: string }) {
   const rows = (await rateChecks()).filter((r) => !onlyMismatch || !r.match);
+  const tabs = [{ key: "rates", label: "Rates side by side", count: rows.length }, { key: "exports", label: "Rate exports" }];
+  const tab = onlyMismatch ? "rates" : pickTab(rawTab, tabs);
   const snaps = await prisma.rateSnapshot.groupBy({ by: ["source"], _max: { asOf: true }, _count: { _all: true } });
   return (
     <>
@@ -332,7 +345,8 @@ async function RateChecks({ onlyMismatch = false }: { onlyMismatch?: boolean }) 
           <NotConnected source="clm" /> <NotConnected source="dyspach" />
         </p>
       )}
-      {!onlyMismatch && (
+      {!onlyMismatch && <PageTabs label="Rate checks" tabs={tabs} current={tab} href={(k) => `/leakage?section=ratechecks&tab=${k}`} />}
+      {tab === "exports" && (
         <Card title="Rate exports" sub="CLM (or Settings until CLM connects) vs Dyspach vs the WMS. Upload the Dyspach and WMS rate exports as CSV; their APIs replace this later.">
           <div className="row" style={{ marginBottom: 8 }}>
             {(["DYSPATCH", "WMS"] as const).map((s) => {
@@ -347,6 +361,7 @@ async function RateChecks({ onlyMismatch = false }: { onlyMismatch?: boolean }) 
           <RateUpload />
         </Card>
       )}
+      {tab === "rates" && (
       <Card title={`${onlyMismatch ? "Rate mismatches" : "Rates side by side"} · ${rows.length}`} sub="A person decides which one is right. Analytics updates itself; the other systems get a task to fix by hand.">
         {!rows.length ? (
           <p className="empty">Nothing to compare yet.</p>
@@ -382,17 +397,23 @@ async function RateChecks({ onlyMismatch = false }: { onlyMismatch?: boolean }) 
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }
 
-function LogSection({ items, cn }: { items: Item[]; cn: (id: string) => string }) {
+function LogSection({ items, cn, rawTab }: { items: Item[]; cn: (id: string) => string; rawTab: string | undefined }) {
+  const tabs = [{ key: "all", label: "Every finding", count: items.length }, { key: "import", label: "Import the old log" }];
+  const tab = pickTab(rawTab, tabs);
   return (
     <>
-      <Card title="Import FA_Leakage_Log" sub="Save the Excel log as CSV and paste or upload it once; it replaces the spreadsheet from then on.">
-        <LeakLogImport />
-      </Card>
-      <ItemsTable items={items} cn={cn} title="Every finding" />
+      <PageTabs label="Leakage log" tabs={tabs} current={tab} href={(k) => `/leakage?section=log&tab=${k}`} />
+      {tab === "import" && (
+        <Card title="Import FA_Leakage_Log" sub="Save the Excel log as CSV and paste or upload it once; it replaces the spreadsheet from then on.">
+          <LeakLogImport />
+        </Card>
+      )}
+      {tab === "all" && <ItemsTable items={items} cn={cn} title="Every finding" />}
     </>
   );
 }
