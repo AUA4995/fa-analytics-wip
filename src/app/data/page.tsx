@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -25,6 +26,11 @@ const n = (x: number) => x.toLocaleString("en-AU");
 const srcName = (s: string) => WMS_SOURCES.find(([k]) => k === s)?.[1] ?? s;
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
+const tabOf = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+const RUN_TABS = (main: string) => [
+  { key: "main", label: main },
+  { key: "runs", label: "Recent runs" },
+];
 
 /** Data sources (brief §11): where every number comes from, what has been read, and what's missing. */
 export default async function DataPage({ searchParams }: { searchParams: SP }) {
@@ -36,16 +42,16 @@ export default async function DataPage({ searchParams }: { searchParams: SP }) {
   return (
     <WithSubNav page="data" current={section}>
       <PageHeader title="Data sources" subtitle="Everything here is read-only: the app copies data in, never changes the source." />
-      {section === "wms" && <WmsSection admin={admin} owner={isOwnerRole(me.role)} openTable={openTable} />}
-      {section === "xero" && <XeroSection admin={admin} />}
-      {section === "front" && <FrontSection admin={admin} />}
+      {section === "wms" && <WmsSection admin={admin} owner={isOwnerRole(me.role)} openTable={openTable} rawTab={tabOf(sp.tab)} />}
+      {section === "xero" && <XeroSection admin={admin} rawTab={tabOf(sp.tab)} />}
+      {section === "front" && <FrontSection admin={admin} rawTab={tabOf(sp.tab)} />}
       {section === "contracts" && <ContractsSection />}
       {section === "ai" && <AiSection />}
     </WithSubNav>
   );
 }
 
-async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: boolean; openTable?: string }) {
+async function WmsSection({ admin, owner, openTable, rawTab }: { admin: boolean; owner: boolean; openTable?: string; rawTab?: string }) {
   const [imports, coverage, orderCoverage, clients, maps] = await Promise.all([
     prisma.volumeImport.findMany({ orderBy: { createdAt: "desc" }, take: 30, include: { _count: { select: { lines: true, orders: true } } } }),
     prisma.volumeLine.groupBy({ by: ["source", "tenant"], _min: { date: true }, _max: { date: true }, _count: { _all: true } }),
@@ -64,9 +70,21 @@ async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: 
     keys.set(k, { ...(keys.get(k) ?? { source: o.source, tenant: o.tenant }), ord: o });
   }
   const rows = [...keys.values()].sort((a, b) => a.source.localeCompare(b.source) || a.tenant.localeCompare(b.tenant));
+  const tabs = [
+    { key: "thomax", label: "Thomax copy" },
+    { key: "files", label: "Load a file" },
+    { key: "loaded", label: "What's loaded", count: rows.length },
+    { key: "history", label: "Files loaded", count: imports.length },
+    ...(unmapped.length ? [{ key: "unmapped", label: "Codes not mapped", count: unmapped.length, dot: true }] : []),
+  ];
+  // A Thomax table opened from a link (?t=) opens the Thomax tab
+  const tab = openTable && !rawTab ? "thomax" : pickTab(rawTab, tabs);
   return (
     <>
-      <ThomaxPanel admin={admin} owner={owner} open={openTable} />
+      <PageTabs label="WMS" tabs={tabs} current={tab} href={(k) => `/data?section=wms&tab=${k}`} />
+      {tab === "thomax" && <ThomaxPanel admin={admin} owner={owner} open={openTable} />}
+      {tab === "files" && (
+      <>
       <div className="grid2">
         <Card title="Logiwa · API">
           <p className="small" style={{ marginTop: 0 }}>
@@ -79,6 +97,10 @@ async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: 
           <WmsUpload sources={WMS_SOURCES} aiReady={!!process.env.ANTHROPIC_API_KEY} />
         </Card>
       )}
+      {!admin && <p className="meta">Only admins load files.</p>}
+      </>
+      )}
+      {tab === "loaded" && (
       <Card title="What's loaded" sub="Per WMS and tenant: dates covered, day lines (charges) and orders.">
         {!rows.length ? (
           <p className="empty">Nothing loaded yet.</p>
@@ -116,7 +138,8 @@ async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: 
           </div>
         )}
       </Card>
-      {unmapped.length > 0 && (
+      )}
+      {tab === "unmapped" && unmapped.length > 0 && (
         <Card title={`Charge codes not mapped · ${unmapped.length}`} tone="warn" sub="These WMS codes have no standard service code yet, so their volumes don't reach the cost model.">
           <p className="small mono" style={{ margin: 0 }}>
             {unmapped.slice(0, 60).map((u) => `${srcName(u.source)}: ${u.wmsCode}`).join(" · ")}
@@ -129,6 +152,7 @@ async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: 
           </p>
         </Card>
       )}
+      {tab === "history" && (
       <Card title="Files loaded">
         {!imports.length ? (
           <p className="empty">No files yet.</p>
@@ -171,11 +195,12 @@ async function WmsSection({ admin, owner, openTable }: { admin: boolean; owner: 
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }
 
-async function XeroSection({ admin }: { admin: boolean }) {
+async function XeroSection({ admin, rawTab }: { admin: boolean; rawTab?: string }) {
   const [conn, runs, accounts, contacts, sales, saleRange, pnl, employees, payRuns, payslips] = await Promise.all([
     getConnection(),
     prisma.sourceRun.findMany({ where: { source: "xero" }, orderBy: { startedAt: "desc" }, take: 8 }),
@@ -190,6 +215,8 @@ async function XeroSection({ admin }: { admin: boolean }) {
   ]);
   return (
     <>
+      <PageTabs label="Xero" tabs={RUN_TABS("Xero")} current={pickTab(rawTab, RUN_TABS("Xero"))} href={(k) => `/data?section=xero&tab=${k}`} />
+      {pickTab(rawTab, RUN_TABS("Xero")) === "main" && (
       <Card title="Xero" sub="Accounting, reports and AU Payroll, read-only. Reads every night at 05:30; P&L re-reads the last 3 months each night (closed months are kept).">
         <div className="row" style={{ marginBottom: 10 }}>
           <Pill tone={conn ? "green" : "grey"}>{conn ? `Connected · ${conn.tenantName}` : "Not connected"}</Pill>
@@ -239,12 +266,13 @@ async function XeroSection({ admin }: { admin: boolean }) {
           </table>
         </div>
       </Card>
-      <RunsCard runs={runs} />
+      )}
+      {pickTab(rawTab, RUN_TABS("Xero")) === "runs" && <RunsCard runs={runs} />}
     </>
   );
 }
 
-async function FrontSection({ admin }: { admin: boolean }) {
+async function FrontSection({ admin, rawTab }: { admin: boolean; rawTab?: string }) {
   const configured = isFrontConfigured();
   const [counts, runs, clientsNoDomain] = await Promise.all([
     prisma.frontTicketMonth.findMany({ orderBy: [{ month: "desc" }] }),
@@ -255,6 +283,8 @@ async function FrontSection({ admin }: { admin: boolean }) {
   const months = [...new Set(counts.map((c) => c.month))].sort().reverse().slice(0, 6);
   return (
     <>
+      <PageTabs label="Front" tabs={RUN_TABS("Tickets per client")} current={pickTab(rawTab, RUN_TABS("Tickets per client"))} href={(k) => `/data?section=front&tab=${k}`} />
+      {pickTab(rawTab, RUN_TABS("Tickets per client")) === "main" && (
       <Card title="Front · tickets per client" sub="Client-service effort for cost to serve: conversations per client per month, matched by the client's email domains. Counted every night at 05:45, together with the weighted ticket scores per week (types and weights: Settings → Ticket types). Recount also re-scores the weeks it covers.">
         <div className="row" style={{ marginBottom: 10 }}>
           <Pill tone={configured ? "green" : "grey"}>{configured ? "Token set" : "Not connected"}</Pill>
@@ -299,7 +329,8 @@ async function FrontSection({ admin }: { admin: boolean }) {
           </div>
         )}
       </Card>
-      <RunsCard runs={runs} />
+      )}
+      {pickTab(rawTab, RUN_TABS("Tickets per client")) === "runs" && <RunsCard runs={runs} />}
     </>
   );
 }
