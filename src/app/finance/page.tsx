@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { ComboChart, Gauge, Sparkline, TargetLine, Waterfall } from "@/components/charts/charts";
 import { AddDebt, DeleteDebt } from "@/components/finance/debt";
@@ -49,13 +50,13 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       {noData ? (
         <EmptyState title="No Xero P&L yet">Connect Xero and run a full re-read in Data sources → Accounting · Xero. Nothing here is estimated.</EmptyState>
       ) : section === "overview" ? (
-        <Overview d={d} card={one("card") ?? null} fc={one("fc") === "1"} />
+        <Overview d={d} card={one("card") ?? null} fc={one("fc") === "1"} rawTab={one("tab") ?? undefined} />
       ) : section === "pl" ? (
         <PL d={d} pct={one("pc") === "1"} open={one("open") ?? null} />
       ) : section === "cash" ? (
-        <Cash d={d} />
+        <Cash d={d} rawTab={one("tab") ?? undefined} />
       ) : section === "wc" ? (
-        <WorkingCapital d={d} />
+        <WorkingCapital d={d} rawTab={one("tab") ?? undefined} />
       ) : section === "clients" ? (
         <Clients show={one("names") === "1"} />
       ) : (
@@ -71,7 +72,14 @@ function series(d: FinanceData, n: number, f: (m: Month) => number | null) {
 const gm = (m: Month) => (m.revenue ? m.gross / m.revenue : null);
 const em = (m: Month) => (m.revenue ? m.ebitda / m.revenue : null);
 
-function Overview({ d, card, fc }: { d: FinanceData; card: string | null; fc: boolean }) {
+const OVERVIEW_TABS = [
+  { key: "trend", label: "Revenue & EBITDA" },
+  { key: "waterfall", label: "P&L waterfall" },
+  { key: "health", label: "Bank health" },
+];
+
+function Overview({ d, card, fc, rawTab }: { d: FinanceData; card: string | null; fc: boolean; rawTab?: string }) {
+  const tab = pickTab(rawTab, OVERVIEW_TABS);
   const cur = d.months.find((m) => m.month === d.current)!;
   const ly = d.months.find((m) => m.month === `${Number(d.current!.slice(0, 4)) - 1}${d.current!.slice(4)}`) ?? null;
   const bal = d.bal.find((b) => b.month === d.current) ?? null;
@@ -115,16 +123,20 @@ function Overview({ d, card, fc }: { d: FinanceData; card: string | null; fc: bo
       {card === "dscr" && <DscrCard d={d} />}
       {!card && (
         <>
+          <PageTabs label="Finance overview" tabs={OVERVIEW_TABS} current={tab} href={(k) => `/finance?tab=${k}${fc ? "&fc=1" : ""}`} />
+          {tab === "trend" && (
           <Card title="Revenue and EBITDA margin · 24 months" sub={d.forecast ? undefined : "Forecast needs 24 months of P&L — not loaded yet."}>
             <div className="row small" style={{ justifyContent: "flex-end" }}>
               {d.forecast && (
-                <Link className={"btn" + (fc ? " on" : "")} href={fc ? "/finance" : "/finance?fc=1"} scroll={false}>
+                <Link className={"btn" + (fc ? " on" : "")} href={fc ? "/finance?tab=trend" : "/finance?tab=trend&fc=1"} scroll={false}>
                   {fc ? "✓ " : ""}Include 6-month forecast
                 </Link>
               )}
             </div>
             <ComboChart data={combo} barLabel="Revenue" lineLabel="EBITDA %" />
           </Card>
+          )}
+          {tab === "waterfall" && (
           <Card title={`P&L waterfall · ${monthLabel(d.current!)}`} sub="Revenue → cost of services → overheads → EBITDA → depreciation & interest → net profit.">
             <Waterfall
               steps={[
@@ -138,7 +150,8 @@ function Overview({ d, card, fc }: { d: FinanceData; card: string | null; fc: bo
               ]}
             />
           </Card>
-          <Gauges d={d} />
+          )}
+          {tab === "health" && <Gauges d={d} />}
         </>
       )}
     </>
@@ -355,7 +368,15 @@ function PL({ d, pct, open }: { d: FinanceData; pct: boolean; open: string | nul
   );
 }
 
-function Cash({ d, only }: { d: FinanceData; only?: "flow" }) {
+const CASH_TABS = [
+  { key: "flow", label: "Cash flow" },
+  { key: "dscr", label: "DSCR" },
+  { key: "health", label: "Bank health" },
+  { key: "debt", label: "Debt schedule" },
+];
+
+function Cash({ d, only, rawTab }: { d: FinanceData; only?: "flow"; rawTab?: string }) {
+  const tab = pickTab(rawTab, CASH_TABS);
   const cur = d.months.find((m) => m.month === d.current)!;
   const close = d.bal.find((b) => b.month === d.current);
   const prevM = d.months[d.months.findIndex((m) => m.month === d.current) - 1]?.month;
@@ -369,9 +390,11 @@ function Cash({ d, only }: { d: FinanceData; only?: "flow" }) {
   if (only === "flow") return flowCard;
   return (
     <>
-      {flowCard}
-      <DscrCard d={d} />
-      <Gauges d={d} />
+      <PageTabs label="Cash & debt" tabs={CASH_TABS} current={tab} href={(k) => `/finance?section=cash&tab=${k}`} />
+      {tab === "flow" && flowCard}
+      {tab === "dscr" && <DscrCard d={d} />}
+      {tab === "health" && <Gauges d={d} />}
+      {tab === "debt" && (
       <Card title="Debt schedule" sub="Entered by hand from the lender's statements. Used for DSCR and debt / EBITDA.">
         {!d.debts.length ? (
           <p className="empty">No facilities yet.{d.bal.at(-1)?.debt ? ` Xero shows ${aud(d.bal.at(-1)!.debt)} of loans on the balance sheet.` : ""}</p>
@@ -428,11 +451,19 @@ function Cash({ d, only }: { d: FinanceData; only?: "flow" }) {
         )}
         <AddDebt />
       </Card>
+      )}
     </>
   );
 }
 
-async function WorkingCapital({ d }: { d: FinanceData }) {
+const WC_TABS = [
+  { key: "days", label: "Debtor & creditor days" },
+  { key: "ar", label: "Aged receivables" },
+  { key: "ap", label: "Aged payables" },
+];
+
+async function WorkingCapital({ d, rawTab }: { d: FinanceData; rawTab?: string }) {
+  const tab = pickTab(rawTab, WC_TABS);
   const ag = await aged();
   const ms = lastN(d.months, 12, d.current);
   const days = ms.map((m) => {
@@ -490,6 +521,8 @@ async function WorkingCapital({ d }: { d: FinanceData }) {
   );
   return (
     <>
+      <PageTabs label="Working capital" tabs={WC_TABS} current={tab} href={(k) => `/finance?section=wc&tab=${k}`} />
+      {tab === "days" && (
       <Card title="Debtor and creditor days · 12 months" sub="Balance ÷ last-12-month revenue (or costs) × 365, GST taken out of the balances.">
         {d.hasBalance ? (
           <>
@@ -503,14 +536,13 @@ async function WorkingCapital({ d }: { d: FinanceData }) {
           <p className="empty">Needs the balance sheet from Xero — run a full re-read.</p>
         )}
       </Card>
-      {ag.any ? (
-        <>
-          {ageTable("Aged receivables", ag.ar, "Client")}
-          {ageTable("Aged payables", ag.ap, "Supplier")}
-        </>
-      ) : (
-        <EmptyState title="No open invoices or bills yet">They appear after the next Xero sync.</EmptyState>
       )}
+      {tab !== "days" &&
+        (ag.any ? (
+          tab === "ar" ? ageTable("Aged receivables", ag.ar, "Client") : ageTable("Aged payables", ag.ap, "Supplier")
+        ) : (
+          <EmptyState title="No open invoices or bills yet">They appear after the next Xero sync.</EmptyState>
+        ))}
     </>
   );
 }
