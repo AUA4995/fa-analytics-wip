@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { AddCategory, CalcEditor, CommentBox, FieldEdit, NewIdeaForm, Participants, StageButtons, StepsEditor } from "@/components/improve/forms";
 import { MonthCalendars, Roadmap, ZOOMS, type RoadItem } from "@/components/improve/roadmap";
@@ -47,7 +48,7 @@ export default async function ImprovePage({ searchParams }: { searchParams: Prom
   const today = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
   const catName = (k: string) => cats.find((c) => c.key === k)?.name ?? k;
   const q = (o: Record<string, string | null>) => {
-    const p = new URLSearchParams(Object.entries({ section: section === "overview" ? null : section, cat, zoom: one("zoom") ?? null, focus: one("focus") ?? null, card: one("card") ?? null, ...o }).filter(([, v]) => v) as Array<[string, string]>);
+    const p = new URLSearchParams(Object.entries({ section: section === "overview" ? null : section, cat, zoom: one("zoom") ?? null, focus: one("focus") ?? null, card: one("card") ?? null, tab: one("tab") ?? null, ...o }).filter(([, v]) => v) as Array<[string, string]>);
     const s = p.toString();
     return s ? `/improve?${s}` : "/improve";
   };
@@ -83,14 +84,21 @@ export default async function ImprovePage({ searchParams }: { searchParams: Prom
           <NewIdeaForm cats={cats} users={users.map((u) => u.name)} suppliers={suppliers.map((s) => [s.xeroId, s.name])} />
         </Card>
       )}
-      {section === "overview" && <Overview items={items} today={today} q={q} href={href} card={one("card") ?? null} zoom={one("zoom") ?? "quarter"} focus={one("focus") ?? null} cats={cats} cat={cat} catChips={catChips} inCat={inCat} />}
+      {section === "overview" && <Overview items={items} today={today} q={q} href={href} card={one("card") ?? null} tab={one("tab") ?? undefined} zoom={one("zoom") ?? "quarter"} focus={one("focus") ?? null} cats={cats} cat={cat} catChips={catChips} inCat={inCat} />}
       {section === "ideas" && (
         <>
-          {catChips}
-          <ItemTable items={items.filter((i) => !isInitiative(i.stage) && inCat(i))} kind="idea" href={href} catName={catName} today={today} />
-          <Card title="Categories" sub="Many items per category; add categories here.">
-            <AddCategory />
-          </Card>
+          <PageTabs label="Ideas" tabs={[{ key: "ideas", label: "Ideas", count: items.filter((i) => !isInitiative(i.stage) && inCat(i)).length }, { key: "categories", label: "Categories" }]} current={one("tab") === "categories" ? "categories" : "ideas"} href={(k) => q({ tab: k === "ideas" ? null : k })} />
+          {one("tab") !== "categories" && (
+            <>
+              {catChips}
+              <ItemTable items={items.filter((i) => !isInitiative(i.stage) && inCat(i))} kind="idea" href={href} catName={catName} today={today} />
+            </>
+          )}
+          {one("tab") === "categories" && (
+            <Card title="Categories" sub="Many items per category; add categories here.">
+              <AddCategory />
+            </Card>
+          )}
         </>
       )}
       {section === "initiatives" && (
@@ -189,13 +197,22 @@ function ItemTable({ items, kind, href, catName, today }: { items: Imp[]; kind: 
   );
 }
 
-function Overview({ items, today, q, href, card, zoom, focus, cats, cat, catChips, inCat }: { items: Imp[]; today: Date; q: (o: Record<string, string | null>) => string; href: (i: Imp) => string; card: string | null; zoom: string; focus: string | null; cats: Array<{ key: string; name: string }>; cat: string | null; catChips: React.ReactNode; inCat: (i: Imp) => boolean }) {
+const OVERVIEW_TABS = [
+  { key: "week", label: "This week" },
+  { key: "timeline", label: "Timeline" },
+  { key: "short", label: "Next 3 months" },
+  { key: "long", label: "Next 12 months" },
+];
+
+function Overview({ items, today, q, href, card, tab: rawTab, zoom, focus, cats, cat, catChips, inCat }: { items: Imp[]; today: Date; q: (o: Record<string, string | null>) => string; href: (i: Imp) => string; card: string | null; tab?: string; zoom: string; focus: string | null; cats: Array<{ key: string; name: string }>; cat: string | null; catChips: React.ReactNode; inCat: (i: Imp) => boolean }) {
   const delivered = items.filter((i) => ["DONE", "VERIFIED"].includes(i.stage) && i.measuredMonthly != null);
   const deliveredYr = delivered.reduce((a, i) => a + Number(i.measuredMonthly) * 12, 0);
   const prog = items.filter((i) => ["APPROVED", "IN_PROGRESS"].includes(i.stage));
   const lateProg = prog.filter((i) => i.steps.some((s) => stepState(s, today) === "late"));
   const waiting = items.filter((i) => i.stage === "IDEA");
   const verified = items.filter((i) => i.stage === "VERIFIED");
+  // Focusing an initiative (click in the timeline) opens the Timeline tab
+  const tab = focus && !rawTab ? "timeline" : pickTab(rawTab, OVERVIEW_TABS);
   const tile = (k: string, l: string, v: string, s: string, tone = "") => (
     <Link href={q({ card: card === k ? null : k })} className={"kpi clickable " + tone + (card === k ? " on" : "")} aria-pressed={card === k} scroll={false}>
       <div className="l">{l}</div>
@@ -242,6 +259,8 @@ function Overview({ items, today, q, href, card, zoom, focus, cats, cat, catChip
       {card === "verified" && list(verified)}
       {!card && (
         <>
+          <PageTabs label="Improvements overview" tabs={OVERVIEW_TABS} current={tab} href={(k) => q({ tab: k })} />
+          {tab === "week" && (
           <Card title="This week" sub="Idea reviews (amber) and project steps (blue) due in the next 7 days, and anything late (red).">
             {week.length ? (
               <div className="weekstrip">
@@ -255,6 +274,8 @@ function Overview({ items, today, q, href, card, zoom, focus, cats, cat, catChip
               <p className="empty">Nothing due this week.</p>
             )}
           </Card>
+          )}
+          {tab === "timeline" && (
           <Card title={focused ? `Timeline · ${focused.name}` : "Timeline"} sub={focused ? "The project's steps. Edit them in the project panel." : "Ideas = diamond at the review date; initiatives = bars with progress. Click an initiative to zoom into its steps."}>
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
               {focused ? (
@@ -283,9 +304,13 @@ function Overview({ items, today, q, href, card, zoom, focus, cats, cat, catChip
             </div>
             <Roadmap items={road} zoom={zoom} today={today} />
           </Card>
+          )}
+          {tab === "short" && (
           <Card title="Short-term plan · next 3 months" sub="Amber = idea review · blue = step due. Click a day for the item.">
             <MonthCalendars marks={marks} today={today} />
           </Card>
+          )}
+          {tab === "long" && (
           <Card title="Long-term plan · next 12 months" sub="By quarter: ideas by review date, initiatives by due date.">
             <div className="quarters">
               {quarters.map(({ f, t }) => {
@@ -310,6 +335,7 @@ function Overview({ items, today, q, href, card, zoom, focus, cats, cat, catChip
             </div>
             {items.some((i) => i.horizon === "LONG" && !when(i)) && <p className="meta">Long-term ideas without a date: {items.filter((i) => i.horizon === "LONG" && !when(i)).map((i) => i.name).join(", ")}</p>}
           </Card>
+          )}
         </>
       )}
     </>
