@@ -1,3 +1,4 @@
+import { Kpi } from "@/components/ui/kpi";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui/card";
 import { ClickableRow } from "@/components/ui/clickable-row";
@@ -50,6 +51,7 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
     if (one(sp.month)) p.set("month", run.month);
     if (vsel) p.set("v", vsel);
     if (one(sp.tile)) p.set("tile", one(sp.tile)!);
+    if (one(sp.card)) p.set("card", one(sp.card)!);
     for (const [k, v] of Object.entries(extra)) (v == null ? p.delete(k) : p.set(k, v));
     const s = p.toString();
     return s ? `/cost?${s}` : "/cost";
@@ -83,7 +85,7 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
       ) : section === "base" ? (
         <BaseCost run={run} variants={variants} vsel={vsel ?? null} tile={one(sp.tile) ?? "pools"} q={q} admin={isAdminRole(me.role)} />
       ) : (
-        <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} />
+        <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} card={one(sp.card) ?? null} />
       )}
       {hasData && section === "base" && <PackagingAndSoftware admin={isAdminRole(me.role)} />}
       {section !== "workbench" && <Warnings run={run} admin={isAdminRole(me.role)} />}
@@ -404,7 +406,7 @@ function UnusedTable({ run }: { run: CostRun }) {
   );
 }
 
-async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants: Variant[]; vsel: string | null; q: (e: Record<string, string | null>) => string }) {
+async function CostToServe({ run, variants, vsel, q, card }: { run: CostRun; variants: Variant[]; vsel: string | null; q: (e: Record<string, string | null>) => string; card: string | null }) {
   const rules = await getRules();
   const floor = rules.marginFloor ?? 0.15;
   const cs = run.result.clients;
@@ -414,7 +416,16 @@ async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants:
   const cost = withRev.reduce((a, c) => a + (v === "T" ? c.costT : c.costF), 0);
   const under = cs.filter((c) => ((v === "T" ? c.marginT : c.marginF) ?? 1) < floor);
   const cpos = cs.map((c) => (v === "T" ? c.cpoT : c.cpoF)).filter((x): x is number => x != null);
-  const below = cs.flatMap((c) => c.lines.filter((l) => l.rate != null && l.rate < (v === "T" ? l.unitT : l.unitF)).map((l) => ((v === "T" ? l.unitT : l.unitF) - (l.rate ?? 0)) * l.qty));
+  const isBelow = (l: (typeof cs)[number]["lines"][number]) => l.rate != null && l.rate < (v === "T" ? l.unitT : l.unitF);
+  const below = cs.flatMap((c) => c.lines.filter(isBelow).map((l) => ((v === "T" ? l.unitT : l.unitF) - (l.rate ?? 0)) * l.qty));
+  const cpoOf = (c: (typeof cs)[number]) => (v === "T" ? c.cpoT : c.cpoF) ?? -1;
+  const shown =
+    card === "under" ? under :
+    card === "below" ? cs.filter((c) => c.lines.some(isBelow)) :
+    card === "xero" ? withRev :
+    card === "cpo" ? [...cs].sort((a, b) => cpoOf(b) - cpoOf(a)) :
+    cs;
+  const filterName: Record<string, string> = { under: `under the ${pc(floor, 0)} floor`, below: "with lines priced below cost", xero: "with Xero revenue", cpo: "dearest cost per order first" };
   return (
     <>
       <div className="row" style={{ marginBottom: 10 }}>
@@ -427,30 +438,17 @@ async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants:
         </span>
         <span className="meta">Margins use Xero revenue — processing, plus postage re-billed (with its carrier cost) — where the client is linked to Xero. * = not linked: margin on the services that have a rate only.</span>
       </div>
+      {/* Clickable cards (like Base cost): a click filters the client list below; click again for all clients */}
       <div className="kpis">
-        <div className="kpi">
-          <div className="l">Margin · all clients</div>
-          <div className="v">{rev ? pc((rev - cost) / rev) : "—"}</div>
-          <div className="s">{withRev.length ? `${withRev.length} clients with Xero revenue` : "needs clients linked to Xero + income accounts mapped"}</div>
-        </div>
-        <div className={"kpi" + (under.length ? " red" : "")}>
-          <div className="l">Under the {pc(floor, 0)} floor</div>
-          <div className="v">{under.length}</div>
-          <div className="s">{under.slice(0, 3).map((c) => c.name).join(", ") || "none"}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">Cost per order range</div>
-          <div className="v">{cpos.length ? `${aud(Math.min(...cpos))} – ${aud(Math.max(...cpos))}` : "—"}</div>
-          <div className="s">cheapest – dearest client</div>
-        </div>
-        <div className={"kpi" + (below.length ? " red" : "")}>
-          <div className="l">On below-cost lines</div>
-          <div className="v">{aud(below.reduce((a, b) => a + b, 0), 0)}</div>
-          <div className="s">{below.length} lines priced below cost</div>
-        </div>
+        <Kpi label="Margin · all clients" value={rev ? pc((rev - cost) / rev) : "—"} sub={withRev.length ? `${withRev.length} clients with Xero revenue` : "needs clients linked to Xero + income accounts mapped"} href={q({ card: card === "xero" ? null : "xero" })} on={card === "xero"} />
+        <Kpi label={`Under the ${pc(floor, 0)} floor`} value={under.length} tone={under.length ? "red" : "normal"} sub={under.slice(0, 3).map((c) => c.name).join(", ") || "none"} href={q({ card: card === "under" ? null : "under" })} on={card === "under"} />
+        <Kpi label="Cost per order range" value={cpos.length ? `${aud(Math.min(...cpos))} – ${aud(Math.max(...cpos))}` : "—"} sub="cheapest – dearest client · click to sort dearest first" href={q({ card: card === "cpo" ? null : "cpo" })} on={card === "cpo"} />
+        <Kpi label="On below-cost lines" value={aud(below.reduce((a, b) => a + b, 0), 0)} tone={below.length ? "red" : "normal"} sub={`${below.length} lines priced below cost`} href={q({ card: card === "below" ? null : "below" })} on={card === "below"} />
       </div>
-      <Card title={`Clients · ${cs.length}`} sub="Click a client for its services, unit costs, rates and margins.">
-        {!cs.length ? (
+      <Card title={`Clients · ${shown.length}${card && filterName[card] ? ` · ${filterName[card]}` : ""}`} sub="Click a client for its services, unit costs, rates and margins. Click a card above to filter; click it again for all clients.">
+        {!shown.length ? (
+          <p className="empty">{cs.length ? "No client matches this card." : "No client volumes this month — check tenants are linked to clients (Data sources → WMS)."}</p>
+        ) : !cs.length ? (
           <p className="empty">No client volumes this month — check tenants are linked to clients (Data sources → WMS).</p>
         ) : (
           <div className="tw">
@@ -474,7 +472,7 @@ async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants:
                 </tr>
               </thead>
               <tbody>
-                {cs.map((c) => (
+                {shown.map((c) => (
                   <ClickableRow key={c.id} panel={`cclient:${c.id}`}>
                     <td className="sup">{c.name}</td>
                     <td className="r num">{num(c.orders)}</td>

@@ -88,6 +88,15 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
   const name = (t: string) => names.get(t) ?? (t ? `tenant ${t}` : "(no tenant)");
   const tenantOptions = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const siteNoCodes = site && !site.codes.length;
+  // Clickable cards (like Base cost): a click filters what's below, a second click shows everything; filters are kept
+  const card = one(sp.card) ?? null;
+  const cardHref = (k: string) => {
+    const p = new URLSearchParams();
+    for (const [key, val] of Object.entries(sp)) if (key !== "card" && key !== "panel" && typeof val === "string" && val) p.set(key, val);
+    if (card !== k) p.set("card", k);
+    return `/operations?${p.toString()}`;
+  };
+  const cardProps = { card, cardHref };
   const flowsUsed: FlowKey[] = section === "sla" ? ["dispatch", "receiving"] : section === "receiving" ? ["receiving", "expected"] : ["dispatch"];
   const flowsMissing = flowsUsed.filter((k) => !flowReady(cfg, k));
   const unreadable = (await Promise.all(flowsUsed.filter((k) => flowReady(cfg, k)).map((k) => unreadableCount(cfg.flows[k])))).reduce((a, b) => a + b, 0);
@@ -186,14 +195,14 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
           </p>
         </Card>
       )}
-      {copied > 0 && section === "sla" && <Sla cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} />}
-      {copied > 0 && section === "receiving" && <Receiving cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} />}
-      {copied > 0 && section === "trends" && <Trends cfg={cfg} filter={filter} now={now} name={name} admin={admin} />}
+      {copied > 0 && section === "sla" && <Sla cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} {...cardProps} />}
+      {copied > 0 && section === "receiving" && <Receiving cfg={cfg} from={range.from} to={range.to} filter={filter} now={now} name={name} admin={admin} {...cardProps} />}
+      {copied > 0 && section === "trends" && <Trends cfg={cfg} filter={filter} now={now} name={name} admin={admin} {...cardProps} />}
     </>
   );
 }
 
-type ViewProps = { cfg: OpsConfig; from: Date; to: Date; filter: { tenants: string[] | null; warehouses: string[] | null }; now: Date; name: (t: string) => string; admin: boolean };
+type ViewProps = { cfg: OpsConfig; from: Date; to: Date; filter: { tenants: string[] | null; warehouses: string[] | null }; now: Date; name: (t: string) => string; admin: boolean; card: string | null; cardHref: (k: string) => string };
 
 const tone = (p: number | null): KpiTone => (p === null ? "normal" : p >= 0.97 ? "green" : p >= 0.9 ? "amber" : "red");
 
@@ -263,15 +272,15 @@ function ProblemTable({ items, name, doneLabel, dayEnd = false, admin }: { items
   );
 }
 
-async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
+async function Sla({ cfg, from, to, filter, now, name, admin, card, cardHref }: ViewProps) {
   const v = await slaView(cfg, from, to, filter, now);
   const d = metPct(v.dispatch.total);
   const r = metPct(v.receiving.total);
   return (
     <>
       <KpiRow lead={false}>
-        <Kpi label="Dispatch on time" value={v.dispatch.ready ? pct(d) : "—"} tone={tone(d)} sub={v.dispatch.ready ? `${v.dispatch.total.total.toLocaleString("en-AU")} orders · ${v.dispatch.total.overdue.toLocaleString("en-AU")} overdue now` : "setup needed"} />
-        <Kpi label={`Receiving within ${cfg.rules.receivingHours} h`} value={v.receiving.ready ? pct(r) : "—"} tone={tone(r)} sub={v.receiving.ready ? `${v.receiving.total.total.toLocaleString("en-AU")} receipts · ${v.receiving.total.overdue.toLocaleString("en-AU")} overdue now` : "setup needed"} />
+        <Kpi label="Dispatch on time" value={v.dispatch.ready ? pct(d) : "—"} tone={tone(d)} sub={v.dispatch.ready ? `${v.dispatch.total.total.toLocaleString("en-AU")} orders · ${v.dispatch.total.overdue.toLocaleString("en-AU")} overdue now` : "setup needed"} href={v.dispatch.ready ? cardHref("dispatch") : undefined} on={card === "dispatch"} />
+        <Kpi label={`Receiving within ${cfg.rules.receivingHours} h`} value={v.receiving.ready ? pct(r) : "—"} tone={tone(r)} sub={v.receiving.ready ? `${v.receiving.total.total.toLocaleString("en-AU")} receipts · ${v.receiving.total.overdue.toLocaleString("en-AU")} overdue now` : "setup needed"} href={v.receiving.ready ? cardHref("receiving") : undefined} on={card === "receiving"} />
         <Kpi label="Ticket replies (4 working hours)" value="—" sub="needs reply times from Front — coming soon" />
         <Kpi label="Billing on time" value="—" sub={<NotConnected source="hub" />} />
       </KpiRow>
@@ -281,7 +290,7 @@ async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
         {cfg.rules.holidays.length ? `${cfg.rules.holidays.length} public holidays excluded.` : "No public holidays entered yet."}
       </p>
       {(v.dispatch.capped || v.receiving.capped) && <p className="msg-err">Very large period — only the first 300,000 rows were used. Choose a shorter period.</p>}
-      {v.dispatch.ready && (
+      {v.dispatch.ready && card !== "receiving" && (
         <>
           <Card title="Dispatch by client">
             <CountsTable rows={v.dispatch.byTenant} name={name} />
@@ -291,7 +300,7 @@ async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
           </Card>
         </>
       )}
-      {v.receiving.ready && (
+      {v.receiving.ready && card !== "dispatch" && (
         <Card title="Receiving by client">
           <CountsTable rows={v.receiving.byTenant} name={name} />
         </Card>
@@ -300,22 +309,23 @@ async function Sla({ cfg, from, to, filter, now, name, admin }: ViewProps) {
   );
 }
 
-async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps) {
+async function Receiving({ cfg, from, to, filter, now, name, admin, card, cardHref }: ViewProps) {
   const v = await receivingView(cfg, from, to, filter, now);
   const sum = (k: "expected" | "arrived" | "received" | "open" | "late") => v.byTenant.reduce((s, x) => s + x[k], 0);
   return (
     <>
       <KpiRow lead={false}>
-        <Kpi label="Expected (ASN)" value={v.ready.expected ? sum("expected").toLocaleString("en-AU") : "—"} sub={v.ready.expected ? "in the period" : "setup needed"} />
-        <Kpi label="Arrived" value={v.ready.receiving ? sum("arrived").toLocaleString("en-AU") : "—"} />
-        <Kpi label="Received" value={v.ready.receiving ? sum("received").toLocaleString("en-AU") : "—"} />
-        <Kpi label={`Waiting over ${cfg.rules.receivingHours} h`} value={v.ready.receiving ? v.waitingCount.toLocaleString("en-AU") : "—"} tone={v.waitingCount ? "red" : "normal"} sub="now · arrived in the last 60 days" />
+        <Kpi label="Expected (ASN)" value={v.ready.expected ? sum("expected").toLocaleString("en-AU") : "—"} sub={v.ready.expected ? "in the period · click for clients" : "setup needed"} href={v.ready.expected ? cardHref("expected") : undefined} on={card === "expected"} />
+        <Kpi label="Arrived" value={v.ready.receiving ? sum("arrived").toLocaleString("en-AU") : "—"} sub={v.ready.receiving ? "click for clients and receipt types" : undefined} href={v.ready.receiving ? cardHref("arrived") : undefined} on={card === "arrived"} />
+        <Kpi label="Received" value={v.ready.receiving ? sum("received").toLocaleString("en-AU") : "—"} sub={v.ready.receiving ? "click for clients still open" : undefined} href={v.ready.receiving ? cardHref("received") : undefined} on={card === "received"} />
+        <Kpi label={`Waiting over ${cfg.rules.receivingHours} h`} value={v.ready.receiving ? v.waitingCount.toLocaleString("en-AU") : "—"} tone={v.waitingCount ? "red" : "normal"} sub="now · arrived in the last 60 days" href={v.ready.receiving ? cardHref("waiting") : undefined} on={card === "waiting"} />
       </KpiRow>
       <p className="meta">
         Expected and received deliveries are counted separately: Thomax&apos;s link between an ASN and its receipt isn&apos;t known yet, so they aren&apos;t matched one to one. Emails from clients about deliveries (no ASN yet) join when Front events are added.
       </p>
       {v.capped && <p className="msg-err">Very large period — only the first 300,000 rows were used. Choose a shorter period.</p>}
-      <Card title="By client">
+      {card !== "waiting" && (
+      <Card title={`By client${card === "expected" ? " · with expected deliveries" : card === "received" ? " · with receipts still open" : card === "arrived" ? " · with arrivals" : ""}`}>
         {!v.byTenant.length ? (
           <p className="empty">Nothing in this period.</p>
         ) : (
@@ -332,7 +342,9 @@ async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps)
                 </tr>
               </thead>
               <tbody>
-                {v.byTenant.map((x) => (
+                {v.byTenant
+                  .filter((x) => (card === "expected" ? x.expected > 0 : card === "arrived" ? x.arrived > 0 : card === "received" ? x.open > 0 : true))
+                  .map((x) => (
                   <tr key={x.tenant}>
                     <td>{name(x.tenant)}</td>
                     <td className="r">{v.ready.expected ? x.expected : "—"}</td>
@@ -347,7 +359,8 @@ async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps)
           </div>
         )}
       </Card>
-      {v.byType.length > 0 && cfg.flows.receiving.roles.type && (
+      )}
+      {v.byType.length > 0 && cfg.flows.receiving.roles.type && (!card || card === "arrived") && (
         <Card title="By receipt type">
           <div className="tw">
             <table>
@@ -371,9 +384,11 @@ async function Receiving({ cfg, from, to, filter, now, name, admin }: ViewProps)
           </div>
         </Card>
       )}
+      {(!card || card === "waiting") && (
       <Card title={`Waiting longer than ${cfg.rules.receivingHours} hours · ${v.waitingCount.toLocaleString("en-AU")}`} sub={`Now: arrived in the last 60 days but not received, oldest first${v.waitingCount > 200 ? " — first 200 shown" : ""}.`}>
         <ProblemTable items={v.waiting} name={name} doneLabel="Received" admin={admin} />
       </Card>
+      )}
     </>
   );
 }
