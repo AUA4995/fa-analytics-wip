@@ -290,6 +290,15 @@
   .theme-toggle { border: 0; background: none; border-radius: 8px; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--side-muted); }
   .theme-toggle svg { width: 18px; height: 18px; }
   .theme-toggle:hover { background: var(--side-hover); color: var(--side-ink); }
+  /* Third-level tabs (same as the Accounts Hub's .ctabs): menu → sub-menu → these tabs across the content */
+  .ctabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 0 0 14px; overflow-x: auto; scrollbar-width: none; }
+  .ctabs::-webkit-scrollbar { display: none; }
+  .ctabs a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; margin-bottom: -1px; font-size: 14px; color: var(--ink-2); text-decoration: none; border: 1px solid transparent; border-radius: 8px 8px 0 0; white-space: nowrap; flex: 0 0 auto; }
+  .ctabs a:hover { color: var(--ink); background: var(--surface); text-decoration: none; }
+  .ctabs a[aria-selected="true"] { color: var(--ink); font-weight: 600; background: var(--card); border-color: var(--border); border-bottom-color: var(--card); }
+  .ctabs .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); display: inline-block; }
+  .ctabs .n0 { font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--ink-2); border: 1px solid var(--border); }
+  .ctabs a[aria-selected="true"] .n0 { background: var(--ink); color: var(--card); border-color: var(--ink); }
   /* Analytics-only parts of the menu, in the Hub's navy look */
   .side .logo-full img.on-light { display: none; }
   .side .logo-full img.on-dark { display: block; }

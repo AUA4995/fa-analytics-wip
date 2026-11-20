@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import { Card, EmptyState } from "@/components/ui/card";
 import { ClickableRow } from "@/components/ui/clickable-row";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
@@ -49,7 +50,8 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
     if (section !== "base") p.set("section", section);
     if (one(sp.month)) p.set("month", run.month);
     if (vsel) p.set("v", vsel);
-    if (one(sp.tile)) p.set("tile", one(sp.tile)!);
+    const t = one(sp.tab) ?? one(sp.tile);
+    if (t) p.set("tab", t);
     for (const [k, v] of Object.entries(extra)) (v == null ? p.delete(k) : p.set(k, v));
     const s = p.toString();
     return s ? `/cost?${s}` : "/cost";
@@ -81,22 +83,21 @@ export default async function CostPage({ searchParams }: { searchParams: SP }) {
           Cost needs payroll and P&amp;L from Xero (Data sources → Xero), WMS volumes (Data sources → WMS), services with minutes, and accounts mapped to cost pools (Settings). Nothing is estimated in their place.
         </EmptyState>
       ) : section === "base" ? (
-        <BaseCost run={run} variants={variants} vsel={vsel ?? null} tile={one(sp.tile) ?? "pools"} q={q} admin={isAdminRole(me.role)} />
+        <BaseCost run={run} variants={variants} vsel={vsel ?? null} rawTab={one(sp.tab) ?? one(sp.tile)} q={q} admin={isAdminRole(me.role)} />
       ) : (
-        <CostToServe run={run} variants={variants} vsel={vsel ?? null} q={q} />
+        <CostToServe run={run} variants={variants} vsel={vsel ?? null} rawTab={one(sp.tab)} q={q} admin={isAdminRole(me.role)} />
       )}
-      {hasData && section === "base" && <PackagingAndSoftware admin={isAdminRole(me.role)} />}
-      {section !== "workbench" && <Warnings run={run} admin={isAdminRole(me.role)} />}
       {panel && section !== "workbench" && <CostPanel run={run} kind={panel.kind} id={panel.id} />}
     </WithSubNav>
   );
 }
 
-function VariantCards({ run, vsel, q }: { run: CostRun; vsel: string | null; q: (e: Record<string, string | null>) => string }) {
+function VariantCards({ run, vsel, tab, q }: { run: CostRun; vsel: string | null; tab: string; q: (e: Record<string, string | null>) => string }) {
   const b = run.result.base;
   const u = run.result.unused;
+  // TDABC / Full absorption show one method at a time; Unused capacity opens its tab
   const card = (k: string, title: string, body: React.ReactNode, sub: string) => (
-    <Link href={q({ v: vsel === k ? null : k })} className={"kpi clickable" + (vsel === k ? " on" : "")} aria-pressed={vsel === k}>
+    <Link href={k === "U" ? q({ tab: "unused" }) : q({ v: vsel === k ? null : k })} className={"kpi clickable" + ((k === "U" ? tab === "unused" : vsel === k) ? " on" : "")} aria-pressed={k === "U" ? tab === "unused" : vsel === k}>
       <div className="l">{title}</div>
       {body}
       <div className="s">{sub}</div>
@@ -128,31 +129,36 @@ function VariantCards({ run, vsel, q }: { run: CostRun; vsel: string | null; q: 
   );
 }
 
-function BaseCost({ run, variants, vsel, tile, q, admin }: { run: CostRun; variants: Variant[]; vsel: string | null; tile: string; q: (e: Record<string, string | null>) => string; admin: boolean }) {
+const BASE_TABS = [
+  { key: "pools", label: "Cost pools" },
+  { key: "labour", label: "Labour" },
+  { key: "minutes", label: "Services & minutes" },
+  { key: "overheads", label: "Overheads" },
+  { key: "size", label: "Cost per order by size" },
+  { key: "unused", label: "Unused capacity" },
+  { key: "packaging", label: "Packaging & Logiwa" },
+  { key: "missing", label: "What's missing" },
+] as const;
+
+function BaseCost({ run, variants, vsel, rawTab, q, admin }: { run: CostRun; variants: Variant[]; vsel: string | null; rawTab: string | undefined; q: (e: Record<string, string | null>) => string; admin: boolean }) {
   const r = run.result;
+  const missing = warningItems(run);
+  const tabs = BASE_TABS.map((t) => (t.key === "missing" ? { ...t, count: missing.count, dot: missing.count > 0 } : t));
+  const tab = pickTab(rawTab, tabs);
+  const hasOrders = run.result.clients.some((c) => c.orders > 0);
   return (
     <>
-      <VariantCards run={run} vsel={vsel} q={q} />
-      {vsel === "U" ? (
-        <UnusedTable run={run} />
-      ) : (
+      <VariantCards run={run} vsel={vsel} tab={tab} q={q} />
+      <PageTabs label="Base cost" tabs={tabs} current={tab} href={(k) => q({ tab: k })} />
+      {tab === "pools" && <PoolsTable pools={r.pools} variants={variants} hasOrders={hasOrders} />}
+      {tab === "labour" && <LabourTable run={run} admin={admin} />}
+      {tab === "minutes" && <MinutesTable run={run} variants={variants} admin={admin} />}
+      {tab === "overheads" && <PoolsTable pools={r.pools.filter((p) => p.kind === "OVERHEAD")} variants={variants} hasOrders={hasOrders} />}
+      {tab === "unused" && <UnusedTable run={run} />}
+      {tab === "packaging" && <PackagingAndSoftware admin={admin} />}
+      {tab === "missing" && <Warnings run={run} admin={admin} />}
+      {tab === "size" && (
         <>
-          <div className="tiles">
-            {[
-              ["pools", "Cost pools"],
-              ["labour", "Labour"],
-              ["minutes", "Services & minutes"],
-              ["overheads", "Overheads"],
-            ].map(([k, l]) => (
-              <Link key={k} href={q({ tile: k })} className={"btn" + (tile === k ? " on" : "")} scroll={false}>
-                {l}
-              </Link>
-            ))}
-          </div>
-          {tile === "pools" && <PoolsTable pools={r.pools} variants={variants} hasOrders={run.result.clients.some((c) => c.orders > 0)} />}
-          {tile === "labour" && <LabourTable run={run} admin={admin} />}
-          {tile === "minutes" && <MinutesTable run={run} variants={variants} admin={admin} />}
-          {tile === "overheads" && <PoolsTable pools={r.pools.filter((p) => p.kind === "OVERHEAD")} variants={variants} hasOrders={run.result.clients.some((c) => c.orders > 0)} />}
           <Card title="Cost per order by size" sub={`Orders this month from the WMS · B2B = more than ${run.input.rules.b2bUnits} units (Settings → Rules)`}>
             <div className="tw">
             <table>
@@ -404,7 +410,13 @@ function UnusedTable({ run }: { run: CostRun }) {
   );
 }
 
-async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants: Variant[]; vsel: string | null; q: (e: Record<string, string | null>) => string }) {
+async function CostToServe({ run, variants, vsel, rawTab, q, admin }: { run: CostRun; variants: Variant[]; vsel: string | null; rawTab: string | undefined; q: (e: Record<string, string | null>) => string; admin: boolean }) {
+  const missing = warningItems(run);
+  const tabs = [
+    { key: "clients", label: "Clients", count: run.result.clients.length },
+    { key: "missing", label: "What's missing", count: missing.count, dot: missing.count > 0 },
+  ];
+  const tab = pickTab(rawTab, tabs);
   const rules = await getRules();
   const floor = rules.marginFloor ?? 0.15;
   const cs = run.result.clients;
@@ -449,6 +461,9 @@ async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants:
           <div className="s">{below.length} lines priced below cost</div>
         </div>
       </div>
+      <PageTabs label="Cost to serve" tabs={tabs} current={tab} href={(k) => q({ tab: k })} />
+      {tab === "missing" && <Warnings run={run} admin={admin} />}
+      {tab === "clients" && (
       <Card title={`Clients · ${cs.length}`} sub="Click a client for its services, unit costs, rates and margins.">
         {!cs.length ? (
           <p className="empty">No client volumes this month — check tenants are linked to clients (Data sources → WMS).</p>
@@ -497,6 +512,7 @@ async function CostToServe({ run, variants, vsel, q }: { run: CostRun; variants:
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }
@@ -564,7 +580,7 @@ function LogiwaCard({ t }: { t: LogiwaTracker }) {
   );
 }
 
-function Warnings({ run, admin }: { run: CostRun; admin: boolean }) {
+function warningItems(run: CostRun): { items: string[]; wcMissing: boolean; count: number } {
   const n = run.notes;
   const wcMissing = run.input.rules.workersCompRate == null;
   const items = [
@@ -574,7 +590,12 @@ function Warnings({ run, admin }: { run: CostRun; admin: boolean }) {
     ...(n.unmappedAccounts.length ? [`${n.unmappedAccounts.length} Xero expense accounts with amounts this month have no cost pool (${aud(n.unmappedAccounts.reduce((a, x) => a + x.amount, 0), 0)}) — left out. Settings → Cost pools & mapping.`] : []),
     ...(n.noIncomeMapping ? ["No Xero income accounts are marked as processing revenue yet — client revenue can't be read (Settings → Cost pools & mapping)."] : []),
   ];
-  if (!items.length && !wcMissing) return null;
+  return { items, wcMissing, count: items.length + (wcMissing ? 1 : 0) };
+}
+
+function Warnings({ run, admin }: { run: CostRun; admin: boolean }) {
+  const { items, wcMissing } = warningItems(run);
+  if (!items.length && !wcMissing) return <p className="empty">Nothing missing or estimated this month.</p>;
   return (
     <Card title="What's missing or estimated" tone="warn">
       <ul className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
