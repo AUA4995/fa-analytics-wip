@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui/card";
 import { Drawer, DrawerHeader } from "@/components/ui/drawer";
@@ -61,11 +62,24 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
   return (
     <WithSubNav page="revenue" current={section}>
       <PageHeader title="Revenue protection" subtitle={section === "cases" ? "Every case: what happened, what it would have cost, what it cost, and the lesson. Amounts not known yet stay empty — never guessed." : "Money protected: cost avoided + leakage recovered − losses not prevented. The weekly figure for Mark."} />
-      {section === "overview" ? <Overview ins={ins} recovered={recovered} improvements={improvements} /> : <Cases cases={cases} cn={cn} />}
-      {section === "cases" && admin && (
-        <Card title="Add a case">
-          <CaseForm v={toValues()} clients={clientOpts} canEdit />
-        </Card>
+      {section === "overview" ? (
+        <Overview ins={ins} recovered={recovered} improvements={improvements} rawTab={sp.tab} />
+      ) : (
+        (() => {
+          const tabs = [{ key: "cases", label: "Cases", count: cases.length }, ...(admin ? [{ key: "add", label: "Add a case" }] : [])];
+          const tab = pickTab(sp.tab, tabs);
+          return (
+            <>
+              <PageTabs label="Cases" tabs={tabs} current={tab} href={(k) => `/revenue?section=cases&tab=${k}`} />
+              {tab === "cases" && <Cases cases={cases} cn={cn} />}
+              {tab === "add" && (
+                <Card title="Add a case">
+                  <CaseForm v={toValues()} clients={clientOpts} canEdit />
+                </Card>
+              )}
+            </>
+          );
+        })()
       )}
       {sel && (
         <Drawer label="Case">
@@ -82,7 +96,12 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
   );
 }
 
-function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: Array<{ recoveredOn: Date | null; recoveredAmount: unknown; gap: unknown }>; improvements: Array<{ name: string; measuredMonthly: unknown; estMonthly: unknown }> }) {
+const OVERVIEW_TABS = [
+  { key: "adds", label: "How it adds up" },
+  { key: "ongoing", label: "Ongoing savings" },
+];
+
+function Overview({ ins, recovered, improvements, rawTab }: { ins: CaseIn[]; recovered: Array<{ recoveredOn: Date | null; recoveredAmount: unknown; gap: unknown }>; improvements: Array<{ name: string; measuredMonthly: unknown; estMonthly: unknown }> ; rawTab?: string | string[] }) {
   const p = periods(new Date());
   // Only recovered amounts actually entered count; a recovery with no amount is counted separately, never assumed = the gap
   const inP = (from: Date, to: Date) => recovered.filter((r) => r.recoveredOn && r.recoveredOn >= from && r.recoveredOn < to);
@@ -105,6 +124,8 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
           </div>
         ))}
       </div>
+      <PageTabs label="Revenue protection" tabs={OVERVIEW_TABS} current={pickTab(rawTab, OVERVIEW_TABS)} href={(k) => `/revenue?tab=${k}`} />
+      {pickTab(rawTab, OVERVIEW_TABS) === "adds" && (
       <Card title="How it adds up" sub="Cost avoided and recovered add; losses not prevented subtract. Provisional = a figure is still to confirm (see the case).">
         <div className="tw">
           <table>
@@ -139,6 +160,8 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
           </table>
         </div>
       </Card>
+      )}
+      {pickTab(rawTab, OVERVIEW_TABS) === "ongoing" && (
       <Card title="Ongoing savings (separate)" sub="Verified improvements save every month — a rate, so they're shown here, not added to the one-off figures above.">
         {improvements.length ? (
           <p className="small" style={{ margin: 0 }}>
@@ -151,6 +174,7 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
           <p className="empty">No verified improvements yet.</p>
         )}
       </Card>
+      )}
     </>
   );
 }

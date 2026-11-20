@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { NewKeyForm, RevokeKey } from "@/components/apis/keys";
 import { Card } from "@/components/ui/card";
@@ -21,16 +22,24 @@ const ad = (d: Date | null | undefined) => (d ? d.toLocaleDateString("en-AU", { 
 /** API connections (brief §12): systems we read from, and keys we give out. */
 export default async function ApisPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const me = await requireUser();
-  const section = parseSection("apis", (await searchParams).section);
+  const sp = await searchParams;
+  const section = parseSection("apis", sp.section);
   return (
     <WithSubNav page="apis" current={section}>
       <PageHeader title="API connections" subtitle={section === "connected" ? "Every system this app reads from: status, last sync and the period of data held. The app never writes to these systems (except report emails and drafts through Front)." : "Keys for other apps to read from Analytics. Read-only by default, scoped, with an expiry; shown once; revoke any time. Pay by person is never available through a key."} />
-      {section === "connected" ? <Connected /> : <Keys admin={isAdminRole(me.role)} />}
+      {section === "connected" ? <Connected rawTab={sp.tab} /> : <Keys admin={isAdminRole(me.role)} rawTab={sp.tab} />}
     </WithSubNav>
   );
 }
 
-async function Connected() {
+type RawTab = string | string[] | undefined;
+const CONNECTED_TABS = [
+  { key: "connected", label: "Connected to" },
+  { key: "ended", label: "Ended connections" },
+];
+
+async function Connected({ rawTab }: { rawTab: RawTab }) {
+  const tab = pickTab(rawTab, CONNECTED_TABS);
   const [statuses, sales, pnl, orders, lastImport, payRuns, tickets, bal, bills, thomax, thomaxRows, thomaxLast] = await Promise.all([
     getConnectionStatuses(),
     prisma.xeroSale.aggregate({ _min: { date: true }, _max: { date: true }, _count: true }),
@@ -79,6 +88,8 @@ async function Connected() {
   ];
   return (
     <>
+      <PageTabs label="Connected" tabs={CONNECTED_TABS} current={tab} href={(k) => `/apis?tab=${k}`} />
+      {tab === "connected" && (
       <Card title="Connected to">
         <div className="tw">
           <table>
@@ -108,25 +119,32 @@ async function Connected() {
           </table>
         </div>
       </Card>
+      )}
+      {tab === "ended" && (
       <Card title="Ended connections" sub="When a system is switched off, its data stays here as an archive (read-only).">
         <p className="empty">None yet. Thomax ends 31/05/2027 — its history stays.</p>
       </Card>
+      )}
     </>
   );
 }
 
-async function Keys({ admin }: { admin: boolean }) {
+async function Keys({ admin, rawTab }: { admin: boolean; rawTab: RawTab }) {
   const keys = await prisma.apiKey.findMany({ orderBy: [{ revokedAt: "asc" }, { createdAt: "desc" }] });
+  const tabs = [{ key: "keys", label: "Keys", count: keys.filter((k) => !k.revokedAt).length }, ...(admin ? [{ key: "new", label: "New key" }] : []), { key: "how", label: "How other apps call it" }];
+  const tab = pickTab(rawTab, tabs);
+  const href = (k: string) => `/apis?section=keys&tab=${k}`;
   const now = new Date();
   return (
     <>
-      {admin ? (
+      <PageTabs label="Keys" tabs={tabs} current={tab} href={href} />
+      {!admin && <p className="meta">Only admins and the owner can create or revoke keys.</p>}
+      {tab === "new" && admin && (
         <Card title="New key" tone="hl">
           <NewKeyForm />
         </Card>
-      ) : (
-        <p className="meta">Only admins and the owner can create or revoke keys.</p>
       )}
+      {tab === "keys" && (
       <Card title={`Keys · ${keys.filter((k) => !k.revokedAt).length} active`}>
         {!keys.length ? (
           <p className="empty">No keys yet.</p>
@@ -172,6 +190,8 @@ async function Keys({ admin }: { admin: boolean }) {
           </div>
         )}
       </Card>
+      )}
+      {tab === "how" && (
       <Card title="How other apps call it" sub="Base address: this app's address + /api/v1. Send the key as a Bearer token. Full list in docs/API.md in the repo.">
         <div className="formula small" style={{ fontFamily: "var(--mono)" }}>
           GET /api/v1/me · GET /api/v1/volumes?month=2026-09 · GET /api/v1/kpi?site=smi · GET /api/v1/leakage?status=open · GET /api/v1/costs?month=2026-09 · GET /api/v1/finance · GET /api/v1/improvements · POST /api/v1/tasks
@@ -179,6 +199,7 @@ async function Keys({ admin }: { admin: boolean }) {
           Authorization: Bearer fa_live_…
         </div>
       </Card>
+      )}
     </>
   );
 }
