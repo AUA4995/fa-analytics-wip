@@ -55,9 +55,9 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       ) : section === "cash" ? (
         <Cash d={d} />
       ) : section === "wc" ? (
-        <WorkingCapital d={d} />
+        <WorkingCapital d={d} ar={one("ar") ?? null} ap={one("ap") ?? null} />
       ) : section === "clients" ? (
-        <Clients show={one("names") === "1"} />
+        <Clients show={one("names") === "1"} top={["1", "5", "10"].includes(one("top") ?? "") ? Number(one("top")) : null} />
       ) : (
         <BankPack d={d} />
       )}
@@ -432,27 +432,42 @@ function Cash({ d, only }: { d: FinanceData; only?: "flow" }) {
   );
 }
 
-async function WorkingCapital({ d }: { d: FinanceData }) {
+async function WorkingCapital({ d, ar, ap }: { d: FinanceData; ar: string | null; ap: string | null }) {
   const ag = await aged();
   const ms = lastN(d.months, 12, d.current);
   const days = ms.map((m) => {
     const b = d.bal.find((x) => x.month === m.month) ?? null;
     return ratios(lastN(d.months, 12, m.month), b, null);
   });
-  const ageTable = (title: string, g: Awaited<ReturnType<typeof aged>>["ar"], who: string) => (
-    <Card title={`${title} · ${aud(g.total)}`} sub={`Open ${who === "Client" ? "invoices" : "bills"} by days overdue (inc GST).`}>
-      <div className="kpis" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
-        {AGE_BUCKETS.map((b, i) => (
-          <div key={b} className={"kpi" + (i >= 3 && g.totals[i] ? " red" : "")}>
-            <div className="l">{b}</div>
+  // Clickable bucket cards (like Base cost): a click shows only who owes / is owed in that bucket; click again for all
+  const bucketOf = (v: string | null) => (v != null && /^[0-4]$/.test(v) ? Number(v) : null);
+  const sel = { ar: bucketOf(ar), ap: bucketOf(ap) };
+  const hrefFor = (k: "ar" | "ap", i: number) => {
+    const q = new URLSearchParams({ section: "wc" });
+    const other = k === "ar" ? sel.ap : sel.ar;
+    if (other != null) q.set(k === "ar" ? "ap" : "ar", String(other));
+    if (sel[k] !== i) q.set(k, String(i));
+    return `/finance?${q.toString()}`;
+  };
+  const ageTable = (title: string, g: Awaited<ReturnType<typeof aged>>["ar"], who: string, k: "ar" | "ap") => {
+    const b = sel[k];
+    const list = b == null ? g.list : g.list.filter((c) => c.buckets[b] > 0).sort((x, y) => y.buckets[b] - x.buckets[b]);
+    return (
+    <Card title={`${title} · ${aud(g.total)}`} sub={`Open ${who === "Client" ? "invoices" : "bills"} by days overdue (inc GST). Click a bucket to see who's in it; click again for all.`}>
+      <div className="kpis" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(130px, 100%), 1fr))" }}>
+        {AGE_BUCKETS.map((bk, i) => (
+          <Link key={bk} href={hrefFor(k, i)} scroll={false} aria-pressed={b === i} className={"kpi clickable" + (i >= 3 && g.totals[i] ? " red" : "") + (b === i ? " on" : "")}>
+            <div className="l">{bk}</div>
             <div className="v" style={{ fontSize: 18 }}>
               {aud(g.totals[i])}
             </div>
             <div className="s">{pc(g.total ? g.totals[i] / g.total : null, 0)}</div>
-          </div>
+          </Link>
         ))}
       </div>
-      {g.list.length > 0 && (
+      {b != null && !list.length && <p className="empty">Nobody in {AGE_BUCKETS[b]}.</p>}
+      {b != null && list.length > 0 && <p className="meta">{list.length} {who === "Client" ? (list.length === 1 ? "client" : "clients") : list.length === 1 ? "supplier" : "suppliers"} in {AGE_BUCKETS[b]}, largest first.</p>}
+      {list.length > 0 && (
         <div className="tw" style={{ marginTop: 12 }}>
           <table>
             <thead>
@@ -467,7 +482,7 @@ async function WorkingCapital({ d }: { d: FinanceData }) {
               </tr>
             </thead>
             <tbody>
-              {g.list.slice(0, 15).map((c) => (
+              {list.slice(0, 15).map((c) => (
                 <tr key={c.id}>
                   <td className="sup">
                     {c.name} {c.buckets[4] > 0 && <Pill tone="red">90+</Pill>}
@@ -487,7 +502,8 @@ async function WorkingCapital({ d }: { d: FinanceData }) {
         </div>
       )}
     </Card>
-  );
+    );
+  };
   return (
     <>
       <Card title="Debtor and creditor days · 12 months" sub="Balance ÷ last-12-month revenue (or costs) × 365, GST taken out of the balances.">
@@ -505,8 +521,8 @@ async function WorkingCapital({ d }: { d: FinanceData }) {
       </Card>
       {ag.any ? (
         <>
-          {ageTable("Aged receivables", ag.ar, "Client")}
-          {ageTable("Aged payables", ag.ap, "Supplier")}
+          {ageTable("Aged receivables", ag.ar, "Client", "ar")}
+          {ageTable("Aged payables", ag.ap, "Supplier", "ap")}
         </>
       ) : (
         <EmptyState title="No open invoices or bills yet">They appear after the next Xero sync.</EmptyState>
@@ -515,38 +531,43 @@ async function WorkingCapital({ d }: { d: FinanceData }) {
   );
 }
 
-async function Clients({ show }: { show: boolean }) {
+async function Clients({ show, top }: { show: boolean; top: number | null }) {
   const c = await concentration(new Date(), show);
   if (!c.count) return <EmptyState title="No Xero sales yet">Client concentration needs invoices from Xero.</EmptyState>;
+  // Clickable cards (like Base cost): Largest / Top 5 / Top 10 show just those clients below; click again for all
+  const href = (n: number) => {
+    const q = new URLSearchParams({ section: "clients" });
+    if (show) q.set("names", "1");
+    if (top !== n) q.set("top", String(n));
+    return `/finance?${q.toString()}`;
+  };
+  const card = (n: number, label: string, v: number, extra: string, sub?: string) => (
+    <Link href={href(n)} scroll={false} aria-pressed={top === n} className={"kpi clickable" + extra + (top === n ? " on" : "")}>
+      <div className="l">{label}</div>
+      <div className="v">{pc(v)}</div>
+      {sub && <div className="s">{sub}</div>}
+    </Link>
+  );
+  const rows = top ? c.rows.slice(0, top) : c.rows.slice(0, 25);
   return (
     <>
       <div className="kpis ovtiles">
-        <div className="kpi">
+        <Link href={`/finance?section=clients${show ? "&names=1" : ""}`} scroll={false} aria-pressed={top == null} className="kpi clickable">
           <div className="l">Revenue · 12 months</div>
           <div className="v">{aud(c.total)}</div>
-          <div className="s">{c.count} clients invoiced</div>
-        </div>
-        <div className={"kpi" + (c.top1 > 0.2 ? " red" : "")}>
-          <div className="l">Largest client</div>
-          <div className="v">{pc(c.top1)}</div>
-          <div className="s">banks look closely above 20%</div>
-        </div>
-        <div className="kpi">
-          <div className="l">Top 5</div>
-          <div className="v">{pc(c.top5)}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">Top 10</div>
-          <div className="v">{pc(c.top10)}</div>
-        </div>
+          <div className="s">{c.count} clients invoiced · click for all</div>
+        </Link>
+        {card(1, "Largest client", c.top1, c.top1 > 0.2 ? " red" : "", "banks look closely above 20%")}
+        {card(5, "Top 5", c.top5, "")}
+        {card(10, "Top 10", c.top10, "")}
       </div>
-      <Card title="Revenue by client · last 12 months">
+      <Card title={`Revenue by client · last 12 months${top ? ` · top ${top}` : ""}`}>
         <div className="row" style={{ justifyContent: "flex-end" }}>
-          <Link className="btn" href={show ? "/finance?section=clients" : "/finance?section=clients&names=1"}>
+          <Link className="btn" href={`/finance?section=clients${show ? "" : "&names=1"}${top ? `&top=${top}` : ""}`}>
             {show ? "Hide names" : "Show names (internal only)"}
           </Link>
         </div>
-        {c.rows.slice(0, 25).map((r) => (
+        {rows.map((r) => (
           <div key={r.contactId} className="catbar" style={{ gridTemplateColumns: "180px minmax(0,1fr) 150px" }}>
             <span className="small">{r.name}</span>
             <span className="track">
