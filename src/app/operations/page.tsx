@@ -106,6 +106,7 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
       <Card>
         <form className="ops-filters" action="/operations" method="get">
           <input type="hidden" name="section" value={section} />
+          {card && <input type="hidden" name="card" value={card} />}
           {section !== "trends" && (
             <>
               <label>

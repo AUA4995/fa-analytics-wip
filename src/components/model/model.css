@@ -11,6 +11,8 @@
 .logs-pop { position: absolute; z-index: 30; top: 100%; left: 0; margin-top: 4px; width: 320px; max-height: 320px; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(1, 0, 40, .14); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
 .log-line { display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
 .fl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; align-items: center; margin: 0; }
+/* Phones: label above its value, so long labels can't push the values off the screen */
+@media (max-width: 640px) { .fl { grid-template-columns: minmax(0, 1fr); gap: 2px 0; } .fl dd { margin-bottom: 8px; } .fl dt { overflow-wrap: anywhere; } }
 .fl dt { color: var(--muted); font-size: 12.5px; }
 .fl dd { margin: 0; font-size: 13.5px; }
 .fl .hint { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
