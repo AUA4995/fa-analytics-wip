@@ -89,7 +89,9 @@ async function Views({ section, sp, admin }: { section: "sla" | "receiving" | "t
   const tenantOptions = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const siteNoCodes = site && !site.codes.length;
   // Clickable cards (like Base cost): a click filters what's below, a second click shows everything; filters are kept
-  const card = ["dispatch", "receiving", "expected", "arrived", "received", "waiting"].includes(one(sp.card) ?? "") ? one(sp.card)! : null;
+  // Each section only accepts its own cards (a hand-typed card from another section is ignored)
+  const cardsHere = section === "receiving" ? ["expected", "arrived", "received", "waiting"] : ["dispatch", "receiving"];
+  const card = cardsHere.includes(one(sp.card) ?? "") ? one(sp.card)! : null;
   const cardHref = (k: string) => {
     const p = new URLSearchParams();
     for (const [key, val] of Object.entries(sp)) if (key !== "card" && key !== "panel" && typeof val === "string" && val) p.set(key, val);

@@ -37,7 +37,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const built = cur ? await buildReport(cur, { filter: f }) : null;
   const panel = parsePanel(sp.panel);
   const href = (q: Record<string, string>) => "/reports?" + new URLSearchParams({ ...(cur ? { r: cur.id } : {}), ...q }).toString();
-  const kpiLinks = cur?.template === "workload" ? FILTERS.map((k) => ({ href: href({ f: k }), on: f === k })) : undefined;
+  const kpiLinks = cur?.template === "workload" ? FILTERS.map((k) => ({ href: href({ f: f === k && k !== "all" ? "all" : k }), on: f === k })) : undefined;
   const cname = (id: string | null) => clients.find((c) => c.id === id)?.name ?? "—";
 
   return (

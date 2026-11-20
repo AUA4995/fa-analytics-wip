@@ -442,7 +442,7 @@ async function CostToServe({ run, variants, vsel, q, card }: { run: CostRun; var
       </div>
       {/* Clickable cards (like Base cost): a click filters the client list below; click again for all clients */}
       <div className="kpis">
-        <Kpi label="Margin · all clients" value={rev ? pc((rev - cost) / rev) : "—"} sub={withRev.length ? `${withRev.length} clients with Xero revenue` : "needs clients linked to Xero + income accounts mapped"} href={q({ card: card === "xero" ? null : "xero" })} on={card === "xero"} />
+        <Kpi label={`Margin · all clients${tv}`} value={rev ? pc((rev - cost) / rev) : "—"} sub={withRev.length ? `${withRev.length} clients with Xero revenue` : "needs clients linked to Xero + income accounts mapped"} href={q({ card: card === "xero" ? null : "xero" })} on={card === "xero"} />
         <Kpi label={`Under the ${pc(floor, 0)} floor${tv}`} value={under.length} tone={under.length ? "red" : "normal"} sub={under.slice(0, 3).map((c) => c.name).join(", ") || "none"} href={q({ card: card === "under" ? null : "under" })} on={card === "under"} />
         <Kpi label={`Cost per order range${tv}`} value={cpos.length ? `${aud(Math.min(...cpos))} – ${aud(Math.max(...cpos))}` : "—"} sub="cheapest – dearest client · click to sort dearest first" href={q({ card: card === "cpo" ? null : "cpo" })} on={card === "cpo"} />
         <Kpi label={`On below-cost lines${tv}`} value={aud(below.reduce((a, b) => a + b, 0), 0)} tone={below.length ? "red" : "normal"} sub={`${below.length} ${below.length === 1 ? "line" : "lines"} priced below cost`} href={q({ card: card === "below" ? null : "below" })} on={card === "below"} />

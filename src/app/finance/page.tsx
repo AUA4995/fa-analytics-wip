@@ -466,7 +466,7 @@ async function WorkingCapital({ d, ar, ap }: { d: FinanceData; ar: string | null
         ))}
       </div>
       {b != null && !list.length && <p className="empty">Nobody in {AGE_BUCKETS[b]}.</p>}
-      {b != null && list.length > 0 && <p className="meta">{list.length} {who === "Client" ? (list.length === 1 ? "client" : "clients") : list.length === 1 ? "supplier" : "suppliers"} in {AGE_BUCKETS[b]}, largest first.</p>}
+      {b != null && list.length > 0 && <p className="meta">{list.length > 15 ? `Top 15 of ${list.length}` : list.length} {who === "Client" ? (list.length === 1 ? "client" : "clients") : list.length === 1 ? "supplier" : "suppliers"} in {AGE_BUCKETS[b]}, largest first.</p>}
       {list.length > 0 && (
         <div className="tw" style={{ marginTop: 12 }}>
           <table>
@@ -552,7 +552,7 @@ async function Clients({ show, top }: { show: boolean; top: number | null }) {
   return (
     <>
       <div className="kpis ovtiles">
-        <Link href={`/finance?section=clients${show ? "&names=1" : ""}`} scroll={false} aria-pressed={top == null} className="kpi clickable">
+        <Link href={`/finance?section=clients${show ? "&names=1" : ""}`} scroll={false} className="kpi clickable">
           <div className="l">Revenue · 12 months</div>
           <div className="v">{aud(c.total)}</div>
           <div className="s">{c.count} clients invoiced · click for all</div>
@@ -561,7 +561,7 @@ async function Clients({ show, top }: { show: boolean; top: number | null }) {
         {card(5, "Top 5", c.top5, "")}
         {card(10, "Top 10", c.top10, "")}
       </div>
-      <Card title={`Revenue by client · last 12 months${top ? ` · top ${top}` : ""}`}>
+      <Card title={`Revenue by client · last 12 months${top === 1 ? " · largest client" : top ? ` · top ${top}` : ""}`}>
         <div className="row" style={{ justifyContent: "flex-end" }}>
           <Link className="btn" href={`/finance?section=clients${show ? "" : "&names=1"}${top ? `&top=${top}` : ""}`}>
             {show ? "Hide names" : "Show names (internal only)"}
