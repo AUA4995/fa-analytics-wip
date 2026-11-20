@@ -61,7 +61,7 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
   return (
     <WithSubNav page="revenue" current={section}>
       <PageHeader title="Revenue protection" subtitle={section === "cases" ? "Every case: what happened, what it would have cost, what it cost, and the lesson. Amounts not known yet stay empty — never guessed." : "Money protected: cost avoided + leakage recovered − losses not prevented. The weekly figure for Mark."} />
-      {section === "overview" ? <Overview ins={ins} recovered={recovered} improvements={improvements} /> : <Cases cases={cases} cn={cn} />}
+      {section === "overview" ? <Overview ins={ins} recovered={recovered} improvements={improvements} card={typeof sp.card === "string" ? sp.card : null} cases={cases} cn={cn} /> : <Cases cases={cases} cn={cn} />}
       {section === "cases" && admin && (
         <Card title="Add a case">
           <CaseForm v={toValues()} clients={clientOpts} canEdit />
@@ -82,7 +82,7 @@ export default async function RevenuePage({ searchParams }: { searchParams: SP }
   );
 }
 
-function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: Array<{ recoveredOn: Date | null; recoveredAmount: unknown; gap: unknown }>; improvements: Array<{ name: string; measuredMonthly: unknown; estMonthly: unknown }> }) {
+function Overview({ ins, recovered, improvements, card, cases, cn }: { card: string | null; cases: Awaited<ReturnType<typeof prisma.revenueCase.findMany>>; cn: (c: { clientId: string | null; clientName: string | null }) => string; ins: CaseIn[]; recovered: Array<{ recoveredOn: Date | null; recoveredAmount: unknown; gap: unknown }>; improvements: Array<{ name: string; measuredMonthly: unknown; estMonthly: unknown }> }) {
   const p = periods(new Date());
   // Only recovered amounts actually entered count; a recovery with no amount is counted separately, never assumed = the gap
   const inP = (from: Date, to: Date) => recovered.filter((r) => r.recoveredOn && r.recoveredOn >= from && r.recoveredOn < to);
@@ -93,8 +93,9 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
   return (
     <>
       <div className="kpis">
+        {/* Clickable cards (like Base cost): a click shows that period's figures and its cases; click again for all */}
         {rows.map(({ k, label, s }) => (
-          <div key={k} className={"kpi" + (s.protectedNet < 0 ? " red" : "")}>
+          <Link key={k} href={card === k ? "/revenue" : `/revenue?card=${k}`} scroll={false} aria-pressed={card === k} className={"kpi clickable" + (s.protectedNet < 0 ? " red" : "") + (card === k ? " on" : "")}>
             <div className="l">Protected · {label}</div>
             <div className="v">{s.provisional ? `≈ ${aud(s.protectedNet)}` : aud(s.protectedNet)}</div>
             <div className="s">
@@ -102,7 +103,7 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
               {s.noResult ? ` · ${s.noResult} without figures` : ""}
               {s.recoveredNoAmount ? ` · ${s.recoveredNoAmount} leakage ${s.recoveredNoAmount === 1 ? "recovery" : "recoveries"} with no amount entered (not counted)` : ""}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
       <Card title="How it adds up" sub="Cost avoided and recovered add; losses not prevented subtract. Provisional = a figure is still to confirm (see the case).">
@@ -119,7 +120,7 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ k, label, s }) => (
+              {rows.filter((r) => !card || r.k === card).map(({ k, label, s }) => (
                 <tr key={k}>
                   <td>{label}</td>
                   <td className="r num">{aud(s.avoided)}</td>
@@ -139,6 +140,9 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
           </table>
         </div>
       </Card>
+      {card && p[card as "week" | "month" | "fy"] && (
+        <Cases cases={cases.filter((c) => c.date >= p[card as "week" | "month" | "fy"].from && c.date < p[card as "week" | "month" | "fy"].to)} cn={cn} empty="No cases in this period." />
+      )}
       <Card title="Ongoing savings (separate)" sub="Verified improvements save every month — a rate, so they're shown here, not added to the one-off figures above.">
         {improvements.length ? (
           <p className="small" style={{ margin: 0 }}>
@@ -155,8 +159,8 @@ function Overview({ ins, recovered, improvements }: { ins: CaseIn[]; recovered: 
   );
 }
 
-function Cases({ cases, cn }: { cases: Awaited<ReturnType<typeof prisma.revenueCase.findMany>>; cn: (c: { clientId: string | null; clientName: string | null }) => string }) {
-  if (!cases.length) return <EmptyState title="No cases yet">Add the first case below.</EmptyState>;
+function Cases({ cases, cn, empty }: { cases: Awaited<ReturnType<typeof prisma.revenueCase.findMany>>; cn: (c: { clientId: string | null; clientName: string | null }) => string; empty?: string }) {
+  if (!cases.length) return empty ? <p className="empty">{empty}</p> : <EmptyState title="No cases yet">Add the first case below.</EmptyState>;
   return (
     <Card title={`Cases · ${cases.length}`} sub="Click a case to see and edit it.">
       <div className="tw">
