@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { Sparkline, TargetLine } from "@/components/charts/charts";
 import { Card } from "@/components/ui/card";
@@ -48,7 +49,7 @@ export default async function KpiPage({ searchParams }: { searchParams: Promise<
     return { k, v, prev: s.at(-2) ?? null, target, status: k.needs ? "none" : kpiStatus(v, target, k.better), series: s };
   });
   const q = (o: Record<string, string | null>) => {
-    const p = new URLSearchParams(Object.entries({ section: section === "overview" ? null : section, site: site === "all" ? null : site, card, ...o }).filter(([, v]) => v) as Array<[string, string]>);
+    const p = new URLSearchParams(Object.entries({ section: section === "overview" ? null : section, site: site === "all" ? null : site, card, tab: one("tab") ?? null, ...o }).filter(([, v]) => v) as Array<[string, string]>);
     const s = p.toString();
     return s ? `/kpi?${s}` : "/kpi";
   };
@@ -75,7 +76,7 @@ export default async function KpiPage({ searchParams }: { searchParams: Promise<
           <NotConnected source="siena" />
         </p>
       )}
-      {section === "overview" ? <Overview rows={rows} card={card} q={q} /> : <Tiles rows={rows.filter((r) => r.k.group === section)} q={q} site={site} />}
+      {section === "overview" ? <Overview rows={rows} card={card} q={q} rawTab={one("tab") ?? undefined} /> : <Tiles rows={rows.filter((r) => r.k.group === section)} q={q} site={site} />}
       {open && <KpiPanel r={open} d={d} site={site} />}
     </WithSubNav>
   );
@@ -124,7 +125,7 @@ function Tiles({ rows, q, site }: { rows: Row[]; q: (o: Record<string, string | 
   );
 }
 
-function Overview({ rows, card, q }: { rows: Row[]; card: string | null; q: (o: Record<string, string | null>) => string }) {
+function Overview({ rows, card, q, rawTab }: { rows: Row[]; card: string | null; q: (o: Record<string, string | null>) => string; rawTab?: string }) {
   const by = (s: KpiStatus) => rows.filter((r) => r.status === s);
   const scored = rows.filter((r) => r.status !== "none");
   const score = scored.length ? (by("green").length + by("amber").length * 0.5) / scored.length : null;
@@ -151,6 +152,13 @@ function Overview({ rows, card, q }: { rows: Row[]; card: string | null; q: (o: 
         </Card>
       ) : (
         <>
+          {(() => {
+            const tabs = [{ key: "scorecard", label: "Scorecard" }, { key: "red", label: "What's red", count: by("red").length, dot: by("red").length > 0 }];
+            const tab = pickTab(rawTab, tabs);
+            return (
+              <>
+                <PageTabs label="KPI overview" tabs={tabs} current={tab} href={(k) => q({ tab: k })} />
+                {tab === "scorecard" && (
           <Card title="Scorecard" sub="Click a group to see its KPIs.">
             <div className="tw">
               <table>
@@ -193,6 +201,8 @@ function Overview({ rows, card, q }: { rows: Row[]; card: string | null; q: (o: 
               </table>
             </div>
           </Card>
+                )}
+                {tab === "red" && (
           <Card title={`What's red · ${by("red").length}`} tone={by("red").length ? "alert" : "normal"}>
             {!by("red").length ? (
               <p className="empty">Nothing off target.</p>
@@ -217,6 +227,10 @@ function Overview({ rows, card, q }: { rows: Row[]; card: string | null; q: (o: 
               </div>
             )}
           </Card>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
     </>
