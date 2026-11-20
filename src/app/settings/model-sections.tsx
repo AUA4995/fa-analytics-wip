@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui/card";
 import { ClickableRow } from "@/components/ui/clickable-row";
@@ -24,18 +25,27 @@ import { IMPORT_COLUMNS } from "@/lib/model/csv";
 const fv = (entity: string, field: string, v: unknown) => formatFieldValue(ENTITY_FIELDS[entity][field], plain(v));
 const cols = (e: keyof typeof IMPORT_COLUMNS) => IMPORT_COLUMNS[e].map(([h]) => h.split("|")[0]).join(", ");
 
-export async function RulesSection({ canEdit }: { canEdit: boolean }) {
+export async function RulesSection({ canEdit, rawTab }: { canEdit: boolean; rawTab?: string }) {
+  const TABS = [{ key: "company", label: "Company rules" }, { key: "kpi", label: "KPI targets" }, { key: "sites", label: "Sites" }];
+  const tab = pickTab(rawTab, TABS);
   const [rules, sites] = await Promise.all([getRules(), prisma.site.findMany({ orderBy: { sortOrder: "asc" } })]);
   const counts = { ...(await logCounts("rule", ["rule"])), ...(await logCounts("site", sites.map((s) => s.key))) };
   const ruleCounts = Object.fromEntries(Object.keys(RULES).map((k) => [`rule|${k}`, counts[`rule|${k}`] ?? 0]));
   return (
     <>
+      {/* third-level tabs (same as the Accounts Hub) */}
+      <PageTabs label="rules" tabs={TABS} current={tab} href={(t) => `/settings?section=rules&tab=${t}`} />
+      {tab === "company" && (
       <Card title="Company rules" sub="Used everywhere: leakage checks, rate review, labour cost, B2B / B2C split. Click a value to change it; Logs shows every change.">
         <FieldList entity="rule" id="rule" row={rules} fields={BASE_RULE_KEYS} counts={ruleCounts} canEdit={canEdit} />
       </Card>
+      )}
+      {tab === "kpi" && (
       <Card title="KPI targets" sub="Green on target (or within 3%), amber 3–10% off, red more than 10% off. Empty = no target yet (shown grey).">
         <FieldList entity="rule" id="rule" row={rules} fields={Object.keys(KPI_TARGET_RULES)} counts={ruleCounts} canEdit={canEdit} />
       </Card>
+      )}
+      {tab === "sites" && (
       <Card title="Sites" sub="Separate cost pools per site. Utilisation is an estimate until measured from the WMS; edit here or in any details panel — it's the same value.">
         <div className="tw">
           <table>
@@ -66,6 +76,7 @@ export async function RulesSection({ canEdit }: { canEdit: boolean }) {
         </div>
         {rules.workersCompRate == null && <p className="callout amber" style={{ marginBottom: 0 }}>Workers comp rate is not set — labour cost leaves it out until it is (shown as a warning on Labour).</p>}
       </Card>
+      )}
     </>
   );
 }
@@ -184,7 +195,9 @@ export async function SuppliersSection({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-export async function StaffSection({ canEdit, site }: { canEdit: boolean; site: string }) {
+export async function StaffSection({ canEdit, site, rawTab }: { canEdit: boolean; site: string; rawTab?: string }) {
+  const TABS = [{ key: "staff", label: "Staff" }, { key: "allocation", label: "Allocation to clients" }];
+  const tab = pickTab(rawTab, TABS);
   const [staff, clients, allocs] = await Promise.all([
     prisma.staff.findMany({ orderBy: [{ pool: "asc" }, { name: "asc" }] }),
     prisma.client.findMany({ where: { status: { not: "INACTIVE" } }, orderBy: { name: "asc" }, select: { id: true, name: true, shortName: true, sites: true } }),
@@ -195,6 +208,9 @@ export async function StaffSection({ canEdit, site }: { canEdit: boolean; site: 
   const cl = clients.filter((c) => site === "all" || c.sites.includes(site) || !c.sites.length);
   return (
     <>
+      {/* third-level tabs (same as the Accounts Hub) */}
+      <PageTabs label="staff" tabs={TABS} current={tab} href={(t) => `/settings?section=staff&tab=${t}`} />
+      {tab === "staff" && (
       <Card title={`Staff · ${staff.length}`} sub="Site, pool, type and the codes each person uses in the three WMS (Thomax, 3PLWMS, Logiwa). Click a person for all fields.">
         <div className="row" style={{ marginBottom: 10 }}>
           {canEdit && (
@@ -249,6 +265,8 @@ export async function StaffSection({ canEdit, site }: { canEdit: boolean; site: 
           </div>
         )}
       </Card>
+      )}
+      {tab === "allocation" && (
       <Card title="Allocation to clients" sub="Share of each person's time per client (%). Floor staff come from the WMS automatically once connected (blue cells); type a number to set or override. Total per person can't go over 100%.">
         <div className="row" style={{ marginBottom: 10 }}>
           {[
@@ -256,7 +274,7 @@ export async function StaffSection({ canEdit, site }: { canEdit: boolean; site: 
             ["smi", "Smithfield"],
             ["par", "Parramatta"],
           ].map(([k, l]) => (
-            <Link key={k} href={`/settings?section=staff&site=${k}`} className={"btn" + (site === k ? " on" : "")} scroll={false}>
+            <Link key={k} href={`/settings?section=staff&tab=allocation&site=${k}`} className={"btn" + (site === k ? " on" : "")} scroll={false}>
               {l}
             </Link>
           ))}
@@ -273,6 +291,7 @@ export async function StaffSection({ canEdit, site }: { canEdit: boolean; site: 
           />
         )}
       </Card>
+      )}
     </>
   );
 }
@@ -339,7 +358,9 @@ export async function ServicesSection({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
+export async function PoolsSection({ canEdit, rawTab }: { canEdit: boolean; rawTab?: string }) {
+  const TABS = [{ key: "pools", label: "Cost pools" }, { key: "accounts", label: "Xero accounts → pools" }, { key: "items", label: "Xero item codes → services" }, { key: "wms", label: "WMS codes → standard codes" }];
+  const tab = pickTab(rawTab, TABS);
   const itemUse = await prisma.xeroSaleLine.groupBy({ by: ["itemCode"], where: { itemCode: { not: null } }, _count: { _all: true }, _sum: { amount: true } });
   const items = await prisma.xeroItemMap.findMany({ orderBy: { itemCode: "asc" } });
   const [pools, xmap, wmap, services] = await Promise.all([
@@ -351,6 +372,9 @@ export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
   const poolOpts = [["", "—"], ...pools.map((p) => [p.key, p.name] as const)] as const;
   return (
     <>
+      {/* third-level tabs (same as the Accounts Hub) */}
+      <PageTabs label="pools" tabs={TABS} current={tab} href={(t) => `/settings?section=pools&tab=${t}`} />
+      {tab === "pools" && (
       <Card title="Cost pools" sub="Where costs are collected and how each pool is spread: labour pools by activity minutes (per site), overheads by their driver.">
         {canEdit && (
           <div style={{ marginBottom: 10 }}>
@@ -395,6 +419,8 @@ export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
           </table>
         </div>
       </Card>
+      )}
+      {tab === "accounts" && (
       <Card title={`Xero account → cost pool · ${xmap.length}`} sub="Every Xero expense account maps to one pool, or is left out (not an operating cost, or passed through to clients). Accounts appear here after the Xero sync; unmapped ones become a task.">
         <div className="row" style={{ marginBottom: 10 }}>
           {canEdit && (
@@ -438,6 +464,8 @@ export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
           </div>
         )}
       </Card>
+      )}
+      {tab === "items" && (
       <Card title={`Xero item codes → services · ${items.length}`} sub="Item codes on Xero invoice lines, so what was billed can be compared per service (Leakage). Postage and freight items are left out. New item codes appear here after each Xero sync.">
         {!items.length ? (
           <p className="empty">None yet — they appear after the Xero sync.</p>
@@ -475,6 +503,8 @@ export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
           </div>
         )}
       </Card>
+      )}
+      {tab === "wms" && (
       <Card title={`WMS charge codes → standard codes · ${wmap.length}`} sub="Old and per-carrier / per-artist WMS codes collapse to the standard service codes (a code describes a service, not a carrier, SKU or artist). Tenant empty = applies to every client.">
         <div className="row" style={{ marginBottom: 10 }}>
           {canEdit && (
@@ -522,6 +552,7 @@ export async function PoolsSection({ canEdit }: { canEdit: boolean }) {
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }
@@ -695,7 +726,9 @@ export async function ModelPanel({ panel, canEdit }: { panel: PanelRef; canEdit:
 }
 
 /** Settings → Ticket types (batch 3): weights 1–10 and the Front tags that mean each type. */
-export async function TicketTypesSection({ canEdit }: { canEdit: boolean }) {
+export async function TicketTypesSection({ canEdit, rawTab }: { canEdit: boolean; rawTab?: string }) {
+  const TABS = [{ key: "types", label: "Ticket types" }, { key: "scores", label: "Client scores" }];
+  const tab = pickTab(rawTab, TABS);
   const { ensureTicketTypes } = await import("@/lib/tickets/sync");
   await ensureTicketTypes();
   const [types, weeks] = await Promise.all([
@@ -711,6 +744,9 @@ export async function TicketTypesSection({ canEdit }: { canEdit: boolean }) {
   const f = ENTITY_FIELDS.tickettype;
   return (
     <>
+      {/* third-level tabs (same as the Accounts Hub) */}
+      <PageTabs label="tickets" tabs={TABS} current={tab} href={(t) => `/settings?section=tickets&tab=${t}`} />
+      {tab === "types" && (
       <Card
         title={`Ticket types & weights · ${types.length}`}
         sub="Starting list (draft) — change weights and map each type to Front tags. A ticket scores its weight × how long it stayed open (+25% for each extra week, up to ×3; Settings → Rules). Tickets with no matching tag count as Unclassified. Support scores spread the support pool, accounts scores part of the accounts pool."
@@ -760,6 +796,8 @@ export async function TicketTypesSection({ canEdit }: { canEdit: boolean }) {
           </table>
         </div>
       </Card>
+      )}
+      {tab === "scores" && (
       <Card title={latest ? `Client scores · week of ${latest.split("-").reverse().join("/")}` : "Client scores"} sub="Weighted score per client vs the average client that week (1.0 = average). Counted nightly from Front, or with Recount on Data sources → Front.">
         {!thisWeek.length ? (
           <p className="empty">No scores yet.</p>
@@ -798,6 +836,7 @@ export async function TicketTypesSection({ canEdit }: { canEdit: boolean }) {
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }

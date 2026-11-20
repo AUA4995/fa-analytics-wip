@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import { ThemePicker } from "@/components/settings/theme-picker";
 import { parseTheme } from "@/lib/theme";
 import { Card, EmptyState } from "@/components/ui/card";
@@ -30,6 +31,9 @@ export const metadata = { title: "Settings" };
 /** Sections that arrive in later chunks (brief §14). */
 const LATER: Record<string, string> = {};
 
+const TABS_company = [{ key: "company", label: "Company" }, { key: "xero", label: "Xero" }, { key: "front", label: "Front · sending emails" }];
+const TABS_users = [{ key: "users", label: "Users" }, { key: "requests", label: "Access requests" }];
+
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const me = await requireUser();
   const sp = await searchParams;
@@ -59,6 +63,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const ownerName = await getOwnerName();
   const section = parseSection("settings", sp.section);
 
+  const tabRaw = typeof sp.tab === "string" ? sp.tab : undefined;
   let body: React.ReactNode = null;
   if (section === "company") {
     const [conn, statuses, channelSetting, channelsSetting] = company.dbOk
@@ -74,9 +79,13 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
     const flashKind = sp.xero === "connected" || sp.xero === "error" ? sp.xero : null;
     body = (
       <>
+        <PageTabs label="company" tabs={TABS_company} current={pickTab(tabRaw, TABS_company)} href={(t) => `/settings?section=company&tab=${t}`} />
+        {pickTab(tabRaw, TABS_company) === "company" && (
         <Card title="Company">
           <CompanyForm company={company} />
         </Card>
+        )}
+        {pickTab(tabRaw, TABS_company) === "xero" && (
         <Card title="Xero" sub="Accounting and payroll, read-only. Owner connects.">
           <XeroCard
             configured={isXeroConfigured() && !!process.env.TOKEN_ENCRYPTION_KEY}
@@ -94,6 +103,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             }
           />
         </Card>
+        )}
+        {pickTab(tabRaw, TABS_company) === "front" && (
         <Card title="Front · sending emails">
           <FrontCard
             configured={isFrontConfigured()}
@@ -103,6 +114,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             channels={Array.isArray(channelsSetting?.value) ? (channelsSetting.value as Array<{ id: string; name: string; address: string }>) : []}
           />
         </Card>
+        )}
       </>
     );
   } else if (section === "users") {
@@ -112,6 +124,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       : [[], ""];
     body = (
       <>
+        <PageTabs label="users" tabs={TABS_users} current={pickTab(tabRaw, TABS_users)} href={(t) => `/settings?section=users&tab=${t}`} />
+        {pickTab(tabRaw, TABS_users) === "users" && (
         <Card title="Users" sub={`${ownerName} is the primary owner — only they can hand that over. Each level manages the levels below it.`}>
           <UsersCard
             me={{ id: me.id, role: me.role, primary: me.primary }}
@@ -130,6 +144,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             }))}
           />
         </Card>
+        )}
+        {pickTab(tabRaw, TABS_users) === "requests" && (
         <Card title="Access requests" sub={`People who asked for access on the sign-in page (only @${accessDomain} emails).`}>
           <AccessRequestsList
             isOwner={isOwner}
@@ -138,6 +154,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             requests={accessRequests.map((r) => ({ id: r.id, name: r.name, email: r.email, reason: r.reason, createdAt: r.createdAt.toISOString() }))}
           />
         </Card>
+        )}
       </>
     );
   } else if (section === "security") {
@@ -168,15 +185,15 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
     if (company.dbOk) await ensureModelDefaults(prisma);
     const site = typeof sp.site === "string" && ["smi", "par"].includes(sp.site) ? sp.site : "all";
     body =
-      section === "rules" ? <RulesSection canEdit /> :
+      section === "rules" ? <RulesSection canEdit rawTab={tabRaw} /> :
       section === "clients" ? <ClientsSection canEdit /> :
       section === "suppliers" ? <SuppliersSection canEdit /> :
-      section === "staff" ? <StaffSection canEdit site={site} /> :
+      section === "staff" ? <StaffSection canEdit site={site} rawTab={tabRaw} /> :
       section === "services" ? <ServicesSection canEdit /> :
-      section === "tickets" ? <TicketTypesSection canEdit /> :
-      <PoolsSection canEdit />;
+      section === "tickets" ? <TicketTypesSection canEdit rawTab={tabRaw} /> :
+      <PoolsSection canEdit rawTab={tabRaw} />;
   } else if (section === "contacts") {
-    body = <ContactsSection />;
+    body = <ContactsSection rawTab={tabRaw} />;
   } else {
     body = <EmptyState title="Not built yet">{LATER[section] ?? "Built in a later chunk."}</EmptyState>;
   }

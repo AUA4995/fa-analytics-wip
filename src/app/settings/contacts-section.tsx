@@ -1,3 +1,4 @@
+import { PageTabs, pickTab } from "@/components/ui/page-tabs";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { AddRecipient, DomainsEditor, RemoveRecipient } from "@/components/model/contacts";
@@ -5,7 +6,9 @@ import { prisma } from "@/lib/db";
 import { internalDomains } from "@/lib/reports/recipients";
 
 /** Settings → Contacts & recipients (brief §10). The only place report recipients come from. */
-export async function ContactsSection() {
+export async function ContactsSection({ rawTab }: { rawTab?: string } = {}) {
+  const TABS = [{ key: "internal", label: "Internal people & domains" }, { key: "clients", label: "Client contacts" }, { key: "lenders", label: "Lenders & advisers" }, { key: "suggestions", label: "Suggestions from Xero" }];
+  const tab = pickTab(rawTab, TABS);
   const [recs, clients, domains, xc] = await Promise.all([
     prisma.recipient.findMany({ orderBy: [{ list: "asc" }, { name: "asc" }] }),
     prisma.client.findMany({ select: { id: true, name: true, xeroContactId: true }, orderBy: { name: "asc" } }),
@@ -55,20 +58,29 @@ export async function ContactsSection() {
   return (
     <>
       <p className="callout small">Reports can only be emailed to people on these lists. Internal reports → Internal; Client-safe → that client&apos;s contacts only; External finance → Lenders & advisers, after the owner approves.</p>
+      {/* third-level tabs (same as the Accounts Hub) */}
+      <PageTabs label="contacts" tabs={TABS} current={tab} href={(t) => `/settings?section=contacts&tab=${t}`} />
+      {tab === "internal" && (
       <Card title="Internal people & domains" sub="Anyone at these domains counts as internal. Add outside people (e.g. a contractor) by name.">
         <div className="tsec-h">Internal domains</div>
         <DomainsEditor initial={domains} />
         <div style={{ marginTop: 14 }}>{table("INTERNAL")}</div>
         <AddRecipient list="INTERNAL" />
       </Card>
+      )}
+      {tab === "clients" && (
       <Card title="Client contacts" sub="Who gets each client's Client-safe reports. One email belongs to one client.">
         {table("CLIENT")}
         <AddRecipient list="CLIENT" clients={clients.map((c) => [c.id, c.name])} />
       </Card>
+      )}
+      {tab === "lenders" && (
       <Card title="Lenders & advisers" sub="Bank, accountant, auditor, broker. External finance reports only, and only after approval.">
         {table("LENDER")}
         <AddRecipient list="LENDER" />
       </Card>
+      )}
+      {tab === "suggestions" && (
       <Card title={`Suggestions from Xero · ${sugg.length}`} sub="Emails on the Xero contacts of linked clients. Nothing is added until you click.">
         {!sugg.length ? (
           <p className="empty">No suggestions — run the Xero sync, or link clients to Xero contacts in Clients.</p>
@@ -93,6 +105,7 @@ export async function ContactsSection() {
           </div>
         )}
       </Card>
+      )}
     </>
   );
 }
