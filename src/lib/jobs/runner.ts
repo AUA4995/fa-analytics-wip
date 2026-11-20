@@ -3,7 +3,7 @@
  *
  *   pg-boss  — default on the laptop / a server: a long-running Next.js process starts pg-boss from instrumentation.ts
  *              and its workers run the schedules (src/lib/jobs/scheduler.ts).
- *   cron     — on Vercel (env VERCEL is set) or with JOBS_RUNNER=cron: there is no long-running process, so pg-boss is
+ *   cron     — on a real Vercel deployment (onVercel below) or with JOBS_RUNNER=cron: there is no long-running process, so pg-boss is
  *              never started; Vercel Cron calls /api/cron/tick every 5 minutes and the tick works out what is due
  *              (src/lib/jobs/tick.ts). Buttons ("Sync now") queue their work in the Setting table for the next tick.
  *

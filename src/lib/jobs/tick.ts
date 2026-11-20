@@ -1,4 +1,6 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { dbSchema } from "@/lib/db-url";
 import { SAFETY_MARGIN_MS, TICK_MAX_SECONDS } from "./runner";
 import { doFrontTickets, doReportTick, doXeroSync, type FrontJob, type XeroJob } from "./work";
 
@@ -34,7 +36,9 @@ export function sydney(now: Date): { ymd: string; hour: number; minute: number }
 /** Claim a slot: true once, false for every later caller (unique Setting key; no error logged for the losers). */
 export async function claimSlot(slot: string): Promise<boolean> {
   const value = JSON.stringify({ at: new Date().toISOString() });
-  const n = await prisma.$executeRaw`INSERT INTO "Setting" ("key", "value", "updatedAt") VALUES (${`cron:slot:${slot}`}, ${value}::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
+  // Table named with its schema: on a Postgres shared with other apps it can never land in someone else's "Setting"
+  const table = Prisma.raw(`"${dbSchema().replace(/"/g, "")}"."Setting"`);
+  const n = await prisma.$executeRaw`INSERT INTO ${table} ("key", "value", "updatedAt") VALUES (${`cron:slot:${slot}`}, ${value}::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
   return n === 1;
 }
 

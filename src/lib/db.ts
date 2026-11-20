@@ -1,5 +1,6 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { onVercel } from "@/lib/jobs/runner";
 import { dbSchema, pgConnectionString, searchPathOption } from "./db-url";
 
 /**
@@ -19,7 +20,7 @@ function createClient(): PrismaClient {
   // Prisma models — e.g. Asal's laptop keeps them in "accounts_hub" inside the CLM database, not "public".
   // Vercel (batch 7): many short-lived functions share Marcus's Postgres — keep each one's pool small
   const maxEnv = Number(process.env.DB_POOL_MAX);
-  const pool = process.env.VERCEL ? { max: Number.isInteger(maxEnv) && maxEnv > 0 && maxEnv <= 20 ? maxEnv : 3, idleTimeoutMillis: 10_000 } : {};
+  const pool = onVercel() ? { max: Number.isInteger(maxEnv) && maxEnv > 0 && maxEnv <= 20 ? maxEnv : 3, idleTimeoutMillis: 10_000 } : {};
   const adapter = new PrismaPg({ connectionString: pgConnectionString(connectionString), options: searchPathOption(schema), ...pool }, { schema });
   return new PrismaClient({
     adapter,
