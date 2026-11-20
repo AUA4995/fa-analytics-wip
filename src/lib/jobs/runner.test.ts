@@ -5,8 +5,10 @@ import { jobsRunner } from "./runner";
 describe("job runner (batch 7)", () => {
   it("Vercel → cron, laptop → pg-boss, JOBS_RUNNER wins", () => {
     expect(jobsRunner({})).toBe("pg-boss");
-    expect(jobsRunner({ VERCEL: "1" })).toBe("cron");
-    expect(jobsRunner({ VERCEL: "1", JOBS_RUNNER: "pg-boss" })).toBe("pg-boss");
+    const vercel = { VERCEL: "1", VERCEL_ENV: "production", VERCEL_URL: "fa-analytics.vercel.app" };
+    expect(jobsRunner(vercel)).toBe("cron");
+    expect(jobsRunner({ VERCEL: "1" })).toBe("pg-boss"); // a stray VERCEL=1 in a laptop .env isn't Vercel
+    expect(jobsRunner({ ...vercel, JOBS_RUNNER: "pg-boss" })).toBe("pg-boss");
     expect(jobsRunner({ JOBS_RUNNER: "cron" })).toBe("cron");
   });
   it("cron tick needs the exact secret; no or short secret refuses everything", () => {

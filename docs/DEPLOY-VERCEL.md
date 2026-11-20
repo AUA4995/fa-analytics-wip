@@ -31,6 +31,13 @@ The laptop install (docs/INSTALL-LOCAL.md) still works — the code picks the ri
 
 `TRUST_PROXY` isn't needed: on Vercel the caller's address comes from Vercel itself.
 
+**Careful:**
+- Set `DATABASE_URL` (and the other secrets) for **Production only**, not "All environments" — otherwise Preview
+  deployments of unfinished branches would write to the real database.
+- Paste `CRON_SECRET` with no spaces before or after; a stray space means every cron call is refused (401 in the logs).
+- Never copy `VERCEL=…` lines into a laptop `.env` (`vercel env pull` writes them): the laptop install would stop
+  its background jobs.
+
 ## 4. After the first deploy
 1. Open the app → `/setup` → create the owner (2-step verification).
 2. Settings → Company: connect Xero (owner), check Front.

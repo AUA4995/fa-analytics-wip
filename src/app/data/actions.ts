@@ -8,7 +8,8 @@ import { plainError } from "@/lib/plain-error";
 export type DataActionState = { ok: boolean; message: string };
 
 /** Xero read now (incremental) or a full re-read; runs in the background job queue. */
-export async function syncXeroAction(kind: "FULL" | "INCREMENTAL"): Promise<DataActionState> {
+export async function syncXeroAction(rawKind: "FULL" | "INCREMENTAL"): Promise<DataActionState> {
+  const kind: "FULL" | "INCREMENTAL" = rawKind === "FULL" ? "FULL" : "INCREMENTAL";
   try {
     const me = await assertAdmin();
     const { getConnection } = await import("@/lib/xero/auth");
@@ -29,7 +30,8 @@ export async function syncXeroAction(kind: "FULL" | "INCREMENTAL"): Promise<Data
   }
 }
 
-export async function recountFrontAction(months: number): Promise<DataActionState> {
+export async function recountFrontAction(rawMonths: number): Promise<DataActionState> {
+  const months = Math.min(24, Math.max(1, Math.round(Number(rawMonths) || 2)));
   try {
     const me = await assertAdmin();
     const { enqueue, QUEUE_FRONT_TICKETS } = await import("@/lib/jobs/scheduler");

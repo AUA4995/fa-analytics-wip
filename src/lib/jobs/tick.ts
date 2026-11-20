@@ -75,7 +75,7 @@ export async function runTick(opts: { now?: Date; startedAt?: number; maxMs?: nu
   const qf = left() > 120_000 ? await take<FrontJob>(QUEUE_KEYS.front) : null;
   if (qf) await run("front-tickets (button)", () => doFrontTickets(qf));
   const qh = await take<{ anyTime?: boolean }>(QUEUE_KEYS.thomaxHistory);
-  if (qh?.anyTime) await queueForTick(HISTORY_ANYTIME, { since: now.toISOString() });
+  if (qh?.anyTime) await queueForTick(HISTORY_ANYTIME, { since: new Date().toISOString() });
   const qn = await take<object>(QUEUE_KEYS.thomaxNightly);
 
   // 2. daily / hourly schedules
@@ -103,7 +103,11 @@ export async function runTick(opts: { now?: Date; startedAt?: number; maxMs?: nu
         report.ran.push({ job: "thomax-nightly", ok: !r.errors.length, summary: r.busy ? "another copy is running" : `${r.windows} tables, ${r.rows} rows${r.remaining ? `, ${r.remaining} left for the next tick` : ""}${r.stopped ? ` — ${r.stopped}` : ""}` });
       }
     }
-    const anyTime = !!(await prisma.setting.findUnique({ where: { key: HISTORY_ANYTIME } }));
+    // "Keep loading now" carries on outside 20:00–06:00 for 3 hours only, so Thomax isn't loaded all business day
+    const anyRow = await prisma.setting.findUnique({ where: { key: HISTORY_ANYTIME } });
+    const anySince = Date.parse(String((anyRow?.value as { since?: string } | null)?.since ?? ""));
+    const anyTime = !!anyRow && Number.isFinite(anySince) && Date.now() - anySince < 3 * 3_600_000;
+    if (anyRow && !anyTime) await prisma.setting.deleteMany({ where: { key: HISTORY_ANYTIME } });
     const { thomaxWindowOpen } = await import("@/lib/thomax/window");
     const nightlyPending = mins >= 2 * 60 + 15 && mins < 6 * 60 && !((await prisma.setting.findUnique({ where: { key: nightKey } }))?.value as { done?: boolean } | null)?.done;
     if ((anyTime || thomaxWindowOpen(now)) && !nightlyPending) {

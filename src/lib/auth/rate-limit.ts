@@ -61,8 +61,8 @@ export function tooManyMessage(r: RateResult): string {
  * bucket would let anyone lock everyone out); the per-email, per-account and per-key limits still apply.
  */
 export function ipFromHeaders(get: (name: string) => string | null): string {
-  // Vercel sets X-Forwarded-For itself (the caller can't), so it is trusted there too
-  if (process.env.TRUST_PROXY !== "1" && !process.env.VERCEL) return "";
+  // Vercel sets X-Forwarded-For itself (the caller can't), so it is trusted there too — only on a real deployment
+  if (process.env.TRUST_PROXY !== "1" && !(process.env.VERCEL && process.env.VERCEL_ENV && process.env.VERCEL_URL)) return "";
   // The proxy appends the address it saw on the right; anything to its left was typed by the caller
   const hops = (get("x-forwarded-for") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   return (hops.at(-1) ?? get("x-real-ip")?.trim() ?? "local").slice(0, 100);

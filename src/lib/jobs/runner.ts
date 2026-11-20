@@ -11,11 +11,20 @@
  */
 export type JobsRunner = "pg-boss" | "cron";
 
+/**
+ * Really running on Vercel: Vercel sets VERCEL, VERCEL_ENV and VERCEL_URL on every deployment. A stray VERCEL=1 copied
+ * into a laptop .env (e.g. by `vercel env pull`) doesn't count — it would switch the laptop's jobs off and make the app
+ * trust a forged X-Forwarded-For.
+ */
+export function onVercel(env: Record<string, string | undefined> = process.env): boolean {
+  return !!env.VERCEL && !!env.VERCEL_ENV && !!env.VERCEL_URL;
+}
+
 export function jobsRunner(env: Record<string, string | undefined> = process.env): JobsRunner {
   const v = (env.JOBS_RUNNER ?? "").trim().toLowerCase();
   if (v === "cron") return "cron";
   if (v === "pg-boss" || v === "pgboss") return "pg-boss";
-  return env.VERCEL ? "cron" : "pg-boss";
+  return onVercel(env) ? "cron" : "pg-boss";
 }
 
 /**
